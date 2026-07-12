@@ -22,12 +22,19 @@ jobs:
           ref: agent/peipei-nickname-mapping-final
           fetch-depth: 0
 
-      - name: Apply edge-case hardening
-        run: python scripts/upgrade_nickname_mapping_stage4.py
-
-      - name: Check JavaScript syntax
+      - name: Apply and verify with diagnostics
+        id: verify
         run: |
-          python - <<'PY'
+          set +e
+          : > nickname-mapping-stage4-diagnostic.txt
+          overall=0
+          python scripts/upgrade_nickname_mapping_stage4.py >> nickname-mapping-stage4-diagnostic.txt 2>&1
+          status=$?
+          echo "upgrade_exit=$status" >> nickname-mapping-stage4-diagnostic.txt
+          if [ "$status" -ne 0 ]; then overall=$status; fi
+
+          if [ "$overall" -eq 0 ]; then
+            python - <<'PY'
           import re
           from pathlib import Path
           html = Path('index.html').read_text(encoding='utf-8')
@@ -36,26 +43,53 @@ jobs:
               raise SystemExit('no inline script found')
           Path('/tmp/madan-app.js').write_text('\n'.join(scripts), encoding='utf-8')
           PY
-          node --check /tmp/madan-app.js
+            node --check /tmp/madan-app.js >> nickname-mapping-stage4-diagnostic.txt 2>&1
+            status=$?
+            echo "syntax_exit=$status" >> nickname-mapping-stage4-diagnostic.txt
+            if [ "$status" -ne 0 ]; then overall=$status; fi
+          fi
 
-      - name: Run all nickname mapping tests
-        run: |
-          node tests/test_nickname_mapping_stage1.mjs
-          node tests/test_nickname_mapping_stage2.mjs
-          node tests/test_nickname_mapping_stage3.mjs
-          node tests/test_nickname_mapping_edge_cases.mjs
+          if [ "$overall" -eq 0 ]; then
+            for test_file in \
+              tests/test_nickname_mapping_stage1.mjs \
+              tests/test_nickname_mapping_stage2.mjs \
+              tests/test_nickname_mapping_stage3.mjs \
+              tests/test_nickname_mapping_edge_cases.mjs; do
+              node "$test_file" >> nickname-mapping-stage4-diagnostic.txt 2>&1
+              status=$?
+              echo "$test_file exit=$status" >> nickname-mapping-stage4-diagnostic.txt
+              if [ "$status" -ne 0 ]; then overall=$status; break; fi
+            done
+          fi
 
-      - name: Check patch quality
-        run: git diff --check
+          if [ "$overall" -eq 0 ]; then
+            git diff --check >> nickname-mapping-stage4-diagnostic.txt 2>&1
+            status=$?
+            echo "diff_check_exit=$status" >> nickname-mapping-stage4-diagnostic.txt
+            if [ "$status" -ne 0 ]; then overall=$status; fi
+          fi
 
-      - name: Commit hardened final index
+          echo "overall_exit=$overall" >> nickname-mapping-stage4-diagnostic.txt
+          echo "status=$overall" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Commit result
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html
+          git add nickname-mapping-stage4-diagnostic.txt
+          if [ "${{ steps.verify.outputs.status }}" = "0" ]; then
+            git add index.html
+          fi
           if git diff --cached --quiet; then
-            echo 'No index changes to commit'
+            echo 'No result changes to commit'
             exit 0
           fi
-          git commit -m 'Harden nickname mapping edge cases'
+          git commit -m 'Record nickname mapping stage 4 result'
           git push origin HEAD:agent/peipei-nickname-mapping-final
+
+      - name: Fail when verification failed
+        if: steps.verify.outputs.status != '0'
+        run: |
+          cat nickname-mapping-stage4-diagnostic.txt
+          exit 1
