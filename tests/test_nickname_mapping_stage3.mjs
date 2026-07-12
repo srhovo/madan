@@ -8,7 +8,7 @@ const extractClass = className => {
   const start = html.indexOf(`class ${className} {`);
   if (start < 0) throw new Error(`${className} not found`);
   const tail = html.slice(start + 1);
-  const nextOffset = tail.search(/\nclass [A-Za-z_$][\w$]* \{|\n class [A-Za-z_$][\w$]* \{/);
+  const nextOffset = tail.search(/\n\s*class [A-Za-z_$][\w$]* \{/);
   if (nextOffset < 0) throw new Error(`${className} end not found`);
   return html.slice(start, start + 1 + nextOffset);
 };
@@ -26,6 +26,8 @@ const context = {
   Object,
   RegExp,
   Math,
+  BACKUP_SCHEMA_VERSION: 2,
+  BACKUP_MODULE_VERSIONS: Object.freeze({ playableNames: 1, nameLearningData: 1 }),
   structuredClone: value => JSON.parse(JSON.stringify(value)),
   appLogSilent: () => {},
   storage: {
