@@ -1,5 +1,5 @@
 Traceback (most recent call last):
-  File "/home/runner/work/madan/madan/scripts/run_nickname_mapping_stage2.py", line 19, in <module>
+  File "/home/runner/work/madan/madan/scripts/run_nickname_mapping_stage2.py", line 22, in <module>
     namespace["main"]()
   File "/home/runner/work/madan/madan/scripts/upgrade_nickname_mapping_stage2.py", line 116, in main
     text = replace_once(text, "暂无已确认的名字", "暂无昵称映射", "update initial empty title")
