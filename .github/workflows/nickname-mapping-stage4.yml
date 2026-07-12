@@ -1,0 +1,61 @@
+name: Nickname mapping stage 4
+
+on:
+  push:
+    branches:
+      - agent/peipei-nickname-mapping-final
+    paths:
+      - scripts/upgrade_nickname_mapping_stage4.py
+      - tests/test_nickname_mapping_edge_cases.mjs
+      - .github/workflows/nickname-mapping-stage4.yml
+
+permissions:
+  contents: write
+
+jobs:
+  harden-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout verified source branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/peipei-nickname-mapping-final
+          fetch-depth: 0
+
+      - name: Apply edge-case hardening
+        run: python scripts/upgrade_nickname_mapping_stage4.py
+
+      - name: Check JavaScript syntax
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path('index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, flags=re.S)
+          if not scripts:
+              raise SystemExit('no inline script found')
+          Path('/tmp/madan-app.js').write_text('\n'.join(scripts), encoding='utf-8')
+          PY
+          node --check /tmp/madan-app.js
+
+      - name: Run all nickname mapping tests
+        run: |
+          node tests/test_nickname_mapping_stage1.mjs
+          node tests/test_nickname_mapping_stage2.mjs
+          node tests/test_nickname_mapping_stage3.mjs
+          node tests/test_nickname_mapping_edge_cases.mjs
+
+      - name: Check patch quality
+        run: git diff --check
+
+      - name: Commit hardened final index
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          if git diff --cached --quiet; then
+            echo 'No index changes to commit'
+            exit 0
+          fi
+          git commit -m 'Harden nickname mapping edge cases'
+          git push origin HEAD:agent/peipei-nickname-mapping-final
