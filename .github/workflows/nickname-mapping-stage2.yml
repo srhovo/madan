@@ -6,6 +6,7 @@ on:
       - agent/peipei-nickname-mapping
     paths:
       - scripts/upgrade_nickname_mapping_stage2.py
+      - scripts/run_nickname_mapping_stage2.py
       - tests/test_nickname_mapping_stage2.mjs
       - .github/workflows/nickname-mapping-stage2.yml
 
@@ -26,18 +27,8 @@ jobs:
         id: upgrade
         continue-on-error: true
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          path = Path('scripts/upgrade_nickname_mapping_stage2.py')
-          text = path.read_text(encoding='utf-8')
-          old = 'text = replace_once(text, "暂无已确认的名字", "暂无昵称映射", "update initial empty title")'
-          new = 'text = replace_once(text, "<div>暂无已确认的名字</div>", "<div>暂无昵称映射</div>", "update initial empty title")'
-          if old not in text:
-              raise SystemExit('stage 2 empty-title patch target not found')
-          path.write_text(text.replace(old, new, 1), encoding='utf-8')
-          PY
           set +e
-          python scripts/upgrade_nickname_mapping_stage2.py > stage2-diagnostic.txt 2>&1
+          python scripts/run_nickname_mapping_stage2.py > stage2-diagnostic.txt 2>&1
           status=$?
           echo "exit_code=$status" >> stage2-diagnostic.txt
           echo "status=$status" >> "$GITHUB_OUTPUT"
