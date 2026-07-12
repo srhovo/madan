@@ -29,7 +29,7 @@ def safe_replace_regex(text: str, pattern: str, replacement: str, label: str) ->
     updated, count = re.subn(pattern, replacement, text, count=1, flags=re.S | re.M)
     if count == 1:
         return updated
-    fallback = pattern.replace("^ ", r"^\s*")
+    fallback = pattern.replace("^ ", r"^\s*").replace("\n\n ", r"\n\n\s*")
     updated, count = re.subn(fallback, replacement, text, count=1, flags=re.S | re.M)
     if count == 1:
         return updated
