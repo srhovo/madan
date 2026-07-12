@@ -1,11 +1,20 @@
 Traceback (most recent call last):
-  File "/home/runner/work/madan/madan/scripts/upgrade_nickname_mapping_stage4.py", line 123, in <module>
+  File "/home/runner/work/madan/madan/scripts/upgrade_nickname_mapping_stage4.py", line 112, in <module>
     main()
-  File "/home/runner/work/madan/madan/scripts/upgrade_nickname_mapping_stage4.py", line 59, in main
-    text = replace_once(text, old_mapping_block, new_mapping_block, "preserve original mapping name")
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/runner/work/madan/madan/scripts/upgrade_nickname_mapping_stage4.py", line 12, in replace_once
-    raise RuntimeError(f"{label}: expected exactly one match, found {count}")
-RuntimeError: preserve original mapping name: expected exactly one match, found 0
+  File "/home/runner/work/madan/madan/scripts/upgrade_nickname_mapping_stage4.py", line 54, in main
+    text = replace_regex(
+           ^^^^^^^^^^^^^^
+  File "/home/runner/work/madan/madan/scripts/upgrade_nickname_mapping_stage4.py", line 18, in replace_regex
+    updated, count = re.subn(pattern, replacement, text, count=1, flags=re.S | re.M)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/re/__init__.py", line 197, in subn
+    return _compile(pattern, flags).subn(repl, string, count)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/re/__init__.py", line 334, in _compile_template
+    return _sre.template(pattern, _parser.parse_template(repl, pattern))
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/re/_parser.py", line 1075, in parse_template
+    raise s.error('bad escape %s' % this, len(this)) from None
+re.error: bad escape \s at position 124 (line 4, column 12)
 upgrade_exit=1
 overall_exit=1
