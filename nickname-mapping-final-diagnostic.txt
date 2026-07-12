@@ -13,17 +13,7 @@ test_exit=0
 nickname mapping stage 2 tests passed
 test_exit=0
 === tests/test_nickname_mapping_stage3.mjs ===
-evalmachine.<anonymous>:814
- this.schemaVersion = BACKUP_SCHEMA_VERSION;
-                      ^
-
-ReferenceError: BACKUP_SCHEMA_VERSION is not defined
-    at new DataPortabilityFeature (evalmachine.<anonymous>:814:23)
-    at file:///home/runner/work/madan/madan/tests/test_nickname_mapping_stage3.mjs:43:23
-    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
-    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
-    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
-
-Node.js v22.23.1
-test_exit=1
-overall_exit=1
+nickname mapping stage 3 tests passed
+test_exit=0
+diff_check_exit=0
+overall_exit=0

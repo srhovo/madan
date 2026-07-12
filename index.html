@@ -1560,6 +1560,45 @@
 
  .saved-names-footer { justify-content: space-between; }
 
+
+ .name-mapping-editor {
+ display: grid;
+ grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+ gap: var(--spacing-sm);
+ align-items: end;
+ margin-bottom: var(--spacing-sm);
+ padding: var(--spacing-md);
+ border: 1px solid var(--color-border-light);
+ border-radius: var(--border-radius-lg);
+ background: var(--color-bg-light);
+ }
+
+ .name-mapping-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+ .name-mapping-label { font-size: var(--font-size-xs); color: var(--color-text-light); font-weight: var(--font-weight-semibold); }
+ .name-mapping-input {
+ width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid var(--color-border);
+ border-radius: var(--border-radius-md); background: var(--color-white); font: inherit;
+ }
+ .name-mapping-input:focus { outline: none; border-color: var(--color-primary); box-shadow: var(--shadow-primary); }
+ .name-mapping-tip { margin: 0 var(--spacing-xs) var(--spacing-md); }
+ .name-mapping-cancel { display: none; }
+ .saved-name-info { min-width: 0; flex: 1; }
+ .saved-name-route { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-weight: var(--font-weight-semibold); }
+ .saved-name-original-value, .saved-name-corrected-value { overflow-wrap: anywhere; }
+ .saved-name-arrow { color: var(--color-text-light); }
+ .saved-name-source-badge {
+ display: inline-flex; align-items: center; width: fit-content; margin-top: 5px; padding: 2px 7px;
+ border-radius: var(--border-radius-pill); background: var(--color-bg-info); color: var(--color-info);
+ font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold);
+ }
+
+ @media (max-width: 720px) {
+ .name-mapping-editor { grid-template-columns: 1fr 1fr; }
+ .name-mapping-editor .app-btn { width: 100%; }
+ .saved-name-item { align-items: flex-start; gap: var(--spacing-sm); }
+ }
+
+
  /* 提取选项面板按钮样式 */
  .extract-options-btn {
  margin-bottom: var(--spacing-lg);
@@ -3138,7 +3177,7 @@ h1 { margin-bottom: 4px; }
 
  <div class="extract-options-btn">
  <button class="btn-open-saved-names app-btn app-btn--pill" id="openSavedNamesBtn">
- <i class="fas fa-save"></i> 已保存名字
+ <i class="fas fa-random"></i> 昵称映射库
  </button>
  </div>
 
@@ -3188,20 +3227,35 @@ h1 { margin-bottom: 4px; }
  <div class="saved-names-content app-modal__panel">
  <div class="saved-names-body app-modal__body">
  <div class="dialog-header">
- <h3 class="dialog-title"><i class="fas fa-database"></i> 已确认的陪陪名字</h3>
+ <h3 class="dialog-title"><i class="fas fa-random"></i> 陪玩昵称映射库</h3>
  <button class="modal-exit-btn" id="savedNamesCloseBtn" type="button" data-modal-close="savedNamesModal" aria-label="退出已保存名字弹窗">×</button>
  </div>
 
+
+ <div class="name-mapping-editor" id="nameMappingEditor">
+ <label class="name-mapping-field">
+ <span class="name-mapping-label">识别名称（原始）</span>
+ <input type="text" id="nameMappingOriginalInput" class="name-mapping-input" placeholder="例如：x下雪" autocomplete="off">
+ </label>
+ <label class="name-mapping-field">
+ <span class="name-mapping-label">正确团名</span>
+ <input type="text" id="nameMappingCorrectedInput" class="name-mapping-input" placeholder="例如：下雪" autocomplete="off">
+ </label>
+ <button class="app-btn app-btn--primary app-btn--sm" id="nameMappingSaveBtn" type="button">新增映射</button>
+ <button class="app-btn app-btn--secondary app-btn--sm name-mapping-cancel" id="nameMappingCancelBtn" type="button">取消编辑</button>
+ </div>
+ <div class="app-list-note name-mapping-tip">同一个正确团名可以保存多个识别名称；精确映射会优先于通用模型。</div>
+
  <div class="saved-names-search">
- <input type="text" id="savedNamesSearchInput" class="saved-names-search-input" placeholder="搜索原始名字或确认后的名字" autocomplete="off">
+ <input type="text" id="savedNamesSearchInput" class="saved-names-search-input" placeholder="搜索识别名称、正确团名或来源" autocomplete="off">
  <button class="saved-names-search-clear" id="savedNamesSearchClearBtn" type="button" aria-label="清空搜索">×</button>
  </div>
- <div class="saved-names-meta" id="savedNamesMeta">共 0 个已保存名字</div>
+ <div class="saved-names-meta" id="savedNamesMeta">共 0 条昵称映射</div>
 
  <div class="saved-names-list" id="savedNamesList">
  <div class="saved-names-empty app-empty-state app-empty-state--panel">
- <div>暂无已确认的名字</div>
- <div class="app-empty-state__note">提取名字并确认后，会记录在这里</div>
+ <div>暂无昵称映射</div>
+ <div class="app-empty-state__note">可手动新增，或在提取修正后自动记录</div>
  </div>
  </div>
 
@@ -3251,7 +3305,7 @@ h1 { margin-bottom: 4px; }
 
  <div class="app-section-card">
  <h4 class="dialog-title">导出数据</h4>
- <div class="app-list-note">默认勾选陪玩名单、老板记忆库、单价记忆库；可按需增加其他模块。</div>
+ <div class="app-list-note">默认勾选陪玩昵称映射库、老板记忆库、单价记忆库；可按需增加其他模块。</div>
  <div class="data-portability-grid" id="dpExportModules"></div>
  <div class="app-action-row">
  <button class="app-btn app-btn--primary app-btn--sm" id="dpCopySaveBtn">一键复制并保存备份</button>
@@ -4901,7 +4955,6 @@ class UltimateStorageManager {
 
  confirm() {
  const correctedNames = this.getCorrectedNames();
- this.service.enhancedExtractor.batchConfirmNames(correctedNames, 'interactive');
  this.close(correctedNames);
  }
 
@@ -5734,8 +5787,8 @@ class UiRenderHelper {
  bossMemory: { className: 'boss-memory-empty', text: '暂无老板记录' },
  priceMemory: { className: 'pm-empty', text: '暂无单价记录', note: '生成订单时会自动写入' },
  priceMemorySearch: { className: 'pm-empty', text: '没有找到匹配的单价记录', note: '换个关键词试试，或清空搜索查看全部' },
- savedNames: { className: 'saved-names-empty app-empty-state--panel', text: '暂无已确认的名字', note: '提取名字并确认后，会记录在这里' },
- savedNamesSearch: { className: 'saved-names-empty app-empty-state--panel', text: '没有找到匹配的名字', note: '换个关键词试试，或清空搜索查看全部' },
+ savedNames: { className: 'saved-names-empty app-empty-state--panel', text: '暂无昵称映射', note: '可手动新增，或在提取修正后自动记录' },
+ savedNamesSearch: { className: 'saved-names-empty app-empty-state--panel', text: '没有找到匹配的映射', note: '换个关键词试试，或清空搜索查看全部' },
  recentBosses: { className: 'recent-boss-empty app-empty-state--panel', iconHtml: '<i class="fas fa-users"></i>', text: '暂无最近老板记录', note: '开始使用计算功能后，最近使用的老板会自动记录在这里' },
  ratioCards: { className: 'no-cards-message app-empty-state--panel', iconHtml: '📋', iconClass: 'no-cards-icon', text: '该模式下暂无自定义比例' },
  ratioCreate: { className: 'no-cards-message app-empty-state--panel', iconHtml: '📋', text: '暂无自定义比例，请先创建一个' }
@@ -5833,9 +5886,10 @@ class EventDelegationFeature {
  ], onItem: async index => {
  await this.app.applyBossInfoRecord(this.app.bossMemoryFeature.get(index), { showMessage: true, focusNext: true });
  } },
- { container: this.app.el.savedNamesList, itemSelector: '.saved-name-item', getPayload: item => item.dataset.name, actions: [
- { selector: '.saved-name-delete', handler: name => this.app.deleteSavedName(name) }
- ], onItem: name => this.app.applySavedNameToPeipei(name) },
+ { container: this.app.el.savedNamesList, itemSelector: '.saved-name-item', getPayload: item => ({ original: decodeURIComponent(item.dataset.original || ''), corrected: decodeURIComponent(item.dataset.corrected || ''), kind: item.dataset.kind || 'mapping' }), actions: [
+ { selector: '.saved-name-edit', handler: payload => this.app.extractionFeature.startEditNameMapping(payload) },
+ { selector: '.saved-name-delete', handler: payload => this.app.deleteSavedName(payload) }
+ ], onItem: payload => this.app.applySavedNameToPeipei(payload) },
  { container: this.app.el.recentBossTags, itemSelector: '.recent-boss-tag', getPayload: indexPayload, actions: [
  { selector: '.recent-boss-save', handler: index => this.app.saveRecentBossToMemory(index) },
  { selector: '.recent-boss-delete', confirm: '确定要删除这条最近老板记录吗？', handler: index => this.app.deleteRecentBossItem(index) }
@@ -5868,14 +5922,14 @@ class DataPortabilityFeature {
 
  getModuleConfigs() {
  return [
- { id: 'playableNames', label: '陪玩名单', note: '已确认的陪陪名字', defaultSelected: true },
+ { id: 'playableNames', label: '陪玩昵称映射库', note: '正确团名与识别名称映射', defaultSelected: true },
  { id: 'bossMemory', label: '老板记忆库', note: '老板、派单、折数', defaultSelected: true },
  { id: 'priceMemory', label: '单价记忆库', note: '单价、结算方式、服务类型', defaultSelected: true },
  { id: 'recentBosses', label: '最近老板', note: '最多保留 6 条', defaultSelected: false },
  { id: 'modeRatios', label: '自定义比例', note: '单子/礼物自定义比例', defaultSelected: false },
  { id: 'history', label: '历史记录', note: '最多保留 10 条', defaultSelected: false },
  { id: 'lockedFields', label: '锁定字段', note: '陪陪、派单、老板锁定值', defaultSelected: false },
- { id: 'nameLearningData', label: '名字修正学习', note: '修正记录与常用名字', defaultSelected: false },
+ { id: 'nameLearningData', label: '提取学习高级数据', note: '规则、统计与常用名字', defaultSelected: false },
  { id: 'layoutPrefs', label: 'DIY布局', note: '隐藏模块设置', defaultSelected: false },
  { id: 'layoutTemplates', label: 'DIY布局模板', note: '快速切换的布局方案', defaultSelected: false }
  ];
@@ -5982,6 +6036,16 @@ class DataPortabilityFeature {
  migrated.integrity = this.createIntegrity(migrated);
  return migrated;
  }
+ normalizePlayableAliases(list, correctedFallback = '') {
+ const normalized = (Array.isArray(list) ? list : []).map(raw => ({
+ original: raw?.original ?? '',
+ corrected: raw?.corrected ?? correctedFallback,
+ timestamp: raw?.timestamp,
+ usageCount: raw?.usageCount,
+ source: raw?.source || 'manual_correction'
+ }));
+ return this.app.enhancedExtractor.normalizeNameMappings(normalized);
+ }
 
  normalizeConfirmedNames(list) {
  const max = this.app.enhancedExtractor.config.maxConfirmedNames || 200;
@@ -5993,13 +6057,49 @@ class DataPortabilityFeature {
  name,
  original: String(raw?.original ?? name).trim() || name,
  timestamp: Number(raw?.timestamp) || Date.now(),
- source: String(raw?.source ?? 'import').trim() || 'import'
+ source: String(raw?.source ?? 'import').trim() || 'import',
+ aliases: this.normalizePlayableAliases(raw?.aliases, name)
  };
  const key = name.toLowerCase();
  const current = map.get(key);
- if (!current || item.timestamp >= current.timestamp) map.set(key, item);
+ if (!current) {
+ map.set(key, item);
+ return;
+ }
+ const latest = item.timestamp >= current.timestamp ? item : current;
+ map.set(key, {
+ ...latest,
+ aliases: this.app.enhancedExtractor.normalizeNameMappings([...(current.aliases || []), ...(item.aliases || [])])
+ });
  });
  return [...map.values()].sort((a, b) => b.timestamp - a.timestamp).slice(0, max);
+ }
+
+ buildPlayableNamesBackup(extractorData = this.getCurrentExtractorData()) {
+ const confirmed = this.normalizeConfirmedNames(extractorData.confirmedNames);
+ const byName = new Map(confirmed.map(item => [item.name.toLowerCase(), { ...item, aliases: [...(item.aliases || [])] }]));
+ this.app.enhancedExtractor.normalizeNameMappings(extractorData.corrections || []).forEach(mapping => {
+ const name = this.app.enhancedExtractor.cleanName(mapping.corrected);
+ if (!name) return;
+ const key = name.toLowerCase();
+ const current = byName.get(key) || {
+ name,
+ original: name,
+ timestamp: Number(mapping.timestamp) || Date.now(),
+ source: mapping.source || 'manual_correction',
+ aliases: []
+ };
+ current.aliases = this.app.enhancedExtractor.normalizeNameMappings([...(current.aliases || []), mapping]);
+ current.timestamp = Math.max(Number(current.timestamp) || 0, Number(mapping.timestamp) || 0);
+ byName.set(key, current);
+ });
+ return this.normalizeConfirmedNames([...byName.values()]);
+ }
+
+ extractPlayableNameMappings(list) {
+ return this.app.enhancedExtractor.normalizeNameMappings(
+ this.normalizeConfirmedNames(list).flatMap(item => item.aliases || [])
+ );
  }
 
  normalizeLearningData(data) {
@@ -6113,7 +6213,7 @@ class DataPortabilityFeature {
  const modules = {};
  const extractorData = this.getCurrentExtractorData();
  moduleIds.forEach(id => {
- if (id === 'playableNames') modules.playableNames = this.normalizeConfirmedNames(extractorData.confirmedNames);
+ if (id === 'playableNames') modules.playableNames = this.buildPlayableNamesBackup(extractorData);
  if (id === 'bossMemory') modules.bossMemory = this.app.bossDirectory.normalizeMemory(this.app.bossMemory);
  if (id === 'priceMemory') modules.priceMemory = this.app.priceMemoryStore.normalize(this.app.priceMemory);
  if (id === 'recentBosses') modules.recentBosses = this.app.bossDirectory.normalizeRecentBosses(this.app.recentBosses);
@@ -6312,11 +6412,21 @@ class DataPortabilityFeature {
  .forEach(method => { if (typeof this.app[method] === 'function') this.app[method](); });
  return results.every(result => result !== false);
  }
-
  applyPlayableNames(incoming, mode) {
  const currentData = this.app.enhancedExtractor.data;
- const imported = this.normalizeConfirmedNames(incoming);
- currentData.confirmedNames = mode === 'overwrite' ? imported : this.normalizeConfirmedNames([...(currentData.confirmedNames || []), ...imported]);
+ const incomingList = Array.isArray(incoming) ? incoming : [];
+ const imported = this.normalizeConfirmedNames(incomingList);
+ currentData.confirmedNames = mode === 'overwrite'
+ ? imported
+ : this.normalizeConfirmedNames([...(currentData.confirmedNames || []), ...imported]);
+
+ const hasAliasPayload = incomingList.some(raw => Array.isArray(raw?.aliases));
+ if (hasAliasPayload) {
+ const importedMappings = this.extractPlayableNameMappings(incomingList);
+ currentData.corrections = mode === 'overwrite'
+ ? importedMappings
+ : this.app.enhancedExtractor.normalizeNameMappings([...(currentData.corrections || []), ...importedMappings]);
+ }
  }
 
  applyLearningData(incoming, mode) {
@@ -8167,6 +8277,8 @@ class DataPortabilityFeature {
  set extractRequestSeq(value) { this.app.extractRequestSeq = value; }
  get _savedNamesSearchQuery() { return this.app._savedNamesSearchQuery; }
  set _savedNamesSearchQuery(value) { this.app._savedNamesSearchQuery = value; }
+ get _editingNameMappingOriginal() { return this.app._editingNameMappingOriginal; }
+ set _editingNameMappingOriginal(value) { this.app._editingNameMappingOriginal = value; }
 
  getElement(...args) { return this.uiRender.getElement(...args); }
  updateNamedCollectionView(...args) { return this.uiRender.updateNamedCollectionView(...args); }
@@ -8195,11 +8307,17 @@ class DataPortabilityFeature {
  [() => this.applyToPeipei(), 'applyToPeipeiBtn'],
  [() => this.switchExtractMode('pat'), 'patModeBtn'],
  [() => this.switchExtractMode('at'), 'atModeBtn'],
- [() => this.switchExtractMode('chain'), 'chainModeBtn']
+ [() => this.switchExtractMode('chain'), 'chainModeBtn'],
+ [() => this.saveNameMappingFromEditor(), 'nameMappingSaveBtn'],
+ [() => this.resetNameMappingEditor(), 'nameMappingCancelBtn']
  ]);
  this.on(this.el.extractInput, 'input', this.debounce(() => this.extractNames(), 300));
  this.on(this.el.extractOutput, 'input', () => this.updateExtractCount());
  this.on(this.el.savedNamesSearchInput, 'input', this.debounce(() => this.handleSavedNamesSearchInput(), 80));
+ [this.el.nameMappingOriginalInput, this.el.nameMappingCorrectedInput].forEach(input => this.on(input, 'keydown', event => {
+ if (event.key === 'Enter') { event.preventDefault(); this.saveNameMappingFromEditor(); }
+ if (event.key === 'Escape') { event.preventDefault(); this.resetNameMappingEditor(); }
+ }));
  }
 
 commitTextFlow(targetRef, value, {
@@ -8342,26 +8460,54 @@ async openEnhancedCorrectionModal(names) {
 
 openSavedNamesModal() {
  this.resetSavedNamesSearch();
+ this.resetNameMappingEditor();
  this.updateSavedNamesList();
  this.openModal(this.el.savedNamesModal);
  }
 
 closeSavedNamesModal() {
+ this.resetNameMappingEditor();
  this.closeModal(this.el.savedNamesModal);
  }
-
-getSavedNamesViewItems() {
- const all = [...(this.enhancedExtractor.data.confirmedNames || [])].sort((a, b) => b.timestamp - a.timestamp);
- const query = this._savedNamesSearchQuery;
- return query ? all.filter(item => item.name?.toLowerCase().includes(query) || item.original?.toLowerCase().includes(query)) : all;
+ getNameMappingSourceLabel(source) {
+ return ({ model_confirm: '模型确认', manual_correction: '手动修正', custom: '自定义添加' })[source] || '手动修正';
  }
 
-updateSavedNamesMeta() {
+ getSavedNamesViewItems() {
+ const mappings = this.enhancedExtractor.getNameMappings().map(item => ({ ...item, kind: 'mapping' }));
+ const pairKeys = new Set(mappings.map(item => `${this.enhancedExtractor.compactExtractName(item.original).toLowerCase()}|${this.enhancedExtractor.compactExtractName(item.corrected).toLowerCase()}`));
+ const confirmed = (this.enhancedExtractor.data.confirmedNames || []).map(item => {
+ const original = String(item.original || item.name || '').trim();
+ const corrected = String(item.name || '').trim();
+ return {
+ original,
+ corrected,
+ timestamp: Number(item.timestamp) || Date.now(),
+ source: this.enhancedExtractor.normalizeMappingSource(item.source, original, corrected),
+ kind: 'confirmed'
+ };
+ }).filter(item => item.original && item.corrected && !pairKeys.has(`${this.enhancedExtractor.compactExtractName(item.original).toLowerCase()}|${this.enhancedExtractor.compactExtractName(item.corrected).toLowerCase()}`));
+ const all = [...mappings, ...confirmed].sort((a, b) => b.timestamp - a.timestamp);
+ const query = this._savedNamesSearchQuery;
+ if (!query) return all;
+ return all.filter(item => [item.original, item.corrected, this.getNameMappingSourceLabel(item.source)]
+ .some(value => String(value || '').toLowerCase().includes(query)));
+ }
+
+ getSavedNamesViewItemsForCount() {
+ const query = this._savedNamesSearchQuery;
+ this._savedNamesSearchQuery = '';
+ const count = this.getSavedNamesViewItems().length;
+ this._savedNamesSearchQuery = query;
+ return count;
+ }
+
+ updateSavedNamesMeta() {
  if (!this.el.savedNamesMeta) return;
- const total = this.enhancedExtractor.data.confirmedNames?.length || 0;
+ const total = this.getSavedNamesViewItemsForCount();
  const visible = this.getSavedNamesViewItems().length;
  const query = this._savedNamesSearchQuery;
- const text = query ? `共 ${total} 个已保存名字，当前筛选 ${visible} 个` : `共 ${total} 个已保存名字`;
+ const text = query ? `共 ${total} 条昵称映射，当前筛选 ${visible} 条` : `共 ${total} 条昵称映射`;
  if (this.el.savedNamesMeta.textContent !== text) this.el.savedNamesMeta.textContent = text;
  }
 
@@ -8371,7 +8517,48 @@ updateSavedNamesList() {
  this.updateLearningUndoButton();
  }
 
-resetSavedNamesSearch() {
+
+ resetNameMappingEditor() {
+ this._editingNameMappingOriginal = '';
+ if (this.el.nameMappingOriginalInput) this.el.nameMappingOriginalInput.value = '';
+ if (this.el.nameMappingCorrectedInput) this.el.nameMappingCorrectedInput.value = '';
+ if (this.el.nameMappingSaveBtn) this.el.nameMappingSaveBtn.textContent = '新增映射';
+ if (this.el.nameMappingCancelBtn) this.el.nameMappingCancelBtn.style.display = 'none';
+ }
+
+ startEditNameMapping(payload) {
+ const original = String(payload?.original || '').trim();
+ const corrected = String(payload?.corrected || '').trim();
+ if (!original || !corrected) return false;
+ this._editingNameMappingOriginal = original;
+ this.el.nameMappingOriginalInput.value = original;
+ this.el.nameMappingCorrectedInput.value = corrected;
+ this.el.nameMappingSaveBtn.textContent = '保存修改';
+ this.el.nameMappingCancelBtn.style.display = 'inline-flex';
+ this.el.nameMappingOriginalInput.focus();
+ return true;
+ }
+
+ saveNameMappingFromEditor() {
+ const original = String(this.el.nameMappingOriginalInput?.value || '').trim();
+ const corrected = String(this.el.nameMappingCorrectedInput?.value || '').trim();
+ if (!original || !corrected) return this.showError('请同时填写识别名称和正确团名');
+ const existing = this.enhancedExtractor.getNameMappingByOriginal(this._editingNameMappingOriginal || original);
+ const source = existing?.source || 'custom';
+ this.captureLearningSnapshot();
+ const saved = this._editingNameMappingOriginal
+ ? this.enhancedExtractor.updateNameMapping(this._editingNameMappingOriginal, original, corrected, source)
+ : this.enhancedExtractor.upsertNameMapping(original, corrected, 'custom');
+ if (!saved) return this.showError('保存昵称映射失败，请检查名称是否有效');
+ const edited = Boolean(this._editingNameMappingOriginal);
+ this.resetNameMappingEditor();
+ this.updateSavedNamesList();
+ this.showSuccess(edited ? `已更新映射：${original} → ${corrected}` : `已新增映射：${original} → ${corrected}`);
+ return true;
+ }
+
+
+ resetSavedNamesSearch() {
  this._savedNamesSearchQuery = '';
  if (this.el.savedNamesSearchInput) this.el.savedNamesSearchInput.value = '';
  this.toggleSavedNamesSearchClear();
@@ -8395,34 +8582,44 @@ toggleSavedNamesSearchClear() {
  if (this.el.savedNamesSearchClearBtn.style.display !== display) this.el.savedNamesSearchClearBtn.style.display = display;
  }
  }
-
-applySavedNameToPeipei(name) {
+ applySavedNameToPeipei(payload) {
+ const corrected = String(payload?.corrected ?? payload ?? '').trim();
+ if (!corrected) return false;
  try {
- this.submitNamesToPeiPei(name, {
- message: `已应用名字“${name}”`,
+ this.submitNamesToPeiPei(corrected, {
+ message: `已应用正确团名“${corrected}”`,
  afterCommit: () => this.closeSavedNamesModal()
  });
+ return true;
  } catch (error) {
  appLogSilent(error);
+ return false;
  }
  }
 
-async deleteSavedName(name) {
+ async deleteSavedName(payload) {
  try {
- const confirmedNames = this.enhancedExtractor.data.confirmedNames || [];
- if (!confirmedNames.some(item => item.name === name)) return;
- const confirmed = await this.showConfirm(`确定要删除“${name}”吗？本次页面内可撤销一次。`);
+ const original = String(payload?.original ?? payload ?? '').trim();
+ const corrected = String(payload?.corrected ?? payload ?? '').trim();
+ const kind = payload?.kind || 'mapping';
+ if (!original || !corrected) return;
+ const label = original === corrected ? corrected : `${original} → ${corrected}`;
+ const confirmed = await this.showConfirm(`确定要删除“${label}”吗？本次页面内可撤销一次。`);
  if (!confirmed) return;
  this.captureLearningSnapshot();
- if (!this.enhancedExtractor.removeConfirmedName(name)) return this.showError('删除名字失败');
+ const removed = kind === 'confirmed'
+ ? this.enhancedExtractor.removeConfirmedName(corrected)
+ : this.enhancedExtractor.removeNameMapping(original);
+ if (!removed) return this.showError('删除昵称映射失败');
+ if (this._editingNameMappingOriginal === original) this.resetNameMappingEditor();
  this.updateSavedNamesList();
- this.showSuccess(`已删除“${name}”`);
+ this.showSuccess(`已删除“${label}”`);
  } catch (error) {
  appLogSilent(error);
  }
  }
 
-switchExtractMode(mode) {
+ switchExtractMode(mode) {
  const modeMeta = {
  pat: {
  button: this.el.patModeBtn,
@@ -9374,7 +9571,8 @@ class OrderCalculator {
  this.createFeatures();
  this.correctionModal = null;
  this.extractRequestSeq = 0;
- this._savedNamesSearchQuery = ''; // 已保存名字弹窗的搜索关键词（瞬态UI状态，不纳入业务state）
+ this._savedNamesSearchQuery = ''; // 昵称映射库搜索关键词（瞬态UI状态，不纳入业务state）
+ this._editingNameMappingOriginal = ''; // 当前正在编辑的原始识别名称
  this._softTypeSuggestion = null; // 服务类型软填充：仅用于当前页面交互，不写入长期存储
  this.el = {};
  }
@@ -9707,14 +9905,16 @@ class OrderCalculator {
  savedNames: {
  container: () => this.el.savedNamesList,
  items: () => this.getSavedNamesViewItems(),
+ getKey: item => `${item.kind}:${this.enhancedExtractor.compactExtractName(item.original).toLowerCase()}:${this.enhancedExtractor.compactExtractName(item.corrected).toLowerCase()}`,
  empty: () => this._savedNamesSearchQuery
  ? this.renderNamedEmptyState('savedNamesSearch')
  : this.renderNamedEmptyState('savedNames'),
  renderItem: item => {
  const date = new Date(item.timestamp).toLocaleString();
- const sourceText = item.source === 'interactive' ? '交互确认' : '自动确认';
- const safeName = this.escapeHtml(item.name);
- return `<div class="saved-name-item app-list-item" data-name="${safeName}"><div class="saved-name-info" title="点击应用到陪陪输入框"><div class="saved-name-name">${safeName}</div><div class="saved-name-original app-list-note">原始: ${this.escapeHtml(item.original)} | 来源: ${sourceText}</div><div class="saved-name-original app-list-note">确认时间: ${this.escapeHtml(date)}</div></div>${this.renderIconActions([{ className: 'saved-name-apply', sizeClass: 'danger-icon-btn--lg', title: '应用到陪陪输入框', dataset: { name: item.name }, labelHtml: '<span class="icon-emoji" aria-hidden="true">➕</span>' }, { className: 'saved-name-delete', sizeClass: 'danger-icon-btn--lg', title: '从已确认列表中删除', dataset: { name: item.name }, labelHtml: '<i class="fas fa-trash"></i>' }], 'app-list-actions')}</div>`;
+ const sourceText = this.extractionFeature.getNameMappingSourceLabel(item.source);
+ const encodedOriginal = encodeURIComponent(item.original);
+ const encodedCorrected = encodeURIComponent(item.corrected);
+ return `<div class="saved-name-item app-list-item" data-original="${this.escapeHtml(encodedOriginal)}" data-corrected="${this.escapeHtml(encodedCorrected)}" data-kind="${this.escapeHtml(item.kind)}"><div class="saved-name-info" title="点击应用正确团名到陪陪输入框"><div class="saved-name-route"><span class="saved-name-original-value">${this.escapeHtml(item.original)}</span><span class="saved-name-arrow">→</span><span class="saved-name-corrected-value">${this.escapeHtml(item.corrected)}</span></div><div class="saved-name-source-badge">${this.escapeHtml(sourceText)}</div><div class="saved-name-original app-list-note">保存时间: ${this.escapeHtml(date)}</div></div>${this.renderIconActions([{ className: 'saved-name-apply', sizeClass: 'danger-icon-btn--lg', title: '应用正确团名到陪陪输入框', labelHtml: '<span class="icon-emoji" aria-hidden="true">➕</span>' }, { className: 'saved-name-edit', sizeClass: 'danger-icon-btn--lg', title: '编辑昵称映射', label: '✏️' }, { className: 'saved-name-delete', sizeClass: 'danger-icon-btn--lg', title: '删除昵称映射', labelHtml: '<i class="fas fa-trash"></i>' }], 'app-list-actions')}</div>`;
  }
  },
  recentBosses: {
@@ -10086,7 +10286,8 @@ class OrderCalculator {
  'confirmModal', 'confirmMessage', 'confirmYes', 'confirmNo',
  'lockBossBtn', 'unlockBossBtn', 'bossLockInfo', 'lockedBossName',
  'enhancedCorrectionModal', 'savedNamesModal', 'savedNamesList', 'savedNamesMeta',
- 'savedNamesSearchInput', 'savedNamesSearchClearBtn',
+ 'savedNamesSearchInput', 'savedNamesSearchClearBtn', 'nameMappingOriginalInput', 'nameMappingCorrectedInput',
+ 'nameMappingSaveBtn', 'nameMappingCancelBtn',
  'bossMemTabBtn', 'priceMemTabBtn', 'bossMemPanel', 'priceMemPanel',
  'pmUnitPrice', 'pmSettleType', 'pmServiceType', 'pmAddBtn', 'pmSearchInput', 'pmUndoBtn', 'pmList',
  'dataPortabilityBtn', 'dataPortabilityModal', 'dpExportModules', 'dpCopySaveBtn', 'dpCopyBtn',
