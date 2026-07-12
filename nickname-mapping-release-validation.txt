@@ -1,9 +1,0 @@
-nickname_mapping_release=passed
-javascript_syntax=passed
-data_crud=passed
-ui_crud=passed
-backup_roundtrip=passed
-punctuation_mapping=passed
-import_deduplication=passed
-narrow_phone_layout=passed
-diff_check=passed
