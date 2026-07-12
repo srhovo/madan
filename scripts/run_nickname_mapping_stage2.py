@@ -17,6 +17,10 @@ def safe_replace_once(text: str, old: str, new: str, label: str) -> str:
     elif label == "update initial empty note":
         old = '<div class="app-empty-state__note">提取名字并确认后，会记录在这里</div>'
         new = '<div class="app-empty-state__note">可手动新增，或在提取修正后自动记录</div>'
+    elif text.count(old) == 0 and old.startswith(" ") and text.count(old[1:]) == 1:
+        old = old[1:]
+        if new.startswith(" "):
+            new = new[1:]
     return strict_replace_once(text, old, new, label)
 
 
