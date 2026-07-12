@@ -1,0 +1,81 @@
+name: Nickname mapping stage 3
+
+on:
+  push:
+    branches:
+      - agent/peipei-nickname-mapping
+    paths:
+      - scripts/upgrade_nickname_mapping_stage3.py
+      - tests/test_nickname_mapping_stage3.mjs
+      - .github/workflows/nickname-mapping-stage3.yml
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/peipei-nickname-mapping
+          fetch-depth: 0
+
+      - name: Apply stage 3 backup upgrade and capture diagnostics
+        id: upgrade
+        continue-on-error: true
+        run: |
+          set +e
+          python scripts/upgrade_nickname_mapping_stage3.py > stage3-diagnostic.txt 2>&1
+          status=$?
+          echo "exit_code=$status" >> stage3-diagnostic.txt
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Check JavaScript syntax
+        if: steps.upgrade.outputs.status == '0'
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path('index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, flags=re.S)
+          if not scripts:
+              raise SystemExit('no inline script found')
+          Path('/tmp/madan-app.js').write_text('\n'.join(scripts), encoding='utf-8')
+          PY
+          node --check /tmp/madan-app.js
+
+      - name: Run mapping data tests
+        if: steps.upgrade.outputs.status == '0'
+        run: node tests/test_nickname_mapping_stage1.mjs
+
+      - name: Run mapping backup tests
+        if: steps.upgrade.outputs.status == '0'
+        run: node tests/test_nickname_mapping_stage3.mjs
+
+      - name: Check patch quality
+        if: steps.upgrade.outputs.status == '0'
+        run: git diff --check
+
+      - name: Commit result or diagnostics
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add stage3-diagnostic.txt
+          if [ "${{ steps.upgrade.outputs.status }}" = "0" ]; then
+            git add index.html
+          fi
+          if git diff --cached --quiet; then
+            echo 'No result changes to commit'
+            exit 0
+          fi
+          git commit -m 'Record nickname mapping stage 3 result'
+          git push origin HEAD:agent/peipei-nickname-mapping
+
+      - name: Fail when upgrade failed
+        if: steps.upgrade.outputs.status != '0'
+        run: |
+          cat stage3-diagnostic.txt
+          exit 1
