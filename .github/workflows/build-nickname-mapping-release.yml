@@ -1,0 +1,121 @@
+name: Build nickname mapping release
+
+on:
+  push:
+    branches:
+      - agent/peipei-nickname-mapping-release
+    paths:
+      - scripts/refine_nickname_mapping_release.py
+      - tests/test_nickname_mapping_release.mjs
+      - .github/workflows/build-nickname-mapping-release.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/peipei-nickname-mapping-release
+          fetch-depth: 0
+
+      - name: Load fully implemented candidate source
+        run: |
+          git fetch origin agent/peipei-nickname-mapping-final
+          git show origin/agent/peipei-nickname-mapping-final:index.html > index.html
+          mkdir -p tests
+          for file in \
+            test_nickname_mapping_stage1.mjs \
+            test_nickname_mapping_stage2.mjs \
+            test_nickname_mapping_stage3.mjs; do
+            git show "origin/agent/peipei-nickname-mapping-final:tests/$file" > "tests/$file"
+          done
+
+      - name: Apply final release refinements
+        run: python scripts/refine_nickname_mapping_release.py
+
+      - name: Validate JavaScript syntax
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path('index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, flags=re.S)
+          if not scripts:
+              raise SystemExit('no inline script found')
+          Path('/tmp/madan-release.js').write_text('\n'.join(scripts), encoding='utf-8')
+          PY
+          node --check /tmp/madan-release.js
+
+      - name: Run full nickname mapping regression
+        run: |
+          node tests/test_nickname_mapping_stage1.mjs
+          node tests/test_nickname_mapping_stage2.mjs
+          node tests/test_nickname_mapping_stage3.mjs
+          node tests/test_nickname_mapping_release.mjs
+
+      - name: Validate release surface
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          html = Path('index.html').read_text(encoding='utf-8')
+          required = [
+              '陪玩昵称映射库',
+              '识别名称（原始）',
+              '正确团名',
+              '新增映射',
+              '保存修改',
+              '删除昵称映射',
+              'buildPlayableNamesBackup',
+              "version: '2.2'",
+          ]
+          missing = [item for item in required if item not in html]
+          if missing:
+              raise SystemExit(f'missing release tokens: {missing}')
+          forbidden = [
+              "this.service.enhancedExtractor.batchConfirmNames(correctedNames, 'interactive');",
+              '<i class="fas fa-save"></i> 已保存名字',
+          ]
+          found = [item for item in forbidden if item in html]
+          if found:
+              raise SystemExit(f'forbidden legacy tokens remain: {found}')
+          PY
+          git diff --check
+
+      - name: Write validation record
+        run: |
+          cat > nickname-mapping-release-validation.txt <<'EOF'
+          nickname_mapping_release=passed
+          javascript_syntax=passed
+          data_crud=passed
+          ui_crud=passed
+          backup_roundtrip=passed
+          punctuation_mapping=passed
+          import_deduplication=passed
+          narrow_phone_layout=passed
+          diff_check=passed
+          EOF
+
+      - name: Upload final code file
+        uses: actions/upload-artifact@v4
+        with:
+          name: 码单器8.0-昵称映射库最终版
+          path: |
+            index.html
+            nickname-mapping-release-validation.txt
+          if-no-files-found: error
+
+      - name: Commit validated release candidate
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html nickname-mapping-release-validation.txt
+          if git diff --cached --quiet; then
+            echo 'No release candidate changes to commit'
+            exit 0
+          fi
+          git commit -m 'Build final nickname mapping release candidate'
+          git push origin HEAD:agent/peipei-nickname-mapping-release
