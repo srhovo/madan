@@ -1,0 +1,60 @@
+name: Nickname mapping stage 2
+
+on:
+  push:
+    branches:
+      - agent/peipei-nickname-mapping
+    paths:
+      - scripts/upgrade_nickname_mapping_stage2.py
+      - tests/test_nickname_mapping_stage2.mjs
+      - .github/workflows/nickname-mapping-stage2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/peipei-nickname-mapping
+          fetch-depth: 0
+
+      - name: Apply stage 2 UI upgrade
+        run: python scripts/upgrade_nickname_mapping_stage2.py
+
+      - name: Check JavaScript syntax
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path('index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, flags=re.S)
+          if not scripts:
+              raise SystemExit('no inline script found')
+          Path('/tmp/madan-app.js').write_text('\n'.join(scripts), encoding='utf-8')
+          PY
+          node --check /tmp/madan-app.js
+
+      - name: Run mapping data tests
+        run: node tests/test_nickname_mapping_stage1.mjs
+
+      - name: Run mapping UI tests
+        run: node tests/test_nickname_mapping_stage2.mjs
+
+      - name: Check patch quality
+        run: git diff --check
+
+      - name: Commit upgraded index
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index.html changes to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Add nickname mapping library UI'
+          git push origin HEAD:agent/peipei-nickname-mapping
