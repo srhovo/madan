@@ -9,7 +9,6 @@ namespace = runpy.run_path(str(SCRIPT), run_name="nickname_mapping_stage2_module
 main = namespace["main"]
 module_globals = main.__globals__
 strict_replace_once = module_globals["replace_once"]
-strict_replace_regex = module_globals["replace_regex"]
 
 
 def safe_replace_once(text: str, old: str, new: str, label: str) -> str:
@@ -30,11 +29,11 @@ def safe_replace_regex(text: str, pattern: str, replacement: str, label: str) ->
     updated, count = re.subn(pattern, replacement, text, count=1, flags=re.S | re.M)
     if count == 1:
         return updated
-    fallback = pattern.replace("^ ", "^")
+    fallback = pattern.replace("^ ", r"^\s*")
     updated, count = re.subn(fallback, replacement, text, count=1, flags=re.S | re.M)
     if count == 1:
         return updated
-    raise RuntimeError(f"{label}: expected exactly one match, found 0 in strict and indentation fallback")
+    raise RuntimeError(f"{label}: expected exactly one match, found 0 in strict and whitespace fallback")
 
 
 module_globals["replace_once"] = safe_replace_once
