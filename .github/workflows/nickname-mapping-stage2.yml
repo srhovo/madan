@@ -22,10 +22,19 @@ jobs:
           ref: agent/peipei-nickname-mapping
           fetch-depth: 0
 
-      - name: Apply stage 2 UI upgrade
-        run: python scripts/upgrade_nickname_mapping_stage2.py
+      - name: Apply stage 2 UI upgrade and capture diagnostics
+        id: upgrade
+        continue-on-error: true
+        run: |
+          set +e
+          python scripts/upgrade_nickname_mapping_stage2.py > stage2-diagnostic.txt 2>&1
+          status=$?
+          echo "exit_code=$status" >> stage2-diagnostic.txt
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
 
       - name: Check JavaScript syntax
+        if: steps.upgrade.outputs.status == '0'
         run: |
           python - <<'PY'
           import re
@@ -39,22 +48,34 @@ jobs:
           node --check /tmp/madan-app.js
 
       - name: Run mapping data tests
+        if: steps.upgrade.outputs.status == '0'
         run: node tests/test_nickname_mapping_stage1.mjs
 
       - name: Run mapping UI tests
+        if: steps.upgrade.outputs.status == '0'
         run: node tests/test_nickname_mapping_stage2.mjs
 
       - name: Check patch quality
+        if: steps.upgrade.outputs.status == '0'
         run: git diff --check
 
-      - name: Commit upgraded index
+      - name: Commit result or diagnostics
         run: |
-          if git diff --quiet -- index.html; then
-            echo 'No index.html changes to commit'
-            exit 0
-          fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html
-          git commit -m 'Add nickname mapping library UI'
+          git add stage2-diagnostic.txt
+          if [ "${{ steps.upgrade.outputs.status }}" = "0" ]; then
+            git add index.html
+          fi
+          if git diff --cached --quiet; then
+            echo 'No result changes to commit'
+            exit 0
+          fi
+          git commit -m 'Record nickname mapping stage 2 result'
           git push origin HEAD:agent/peipei-nickname-mapping
+
+      - name: Fail when upgrade failed
+        if: steps.upgrade.outputs.status != '0'
+        run: |
+          cat stage2-diagnostic.txt
+          exit 1
