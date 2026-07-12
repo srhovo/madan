@@ -24,7 +24,7 @@ assert(html.includes("getPayload: item => ({ original: decodeURIComponent"), 'de
 
 const start = html.indexOf('class ExtractionFeature {');
 const tail = html.slice(start + 1);
-const nextClassOffset = tail.search(/\n class [A-Za-z_$][\w$]* \{/);
+const nextClassOffset = tail.search(/\n\s*class [A-Za-z_$][\w$]* \{/);
 assert(start >= 0 && nextClassOffset > 0, 'ExtractionFeature class boundary not found');
 const classSource = html.slice(start, start + 1 + nextClassOffset);
 
