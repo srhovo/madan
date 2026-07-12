@@ -15,7 +15,7 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 
 
 def replace_regex(text: str, pattern: str, replacement: str, label: str) -> str:
-    updated, count = re.subn(pattern, replacement, text, count=1, flags=re.S | re.M)
+    updated, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=re.S | re.M)
     if count != 1:
         raise RuntimeError(f"{label}: expected exactly one match, found {count}")
     return updated
@@ -23,8 +23,18 @@ def replace_regex(text: str, pattern: str, replacement: str, label: str) -> str:
 
 def main() -> None:
     text = INDEX.read_text(encoding="utf-8")
-    original_text = text
+    required_markers = [
+        "normalizeMappingOriginal(value)",
+        "isReasonableMappedName(name)",
+        "const normalizedOriginal = this.normalizeMappingOriginal(original || cleanName) || cleanName;",
+        "const original = this.normalizeMappingOriginal(correction.original);",
+        "this.isReasonableMappedName(correction.corrected)",
+    ]
+    if all(marker in text for marker in required_markers):
+        print("stage 4 nickname mapping edge-case hardening already applied")
+        return
 
+    original_text = text
     mapping_methods = r''' normalizeMappingOriginal(value) {
  const original = this.normalizeExtractText(value)
  .replace(/[\r\n]+/g, ' ')
