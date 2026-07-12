@@ -1,0 +1,102 @@
+name: Verify nickname mapping hardening
+
+on:
+  push:
+    branches:
+      - agent/peipei-nickname-mapping-hardening
+    paths:
+      - scripts/upgrade_nickname_mapping_hardening.py
+      - .github/workflows/verify-nickname-mapping-hardening.yml
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout latest-main hardening branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/peipei-nickname-mapping-hardening
+          fetch-depth: 0
+
+      - name: Load verified regression tests
+        run: |
+          git fetch origin agent/peipei-nickname-mapping-final
+          mkdir -p tests
+          for file in \
+            test_nickname_mapping_stage1.mjs \
+            test_nickname_mapping_stage2.mjs \
+            test_nickname_mapping_stage3.mjs \
+            test_nickname_mapping_edge_cases.mjs; do
+            git show "origin/agent/peipei-nickname-mapping-final:tests/$file" > "tests/$file"
+          done
+
+      - name: Apply and verify
+        id: verify
+        run: |
+          set +e
+          : > nickname-mapping-hardening-diagnostic.txt
+          overall=0
+          python scripts/upgrade_nickname_mapping_hardening.py >> nickname-mapping-hardening-diagnostic.txt 2>&1
+          status=$?
+          echo "upgrade_exit=$status" >> nickname-mapping-hardening-diagnostic.txt
+          if [ "$status" -ne 0 ]; then overall=$status; fi
+
+          if [ "$overall" -eq 0 ]; then
+            python - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path('index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, flags=re.S)
+          if not scripts:
+              raise SystemExit('no inline script found')
+          Path('/tmp/madan-app.js').write_text('\n'.join(scripts), encoding='utf-8')
+          PY
+            node --check /tmp/madan-app.js >> nickname-mapping-hardening-diagnostic.txt 2>&1
+            status=$?
+            echo "syntax_exit=$status" >> nickname-mapping-hardening-diagnostic.txt
+            if [ "$status" -ne 0 ]; then overall=$status; fi
+          fi
+
+          if [ "$overall" -eq 0 ]; then
+            for test_file in tests/test_nickname_mapping_*.mjs; do
+              node "$test_file" >> nickname-mapping-hardening-diagnostic.txt 2>&1
+              status=$?
+              echo "$test_file exit=$status" >> nickname-mapping-hardening-diagnostic.txt
+              if [ "$status" -ne 0 ]; then overall=$status; break; fi
+            done
+          fi
+
+          if [ "$overall" -eq 0 ]; then
+            git diff --check >> nickname-mapping-hardening-diagnostic.txt 2>&1
+            status=$?
+            echo "diff_check_exit=$status" >> nickname-mapping-hardening-diagnostic.txt
+            if [ "$status" -ne 0 ]; then overall=$status; fi
+          fi
+
+          echo "overall_exit=$overall" >> nickname-mapping-hardening-diagnostic.txt
+          echo "status=$overall" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Commit verified final file or diagnostics
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add nickname-mapping-hardening-diagnostic.txt
+          if [ "${{ steps.verify.outputs.status }}" = "0" ]; then
+            git add index.html
+          fi
+          if git diff --cached --quiet; then
+            echo 'No result changes to commit'
+            exit 0
+          fi
+          git commit -m 'Verify nickname mapping hardening'
+          git push origin HEAD:agent/peipei-nickname-mapping-hardening
+
+      - name: Fail when verification failed
+        if: steps.verify.outputs.status != '0'
+        run: |
+          cat nickname-mapping-hardening-diagnostic.txt
+          exit 1
