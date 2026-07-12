@@ -3916,11 +3916,24 @@ class UltimateStorageManager {
  ? 'model_confirm'
  : 'manual_correction';
  }
+ normalizeMappingOriginal(value) {
+ const original = this.normalizeExtractText(value)
+ .replace(/[\r\n]+/g, ' ')
+ .replace(/\s+/g, ' ')
+ .trim();
+ return original.slice(0, 80);
+ }
+
+ isReasonableMappedName(name) {
+ const clean = this.cleanName(name);
+ const compact = this.compactExtractName(clean);
+ return Boolean(clean && compact.length >= 1 && compact.length <= 20 && this.isValidName(clean, true));
+ }
 
  normalizeNameMapping(raw, fallbackSource = 'manual_correction') {
- const original = this.normalizeExtractText(raw?.original ?? '').trim().slice(0, 80);
+ const original = this.normalizeMappingOriginal(raw?.original ?? '');
  const corrected = this.cleanName(raw?.corrected ?? raw?.name ?? '');
- if (!this.compactExtractName(original) || !corrected || !this.isReasonableName(corrected)) return null;
+ if (!original || !corrected || !this.isReasonableMappedName(corrected)) return null;
  return {
  original,
  corrected,
@@ -3961,18 +3974,19 @@ class UltimateStorageManager {
  if (!Array.isArray(this.data.confirmedNames)) this.data.confirmedNames = [];
  const key = cleanName.toLowerCase();
  const existing = this.data.confirmedNames.find(item => this.cleanName(item?.name).toLowerCase() === key);
- const normalizedSource = this.normalizeMappingSource(source, original || cleanName, cleanName);
+ const normalizedOriginal = this.normalizeMappingOriginal(original || cleanName) || cleanName;
+ const normalizedSource = this.normalizeMappingSource(source, normalizedOriginal, cleanName);
  if (!existing) {
  this.data.confirmedNames.push({
  name: cleanName,
- original: this.cleanName(original || cleanName) || cleanName,
+ original: normalizedOriginal,
  timestamp: Date.now(),
  source: normalizedSource
  });
  } else {
  existing.timestamp = Date.now();
  existing.source = normalizedSource;
- if (!existing.original) existing.original = this.cleanName(original || cleanName) || cleanName;
+ if (!existing.original) existing.original = normalizedOriginal;
  }
  this.data.confirmedNames = this.data.confirmedNames
  .sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0))
@@ -4048,7 +4062,7 @@ class UltimateStorageManager {
  const corrections = this.data.corrections || [];
  for (const correction of corrections) {
  // 将修正后的名字标记为已确认
- if (correction.corrected && this.isReasonableName(correction.corrected)) {
+ if (correction.corrected && this.isReasonableMappedName(correction.corrected)) {
  this.confirmName(correction.corrected, correction.original || correction.corrected, 'auto');
  }
  }
@@ -4256,14 +4270,14 @@ class UltimateStorageManager {
  findPrefixCorrection(name) {
  return this.data.corrections.find(c => this.isSafeLearningCorrection(c, name, true));
  }
-
  isSafeLearningCorrection(correction, name = '', prefixMode = false) {
  if (!correction || !correction.original || !correction.corrected) return false;
- const original = this.cleanName(correction.original);
+ const original = this.normalizeMappingOriginal(correction.original);
  const corrected = this.cleanName(correction.corrected);
- if (!original || !corrected || !this.isReasonableName(corrected)) return false;
+ if (!original || !corrected || !this.isReasonableMappedName(corrected)) return false;
  if (!prefixMode) return true;
- return original.length >= 3 && name.startsWith(original) && original !== corrected;
+ const candidate = this.normalizeMappingOriginal(name);
+ return this.compactExtractName(original).length >= 3 && candidate.startsWith(original) && original !== corrected;
  }
 
  learnFromCorrection(original, corrected) {
