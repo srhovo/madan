@@ -1599,11 +1599,6 @@
  }
 
 
-
- @media (max-width: 520px) {
- .name-mapping-field { grid-column: 1 / -1; }
- }
-
  /* 提取选项面板按钮样式 */
  .extract-options-btn {
  margin-bottom: var(--spacing-lg);
@@ -3227,13 +3222,13 @@ h1 { margin-bottom: 4px; }
  </div>
  </div>
 
- <!-- 陪玩昵称映射库弹窗 -->
+ <!-- 已保存名字弹窗 -->
  <div class="saved-names-modal app-modal" id="savedNamesModal">
  <div class="saved-names-content app-modal__panel">
  <div class="saved-names-body app-modal__body">
  <div class="dialog-header">
  <h3 class="dialog-title"><i class="fas fa-random"></i> 陪玩昵称映射库</h3>
- <button class="modal-exit-btn" id="savedNamesCloseBtn" type="button" data-modal-close="savedNamesModal" aria-label="退出昵称映射库弹窗">×</button>
+ <button class="modal-exit-btn" id="savedNamesCloseBtn" type="button" data-modal-close="savedNamesModal" aria-label="退出已保存名字弹窗">×</button>
  </div>
 
 
@@ -3265,7 +3260,7 @@ h1 { margin-bottom: 4px; }
  </div>
 
  <div class="saved-names-footer dialog-footer app-action-row">
- <button class="btn-undo-learning app-btn app-btn--secondary app-btn--sm" id="undoLearningData" disabled>撤销上次修改</button>
+ <button class="btn-undo-learning app-btn app-btn--secondary app-btn--sm" id="undoLearningData" disabled>撤销上次删除</button>
  <button class="btn-close-saved app-btn app-btn--primary app-btn--sm" id="savedNamesCloseFooterBtn" data-modal-close="savedNamesModal">关闭</button>
  </div>
  </div>
@@ -3917,10 +3912,24 @@ class UltimateStorageManager {
  : 'manual_correction';
  }
 
+ normalizeMappingOriginal(value) {
+ const original = this.normalizeExtractText(value)
+ .replace(/[\r\n]+/g, ' ')
+ .replace(/\s+/g, ' ')
+ .trim();
+ return original.slice(0, 80);
+ }
+
+ isReasonableMappedName(name) {
+ const clean = this.cleanName(name);
+ const compact = this.compactExtractName(clean);
+ return Boolean(clean && compact.length >= 1 && compact.length <= 20 && this.isValidName(clean, true));
+ }
+
  normalizeNameMapping(raw, fallbackSource = 'manual_correction') {
- const original = this.normalizeExtractText(raw?.original ?? '').trim().slice(0, 80);
+ const original = this.normalizeMappingOriginal(raw?.original ?? '');
  const corrected = this.cleanName(raw?.corrected ?? raw?.name ?? '');
- if (!this.compactExtractName(original) || !corrected || !this.isReasonableName(corrected)) return null;
+ if (!original || !corrected || !this.isReasonableMappedName(corrected)) return null;
  return {
  original,
  corrected,
@@ -3961,18 +3970,19 @@ class UltimateStorageManager {
  if (!Array.isArray(this.data.confirmedNames)) this.data.confirmedNames = [];
  const key = cleanName.toLowerCase();
  const existing = this.data.confirmedNames.find(item => this.cleanName(item?.name).toLowerCase() === key);
- const normalizedSource = this.normalizeMappingSource(source, original || cleanName, cleanName);
+ const normalizedOriginal = this.normalizeMappingOriginal(original || cleanName) || cleanName;
+ const normalizedSource = this.normalizeMappingSource(source, normalizedOriginal, cleanName);
  if (!existing) {
  this.data.confirmedNames.push({
  name: cleanName,
- original: this.cleanName(original || cleanName) || cleanName,
+ original: normalizedOriginal,
  timestamp: Date.now(),
  source: normalizedSource
  });
  } else {
  existing.timestamp = Date.now();
  existing.source = normalizedSource;
- if (!existing.original) existing.original = this.cleanName(original || cleanName) || cleanName;
+ if (!existing.original) existing.original = normalizedOriginal;
  }
  this.data.confirmedNames = this.data.confirmedNames
  .sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0))
@@ -4048,7 +4058,7 @@ class UltimateStorageManager {
  const corrections = this.data.corrections || [];
  for (const correction of corrections) {
  // 将修正后的名字标记为已确认
- if (correction.corrected && this.isReasonableName(correction.corrected)) {
+ if (correction.corrected && this.isReasonableMappedName(correction.corrected)) {
  this.confirmName(correction.corrected, correction.original || correction.corrected, 'auto');
  }
  }
@@ -4259,11 +4269,12 @@ class UltimateStorageManager {
 
  isSafeLearningCorrection(correction, name = '', prefixMode = false) {
  if (!correction || !correction.original || !correction.corrected) return false;
- const original = this.cleanName(correction.original);
+ const original = this.normalizeMappingOriginal(correction.original);
  const corrected = this.cleanName(correction.corrected);
- if (!original || !corrected || !this.isReasonableName(corrected)) return false;
+ if (!original || !corrected || !this.isReasonableMappedName(corrected)) return false;
  if (!prefixMode) return true;
- return original.length >= 3 && name.startsWith(original) && original !== corrected;
+ const candidate = this.normalizeMappingOriginal(name);
+ return this.compactExtractName(original).length >= 3 && candidate.startsWith(original) && original !== corrected;
  }
 
  learnFromCorrection(original, corrected) {
@@ -6109,8 +6120,16 @@ class DataPortabilityFeature {
 
  normalizeLearningData(data) {
  const safe = data && typeof data === 'object' ? data : {};
+ const correctionMap = new Map();
+ (Array.isArray(safe.corrections) ? safe.corrections : []).forEach(raw => {
+ const original = String(raw?.original ?? '').trim();
+ const corrected = String(raw?.corrected ?? '').trim();
+ if (!original || !corrected) return;
+ const key = `${original.toLowerCase()}|${corrected.toLowerCase()}`;
+ correctionMap.set(key, { ...raw, original, corrected, timestamp: Number(raw?.timestamp) || Date.now() });
+ });
  return {
- corrections: this.app.enhancedExtractor.normalizeNameMappings(Array.isArray(safe.corrections) ? safe.corrections : []),
+ corrections: [...correctionMap.values()].slice(0, this.app.enhancedExtractor.config.maxStoredCorrections || 1000),
  patterns: Array.isArray(safe.patterns) ? safe.patterns.filter(Boolean).slice(0, 500) : [],
  stats: safe.stats && typeof safe.stats === 'object' ? safe.stats : { totalExtractions: 0, autoCorrections: 0, userCorrections: 0 },
  commonNames: Array.isArray(safe.commonNames) ? [...new Set(safe.commonNames.map(name => String(name ?? '').trim()).filter(Boolean))].slice(0, 500) : []
@@ -8472,7 +8491,7 @@ closeSavedNamesModal() {
 
  getSavedNamesViewItems() {
  const mappings = this.enhancedExtractor.getNameMappings().map(item => ({ ...item, kind: 'mapping' }));
- const correctedKeys = new Set(mappings.map(item => this.enhancedExtractor.compactExtractName(item.corrected).toLowerCase()));
+ const pairKeys = new Set(mappings.map(item => `${this.enhancedExtractor.compactExtractName(item.original).toLowerCase()}|${this.enhancedExtractor.compactExtractName(item.corrected).toLowerCase()}`));
  const confirmed = (this.enhancedExtractor.data.confirmedNames || []).map(item => {
  const original = String(item.original || item.name || '').trim();
  const corrected = String(item.name || '').trim();
@@ -8483,7 +8502,7 @@ closeSavedNamesModal() {
  source: this.enhancedExtractor.normalizeMappingSource(item.source, original, corrected),
  kind: 'confirmed'
  };
- }).filter(item => item.original && item.corrected && !correctedKeys.has(this.enhancedExtractor.compactExtractName(item.corrected).toLowerCase()));
+ }).filter(item => item.original && item.corrected && !pairKeys.has(`${this.enhancedExtractor.compactExtractName(item.original).toLowerCase()}|${this.enhancedExtractor.compactExtractName(item.corrected).toLowerCase()}`));
  const all = [...mappings, ...confirmed].sort((a, b) => b.timestamp - a.timestamp);
  const query = this._savedNamesSearchQuery;
  if (!query) return all;
