@@ -1,13 +1,10 @@
 Traceback (most recent call last):
-  File "/home/runner/work/madan/madan/scripts/run_nickname_mapping_stage2.py", line 24, in <module>
+  File "/home/runner/work/madan/madan/scripts/run_nickname_mapping_stage2.py", line 28, in <module>
     main()
-  File "/home/runner/work/madan/madan/scripts/upgrade_nickname_mapping_stage2.py", line 152, in main
-    text = replace_once(
-           ^^^^^^^^^^^^^
-  File "/home/runner/work/madan/madan/scripts/run_nickname_mapping_stage2.py", line 20, in safe_replace_once
-    return strict_replace_once(text, old, new, label)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/runner/work/madan/madan/scripts/upgrade_nickname_mapping_stage2.py", line 13, in replace_once
+  File "/home/runner/work/madan/madan/scripts/upgrade_nickname_mapping_stage2.py", line 183, in main
+    text = replace_regex(
+           ^^^^^^^^^^^^^^
+  File "/home/runner/work/madan/madan/scripts/upgrade_nickname_mapping_stage2.py", line 20, in replace_regex
     raise RuntimeError(f"{label}: expected exactly one match, found {count}")
-RuntimeError: reset mapping editor on close: expected exactly one match, found 0
+RuntimeError: replace mapping view model: expected exactly one match, found 0
 exit_code=1
