@@ -5,7 +5,9 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).with_name("upgrade_nickname_mapping_stage2.py")
 namespace = runpy.run_path(str(SCRIPT), run_name="nickname_mapping_stage2_module")
-strict_replace_once = namespace["replace_once"]
+main = namespace["main"]
+module_globals = main.__globals__
+strict_replace_once = module_globals["replace_once"]
 
 
 def safe_replace_once(text: str, old: str, new: str, label: str) -> str:
@@ -18,5 +20,5 @@ def safe_replace_once(text: str, old: str, new: str, label: str) -> str:
     return strict_replace_once(text, old, new, label)
 
 
-namespace["replace_once"] = safe_replace_once
-namespace["main"]()
+module_globals["replace_once"] = safe_replace_once
+main()
