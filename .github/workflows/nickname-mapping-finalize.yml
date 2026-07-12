@@ -1,0 +1,110 @@
+name: Finalize nickname mapping library
+
+on:
+  push:
+    branches:
+      - agent/peipei-nickname-mapping-final
+    paths:
+      - .github/workflows/nickname-mapping-finalize.yml
+      - scripts/run_nickname_mapping_stage2.py
+      - scripts/upgrade_nickname_mapping_stage2.py
+      - scripts/upgrade_nickname_mapping_stage3.py
+      - tests/test_nickname_mapping_stage1.mjs
+      - tests/test_nickname_mapping_stage2.mjs
+      - tests/test_nickname_mapping_stage3.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout clean final branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/peipei-nickname-mapping-final
+          fetch-depth: 0
+
+      - name: Apply upgrades and run full regression
+        id: verify
+        run: |
+          set +e
+          : > nickname-mapping-final-diagnostic.txt
+          overall=0
+
+          echo '=== stage 2: mapping library UI ===' >> nickname-mapping-final-diagnostic.txt
+          python scripts/run_nickname_mapping_stage2.py >> nickname-mapping-final-diagnostic.txt 2>&1
+          stage2=$?
+          echo "stage2_exit=$stage2" >> nickname-mapping-final-diagnostic.txt
+          if [ "$stage2" -ne 0 ]; then overall=$stage2; fi
+
+          if [ "$overall" -eq 0 ]; then
+            echo '=== stage 3: backup roundtrip ===' >> nickname-mapping-final-diagnostic.txt
+            python scripts/upgrade_nickname_mapping_stage3.py >> nickname-mapping-final-diagnostic.txt 2>&1
+            stage3=$?
+            echo "stage3_exit=$stage3" >> nickname-mapping-final-diagnostic.txt
+            if [ "$stage3" -ne 0 ]; then overall=$stage3; fi
+          fi
+
+          if [ "$overall" -eq 0 ]; then
+            echo '=== JavaScript syntax ===' >> nickname-mapping-final-diagnostic.txt
+            python - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path('index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, flags=re.S)
+          if not scripts:
+              raise SystemExit('no inline script found')
+          Path('/tmp/madan-app.js').write_text('\n'.join(scripts), encoding='utf-8')
+          PY
+            node --check /tmp/madan-app.js >> nickname-mapping-final-diagnostic.txt 2>&1
+            syntax=$?
+            echo "syntax_exit=$syntax" >> nickname-mapping-final-diagnostic.txt
+            if [ "$syntax" -ne 0 ]; then overall=$syntax; fi
+          fi
+
+          if [ "$overall" -eq 0 ]; then
+            for test_file in \
+              tests/test_nickname_mapping_stage1.mjs \
+              tests/test_nickname_mapping_stage2.mjs \
+              tests/test_nickname_mapping_stage3.mjs; do
+              echo "=== $test_file ===" >> nickname-mapping-final-diagnostic.txt
+              node "$test_file" >> nickname-mapping-final-diagnostic.txt 2>&1
+              test_status=$?
+              echo "test_exit=$test_status" >> nickname-mapping-final-diagnostic.txt
+              if [ "$test_status" -ne 0 ]; then overall=$test_status; break; fi
+            done
+          fi
+
+          if [ "$overall" -eq 0 ]; then
+            git diff --check >> nickname-mapping-final-diagnostic.txt 2>&1
+            diff_status=$?
+            echo "diff_check_exit=$diff_status" >> nickname-mapping-final-diagnostic.txt
+            if [ "$diff_status" -ne 0 ]; then overall=$diff_status; fi
+          fi
+
+          echo "overall_exit=$overall" >> nickname-mapping-final-diagnostic.txt
+          echo "status=$overall" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Commit verified result or diagnostics
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add nickname-mapping-final-diagnostic.txt
+          if [ "${{ steps.verify.outputs.status }}" = "0" ]; then
+            git add index.html
+          fi
+          if git diff --cached --quiet; then
+            echo 'No changes to commit'
+            exit 0
+          fi
+          git commit -m 'Finalize nickname mapping library implementation'
+          git push origin HEAD:agent/peipei-nickname-mapping-final
+
+      - name: Mark failed verification
+        if: steps.verify.outputs.status != '0'
+        run: |
+          cat nickname-mapping-final-diagnostic.txt
+          exit 1
