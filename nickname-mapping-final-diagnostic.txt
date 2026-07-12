@@ -10,13 +10,16 @@ syntax_exit=0
 nickname mapping stage 1 tests passed
 test_exit=0
 === tests/test_nickname_mapping_stage2.mjs ===
-file:///home/runner/work/madan/madan/tests/test_nickname_mapping_stage2.mjs:5
-const assert = (condition, message) => { if (!condition) throw new Error(message); };
-                                                               ^
+nickname mapping stage 2 tests passed
+test_exit=0
+=== tests/test_nickname_mapping_stage3.mjs ===
+evalmachine.<anonymous>:814
+ this.schemaVersion = BACKUP_SCHEMA_VERSION;
+                      ^
 
-Error: ExtractionFeature class boundary not found
-    at assert (file:///home/runner/work/madan/madan/tests/test_nickname_mapping_stage2.mjs:5:64)
-    at file:///home/runner/work/madan/madan/tests/test_nickname_mapping_stage2.mjs:28:1
+ReferenceError: BACKUP_SCHEMA_VERSION is not defined
+    at new DataPortabilityFeature (evalmachine.<anonymous>:814:23)
+    at file:///home/runner/work/madan/madan/tests/test_nickname_mapping_stage3.mjs:43:23
     at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
     at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
