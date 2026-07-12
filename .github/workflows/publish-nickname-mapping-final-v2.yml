@@ -1,0 +1,48 @@
+name: Publish nickname mapping final v2
+
+on:
+  push:
+    branches:
+      - agent/peipei-nickname-mapping-hardening
+    paths:
+      - .github/workflows/publish-nickname-mapping-final-v2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout verified hardening branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/peipei-nickname-mapping-hardening
+          fetch-depth: 0
+
+      - name: Verify final source
+        run: |
+          test "$(tail -n 1 nickname-mapping-hardening-diagnostic.txt)" = "overall_exit=0"
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path('index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, flags=re.S)
+          if not scripts:
+              raise SystemExit('no inline script found')
+          Path('/tmp/madan-app.js').write_text('\n'.join(scripts), encoding='utf-8')
+          PY
+          node --check /tmp/madan-app.js
+
+      - name: Rebuild clean single-file branch
+        run: |
+          source_sha=$(git rev-parse HEAD:index.html)
+          git fetch origin main agent/peipei-nickname-mapping-hardening
+          git switch -C agent/peipei-nickname-mapping-final-v2 origin/main
+          git checkout origin/agent/peipei-nickname-mapping-hardening -- index.html
+          test "$(git hash-object index.html)" = "$source_sha"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m '完善昵称映射边界兼容'
+          git push --force origin HEAD:agent/peipei-nickname-mapping-final-v2
