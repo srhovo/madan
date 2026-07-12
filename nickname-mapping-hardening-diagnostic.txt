@@ -1,0 +1,13 @@
+nickname mapping hardening applied
+upgrade_exit=0
+syntax_exit=0
+nickname mapping edge-case tests passed
+tests/test_nickname_mapping_edge_cases.mjs exit=0
+nickname mapping stage 1 tests passed
+tests/test_nickname_mapping_stage1.mjs exit=0
+nickname mapping stage 2 tests passed
+tests/test_nickname_mapping_stage2.mjs exit=0
+nickname mapping stage 3 tests passed
+tests/test_nickname_mapping_stage3.mjs exit=0
+diff_check_exit=0
+overall_exit=0
