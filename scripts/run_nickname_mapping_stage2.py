@@ -22,6 +22,10 @@ def safe_replace_once(text: str, old: str, new: str, label: str) -> str:
         old = old[1:]
         if new.startswith(" "):
             new = new[1:]
+    elif text.count(old) == 0 and old.startswith("\n ") and text.count("\n" + old[2:]) == 1:
+        old = "\n" + old[2:]
+        if new.startswith("\n "):
+            new = "\n" + new[2:]
     return strict_replace_once(text, old, new, label)
 
 
