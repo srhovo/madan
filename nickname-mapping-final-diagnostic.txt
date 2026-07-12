@@ -1,0 +1,26 @@
+=== stage 2: mapping library UI ===
+stage 2 nickname mapping library UI upgrade applied
+stage2_exit=0
+=== stage 3: backup roundtrip ===
+stage 3 nickname mapping backup upgrade applied
+stage3_exit=0
+=== JavaScript syntax ===
+syntax_exit=0
+=== tests/test_nickname_mapping_stage1.mjs ===
+nickname mapping stage 1 tests passed
+test_exit=0
+=== tests/test_nickname_mapping_stage2.mjs ===
+file:///home/runner/work/madan/madan/tests/test_nickname_mapping_stage2.mjs:5
+const assert = (condition, message) => { if (!condition) throw new Error(message); };
+                                                               ^
+
+Error: ExtractionFeature class boundary not found
+    at assert (file:///home/runner/work/madan/madan/tests/test_nickname_mapping_stage2.mjs:5:64)
+    at file:///home/runner/work/madan/madan/tests/test_nickname_mapping_stage2.mjs:28:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.1
+test_exit=1
+overall_exit=1
