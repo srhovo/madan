@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 最近老板与记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.2.25</title>
+ <title>码单器8.4.0候选版</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -561,6 +561,15 @@
  .workflow-disclosure__body { padding: 10px; border-top: 1px solid var(--color-border-light); }
  .workflow-disclosure--nested { background: #fbfcfe; }
  .workflow-disclosure--nested > summary { min-height: 36px; padding: 7px 9px; }
+ .pm-section-label {
+ display: flex; align-items: center; gap: 8px; min-height: 32px;
+ padding: 6px 10px 2px; color: var(--color-text-light); font-size: var(--font-size-sm);
+ font-weight: var(--font-weight-semibold);
+ }
+ .pm-section-label__hint {
+ min-width: 0; color: var(--color-text-light); font-size: var(--font-size-xs);
+ font-weight: var(--font-weight-normal); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+ }
 
  /* ===== 双栏记忆库入口 ===== */
  .dual-memory-row {
@@ -700,6 +709,8 @@
  .pm-extra-grid > :nth-child(2), .pm-gift-grid > :first-child { grid-column: 1 / -1; }
  .pm-extra-footer { grid-template-columns: 1fr 1fr; }
  .pm-extra-check { grid-column: 1 / -1; }
+ /* P1热修(8.2.26)：手机宽度下.pm-input保持原生最小宽度会撑破容器，被外层overflow:hidden裁切，导致"备注触发加价规则"与"礼物名称记忆"表单部分字段不可见 */
+ .pm-extra-grid .pm-input, .pm-gift-grid .pm-input { min-width: 0; }
  }
 
  /* ===== 服务类型联想 ===== */
@@ -3433,9 +3444,7 @@ h1 { margin-bottom: 4px; }
  </div>
  </div>
  </details>
- <details class="workflow-disclosure pm-compact-section" id="pmAdvancedDetails" name="priceMemoryWorkflow">
- <summary><span>高级规则与礼物</span><span class="workflow-disclosure__hint">区间 · 加价 · 礼物名称</span></summary>
- <div class="workflow-disclosure__body">
+ <div class="pm-section-label"><span>高级规则与礼物</span><span class="pm-section-label__hint">区间 · 加价 · 礼物名称</span></div>
  <div class="pm-advanced-grid">
  <div class="pm-range-manager" id="pmRangeManager">
  <button type="button" class="pm-range-toggle" id="pmRangeToggleBtn" aria-expanded="false"><span>区间价格规则</span><span class="pm-range-count" id="pmRangeCount">0条</span></button>
@@ -3511,9 +3520,6 @@ h1 { margin-bottom: 4px; }
  <div class="pm-extra-list" id="pmGiftList"><div class="pm-range-empty">暂无礼物名称记忆</div></div>
  </div>
  </div>
- </div>
- </div>
- </details>
  </div>
  <div class="pm-search-row">
  <input type="text" id="pmSearchInput" class="pm-input" placeholder="搜索单价或服务类型…">
@@ -3809,9 +3815,11 @@ h1 { margin-bottom: 4px; }
 
 
  <script>
- const APP_VERSION = '8.2.25';
+ const APP_VERSION = '8.4.0-candidate';
  const TUTORIAL_VIDEO_URL = 'https://cdn.jsdelivr.net/gh/srhovo/tutorialvideo@main/video.mp4';
  // Release note: 8.2.25 统一“时长计算 / 提取名字”与“最近老板”的按钮高度、文字字号、图标尺寸和垂直基线；保留手机、平板与桌面端原有布局及全部业务逻辑。
+ // Release note: 8.2.26 热修——修复手机宽度下“备注触发加价规则”与“礼物名称记忆”表单溢出裁切、部分字段不可见的问题；只新增一条CSS规则，不改其他UI、算法与数据结构。
+ // Release note: 8.4.0-candidate 单价记忆库信息流调整——拆掉"高级规则与礼物"这层details包裹，区间价格规则/备注触发加价规则/礼物名称记忆三个子功能从"先展开外层再展开内层"改为直接可见可独立展开，减少一级不必要的点击；三者互相独立、互不影响，管理价格库/新增或编辑单价两者的互斥手风琴行为不变。仅改动这一处结构，不改其他模块。基于8.2.26（不含8.3.0候选版的配色改动）。
  // Release note: 8.2.23 修复结构化项目中间精度过早取整；结算量持久化保留6位，最终项目金额保留3位，并同步修正结构化历史派生结果。
 // 版本规则：第三位用于GPT/AI内部修订；第二位仅在整体达到预期、无已知阻断并确认可交付后晋升。
  // 核心存储 key：history、bossMemory、priceMemory、priceLibraries、modeRatios、enhancedNameExtractorData、recentBosses。
@@ -11100,7 +11108,7 @@ class DataPortabilityFeature {
  if (!this._eventScope.begin()) return false;
  try {
  this._eventScope.on(this.el.priceMemTabBtn, 'click', () => this.toggleMemPanel('price'));
- const workflows = [this.el.pmLibraryAdmin, this.el.pmAdvancedDetails, this.el.pmExactRuleDetails].filter(Boolean);
+ const workflows = [this.el.pmLibraryAdmin, this.el.pmExactRuleDetails].filter(Boolean);
  workflows.forEach(details => this._eventScope.on(details, 'toggle', () => this.app.uiRender.syncExclusiveDetails(details, workflows)));
  return true;
  } catch (error) {
@@ -16909,7 +16917,7 @@ class OrderCalculator {
  'enhancedCorrectionModal', 'savedNamesModal', 'savedNamesList', 'savedNamesMeta',
  'savedNamesSearchInput', 'savedNamesSearchClearBtn',
  'bossMemTabBtn', 'priceMemTabBtn', 'bossMemPanel', 'priceMemPanel',
- 'pmLibraryBox', 'pmLibrarySelect', 'pmLibraryCount', 'pmLibraryName', 'pmLibraryCreateBtn', 'pmLibraryRenameBtn', 'pmLibraryCopyBtn', 'pmLibraryDeleteBtn', 'pmLibraryStatus', 'pmLibraryAdmin', 'pmAdvancedDetails', 'pmExactRuleDetails',
+ 'pmLibraryBox', 'pmLibrarySelect', 'pmLibraryCount', 'pmLibraryName', 'pmLibraryCreateBtn', 'pmLibraryRenameBtn', 'pmLibraryCopyBtn', 'pmLibraryDeleteBtn', 'pmLibraryStatus', 'pmLibraryAdmin', 'pmExactRuleDetails',
  'pmRangeManager', 'pmRangeToggleBtn', 'pmRangeCount', 'pmRangeBody', 'pmRangeType', 'pmRangeLabel', 'pmRangeAlias', 'pmRangeStarBoundary', 'pmRangeNamedBoundary', 'pmRangeLowerBoundary', 'pmRangeMinStar', 'pmRangeMaxStar', 'pmRangeNamedRanks', 'pmRangeNormalRound', 'pmRangeNormalHour', 'pmRangeCarryRound', 'pmRangeCarryHour', 'pmRangeStarRound', 'pmRangeStarHour', 'pmRangeSaveBtn', 'pmRangeCancelBtn', 'pmRangeList',
  'pmSurchargeManager', 'pmSurchargeToggleBtn', 'pmSurchargeCount', 'pmSurchargeBody', 'pmSurchargeName', 'pmSurchargeKeywords', 'pmSurchargeRound', 'pmSurchargeHour', 'pmSurchargeEnabled', 'pmSurchargeSaveBtn', 'pmSurchargeCancelBtn', 'pmSurchargeList',
  'pmGiftManager', 'pmGiftToggleBtn', 'pmGiftCount', 'pmGiftBody', 'pmGiftName', 'pmGiftMode', 'pmGiftPrice', 'pmGiftSaveBtn', 'pmGiftCancelBtn', 'pmGiftList', 'surchargeStatus',
