@@ -3237,16 +3237,6 @@ h1 { margin-bottom: 4px; }
    } catch (e) {}
  })();
  </script>
- <script>
- if ('serviceWorker' in navigator) {
-   window.addEventListener('load', () => {
-     navigator.serviceWorker.register('./sw.js').catch(error => {
-       console.warn('Service Worker 注册失败:', error);
-     });
-   });
- }
- </script>
-    <meta name="AIGC" content='{"AIGC":{"Label":"2","ContentProducer":"WUSIGRAM","ProduceID":"SmD+h3qmApNVJLuPK9Ym0uNO6D35zXihLWc5XZ0kO+s=","ReservedCode1":"KgL765LKt/GHoHdfo3pXAv3+PgbZUjvinubresbjcfyY92/jXg2fjLCaO6Z6vfyhOvsiWSVXO42Kp2sL77GW1w==","ContentPropagator":"","PropagateID":"","ReservedCode2":""}}'>
 </head>
 <body>
  <svg class="app-icon-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
@@ -3747,11 +3737,7 @@ h1 { margin-bottom: 4px; }
  <script>
  const APP_VERSION = '8.3.1';
  const TUTORIAL_VIDEO_URL = 'https://cdn.jsdelivr.net/gh/srhovo/tutorialvideo@main/video.mp4';
- // Release note: 8.2.25 统一“时长计算 / 提取名字”的按钮高度、文字字号、图标尺寸和垂直基线；保留手机、平板与桌面端原有布局及全部业务逻辑。
- // Release note: 8.2.26 热修——修复手机宽度下“备注触发加价规则”与“礼物名称记忆”表单溢出裁切、部分字段不可见的问题；只新增一条CSS规则，不改其他UI、算法与数据结构。
- // Release note: 8.4.0-candidate 单价记忆库信息流调整——拆掉"高级规则与礼物"这层details包裹，区间价格规则/备注触发加价规则/礼物名称记忆三个子功能从"先展开外层再展开内层"改为直接可见可独立展开，减少一级不必要的点击；三者互相独立、互不影响，管理价格库/新增或编辑单价两者的互斥手风琴行为不变。仅改动这一处结构，不改其他模块。基于8.2.26（不含8.3.0候选版的配色改动）。
- // Release note: 8.2.23 修复结构化项目中间精度过早取整；结算量持久化保留6位，最终项目金额保留3位，并同步修正结构化历史派生结果。
-// 版本规则：第三位用于GPT/AI内部修订；第二位仅在整体达到预期、无已知阻断并确认可交付后晋升。
+ // 版本规则：第三位用于 GPT/AI 内部修订；第二位仅在整体达到预期、无已知阻断并确认可交付后晋升。
  // 核心存储 key：history、bossMemory、priceMemory、priceLibraries、modeRatios、enhancedNameExtractorData、recentBosses。
  // 核心存储 key：hiddenModules、layoutTemplates、lockedPeiPei/lockedPaiDan/lockedBoss；旧 key 禁止改名以免丢本地数据。
  const appLogError = (scope, error) => console.error(`[${scope}]`, error);
@@ -3836,28 +3822,12 @@ class InlineChunkLoader {
     }
     const promise = new Promise((resolve, reject) => {
       try {
-        // 优先使用全局 eval，在 jsdom/浏览器中都能在全局作用域注册类
-        const globalEval = typeof window !== 'undefined' && window.eval ? window.eval.bind(window) : null;
-        if (globalEval) {
-          globalEval(src);
-        } else {
-          const script = document.createElement('script');
-          script.textContent = src;
-          script.dataset.chunk = name;
-          script.onerror = reject;
-          script.onload = () => {
-            this.loaded.add(name);
-            this.loading.delete(name);
-            resolve(true);
-          };
-          document.head.appendChild(script);
-          setTimeout(() => {
-            this.loaded.add(name);
-            this.loading.delete(name);
-            resolve(true);
-          }, 0);
-          return;
-        }
+        // 使用临时 script 标签在全局作用域执行内联 chunk，避免 eval
+        const script = document.createElement('script');
+        script.textContent = src;
+        script.dataset.chunk = name;
+        document.head.appendChild(script);
+        document.head.removeChild(script);
         this.loaded.add(name);
         this.loading.delete(name);
         resolve(true);
@@ -7041,6 +7011,14 @@ class UltimateStorageManager {
  successStorages.push('localStorage');
  } catch (error) {
  appLogError('persistentStorageWrite', error);
+ const isQuotaExceeded = error && (
+   error.name === 'QuotaExceededError' ||
+   error.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+   error.code === 22
+ );
+ if (isQuotaExceeded) {
+   this.notifyStorageWarning('本地存储空间已满，请立即导出备份并清理历史记录或价格库。', { level: 'error', code: 'storage-quota-exceeded' });
+ }
  const result = this.createSetResult([], ['localStorage']);
  this._lastSetResults.set(key, result);
  this.notifySetDurability(result, key);
@@ -7330,7 +7308,10 @@ class UltimateStorageManager {
  load() {
  const raw = this.storage.get(this.key, []);
  const normalized = this.normalize(raw);
- if (JSON.stringify(raw) !== JSON.stringify(normalized)) this.save(normalized);
+ // 只在数据真正被修正（长度变化或 normalize 不幂等）时才写回，避免字段顺序差异导致每次启动都重写 localStorage
+ const needsSave = normalized.length !== raw.length ||
+                   JSON.stringify(this.normalize(normalized)) !== JSON.stringify(normalized);
+ if (needsSave) this.save(normalized);
  return normalized;
  }
 
