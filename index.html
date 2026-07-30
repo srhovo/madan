@@ -3217,9 +3217,26 @@ h1 { margin-bottom: 4px; }
 </style>
  
     
-    <meta name="AIGC" content='{"AIGC":{"Label":"2","ContentProducer":"WUSIGRAM","ProduceID":"SmD+h3qmApNVJLuPK9Ym0uNO6D35zXihLWc5XZ0kO+s=","ReservedCode1":"RxoPAVqIzTRAIN2JrqqBoHuhJ1xJ+JQmvp/swbXYng15D6tLRviEPLXKKndxi1+/AgQzyqO3c+OwUJbvy8Hb6Q==","ContentPropagator":"","PropagateID":"","ReservedCode2":""}}'>
+    
  <meta name="theme-color" content="#f8f9fa">
  <meta name="description" content="陪玩团码单器，支持订单计算、历史记录、数据备份与时长结算">
+ <script>
+ // 在 CSS 和主 JS 加载前抢先应用用户保存的 DIY 隐藏模块，避免首次绘制后再次隐藏造成闪烁。
+ (function() {
+   try {
+     var raw = localStorage.getItem('pw_ultimate_hiddenModules') || localStorage.getItem('hiddenModules');
+     if (!raw) return;
+     var hidden = JSON.parse(raw);
+     if (!Array.isArray(hidden) || !hidden.length) return;
+     var css = hidden.map(function(id) {
+       return '[data-layout-module="' + id + '"] { display: none !important; }';
+     }).join('');
+     var style = document.createElement('style');
+     style.textContent = css;
+     document.head.appendChild(style);
+   } catch (e) {}
+ })();
+ </script>
  <script>
  if ('serviceWorker' in navigator) {
    window.addEventListener('load', () => {
@@ -3229,6 +3246,7 @@ h1 { margin-bottom: 4px; }
    });
  }
  </script>
+    <meta name="AIGC" content='{"AIGC":{"Label":"2","ContentProducer":"WUSIGRAM","ProduceID":"SmD+h3qmApNVJLuPK9Ym0uNO6D35zXihLWc5XZ0kO+s=","ReservedCode1":"KgL765LKt/GHoHdfo3pXAv3+PgbZUjvinubresbjcfyY92/jXg2fjLCaO6Z6vfyhOvsiWSVXO42Kp2sL77GW1w==","ContentPropagator":"","PropagateID":"","ReservedCode2":""}}'>
 </head>
 <body>
  <svg class="app-icon-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
@@ -15663,6 +15681,10 @@ this.lazyFeatures = {
 
  init() {
  if (this._initialized) return this;
+ // 先同步加载 DIY 布局偏好，确保首次渲染即可应用隐藏模块，避免“全部显示→再隐藏”的闪烁。
+ const layoutPrefs = this.loadSharedData({ hiddenModules: [], layoutTemplates: [] });
+ this.hiddenModules = this.layoutFeature.normalizeHiddenModules(layoutPrefs.hiddenModules);
+ this.layoutTemplates = this.layoutFeature.normalizeLayoutTemplates(layoutPrefs.layoutTemplates);
  this.renderConfiguredSections();
  this.cacheElements();
  this.initFeatures();
