@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.2</title>
+ <title>码单器8.3.3</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -1842,6 +1842,23 @@
  max-height: 90vh;
  }
 
+ /* 安卓手机自定义比例面板布局优化 */
+ .custom-ratio-content .app-modal__body { padding: var(--spacing-xs); }
+ .ratio-form { padding: var(--spacing-sm); margin-bottom: var(--spacing-sm); }
+ .ratio-form h4 { margin-bottom: var(--spacing-sm); font-size: var(--font-size-lg); }
+ .ratio-mode-selector { margin-bottom: var(--spacing-sm); padding: var(--spacing-sm); }
+ .ratio-mode-title { margin-bottom: var(--spacing-xs); font-size: var(--font-size-base); }
+ .ratio-mode-options { gap: var(--spacing-md); }
+ .ratio-inputs { gap: var(--spacing-xs); margin-bottom: var(--spacing-sm); }
+ .ratio-input-group label { font-size: var(--font-size-sm); margin-bottom: 2px; }
+ .ratio-input { padding: 8px 12px; font-size: var(--font-size-base); min-height: 38px; }
+ .ratio-sum { margin-bottom: var(--spacing-sm); padding: var(--spacing-sm); font-size: var(--font-size-base); }
+ .ratio-form-actions { flex-direction: row !important; flex-wrap: nowrap; gap: 8px; }
+ .ratio-form-actions .app-btn { flex: 1; min-width: 0; padding: 10px 6px; font-size: var(--font-size-sm); }
+ .ratio-form-actions .reset-ratio-btn { flex: 0 0 auto; padding: 10px 12px; }
+ .custom-ratio-cards { margin-top: var(--spacing-sm); }
+ .custom-ratio-cards h4 { font-size: var(--font-size-lg); margin-bottom: var(--spacing-xs); }
+ .cards-container { padding: var(--spacing-xs); gap: var(--spacing-sm); }
 
  /* 确认对话框移动端适配 */
  .confirm-content {
@@ -3712,14 +3729,15 @@ h1 { margin-bottom: 4px; }
 
 
  <script>
- const APP_VERSION = '8.3.2';
+ const APP_VERSION = '8.3.3';
  const TUTORIAL_VIDEO_URL = 'https://cdn.jsdelivr.net/gh/srhovo/tutorialvideo@main/video.mp4';
+ const WECHAT_OPEN_URL = 'weixin://'; // 生成订单后尝试唤起微信主界面
  // Release note: 8.2.25 统一“时长计算 / 提取名字”的按钮高度、文字字号、图标尺寸和垂直基线；保留手机、平板与桌面端原有布局及全部业务逻辑。
  // Release note: 8.2.26 热修——修复手机宽度下“备注触发加价规则”与“礼物名称记忆”表单溢出裁切、部分字段不可见的问题；只新增一条CSS规则，不改其他UI、算法与数据结构。
  // Release note: 8.4.0-candidate 单价记忆库信息流调整——拆掉"高级规则与礼物"这层details包裹，区间价格规则/备注触发加价规则/礼物名称记忆三个子功能从"先展开外层再展开内层"改为直接可见可独立展开，减少一级不必要的点击；三者互相独立、互不影响，管理价格库/新增或编辑单价两者的互斥手风琴行为不变。仅改动这一处结构，不改其他模块。基于8.2.26（不含8.3.0候选版的配色改动）。
  // Release note: 8.2.23 修复结构化项目中间精度过早取整；结算量持久化保留6位，最终项目金额保留3位，并同步修正结构化历史派生结果。
 // Release note: 8.3.1 清理：删除冗余占位节点 pmLibraryAdmin / pmExactRuleDetails（hidden + display:none，从未渲染），修复未声明的 CSS 变量 --color-dark-video；下载文件“4 级渐进策略”修复 iOS Web App / Android APK 导出失效（Web Share → window.open → <a download> 兜底 + 失败提示）。
-// Release note: 8.3.2 纯命名升级：仅同步版本号（APP_VERSION + <title> + 注释），未改动任何功能、UI、数据结构、Schema 版本号或存储 key；与 8.3.1 在行为上完全等价。
+// Release note: 8.3.3 维护更新：修复折扣/金额浮点精度、DOM 空引用保护、弹窗焦点陷阱、历史记录“加载更多”死代码；生成订单后支持唤起微信（50ms 延迟）；优化安卓自定义比例面板布局。
 // 版本规则：第三位用于GPT/AI内部修订；第二位仅在整体达到预期、无已知阻断并确认可交付后晋升。
  // 核心存储 key：history、bossMemory、priceMemory、priceLibraries、modeRatios、enhancedNameExtractorData、recentBosses。
  // 核心存储 key：hiddenModules、layoutTemplates、lockedPeiPei/lockedPaiDan/lockedBoss；旧 key 禁止改名以免丢本地数据。
@@ -6404,9 +6422,12 @@ class ProjectSettlementEngine {
  static roundTo(value, digits = 0) {
  const number = Number(value);
  if (!Number.isFinite(number)) return number;
- const factor = 10 ** Math.max(0, Number(digits) || 0);
- const correction = Number.EPSILON * Math.max(1, Math.abs(number)) * (number < 0 ? -1 : 1);
- return Math.round((number + correction) * factor) / factor;
+ const digitsInt = Math.max(0, Number(digits) || 0);
+ const factor = 10 ** digitsInt;
+ // 先放大到整数域消除浮点误差（如 2.675*100=267.499...），再舍入
+ const scaled = Math.round(Math.abs(number) * factor * 1e12) / 1e12;
+ const sign = number < 0 ? -1 : 1;
+ return sign * Math.round(scaled) / factor;
  }
  static roundThree(value) { return this.roundTo(value, 3); }
  static roundSix(value) { return this.roundTo(value, 6); }
@@ -7272,7 +7293,7 @@ class UltimateStorageManager {
  const parsedOverlay = OrderEngine.parseDiscountInput(discountOverlayInput);
  const baseDiscount = Number.isFinite(parsedDiscount) ? parsedDiscount : 1;
  const overlayDiscount = Number.isFinite(parsedOverlay) ? parsedOverlay : 1;
- const appliedDiscount = baseDiscount * overlayDiscount;
+ const appliedDiscount = ProjectSettlementEngine.roundSix(baseDiscount * overlayDiscount);
  const peiPei = String(order.peiPei ?? '');
  const peiPeiCount = peiPei.split(/[\s,，、]+/).filter(Boolean).length;
  const ratioDefaults = mode === 2 ? { group: 10, platform: 20, earning: 70 } : { group: 5, platform: 20, earning: 75 };
@@ -7927,7 +7948,7 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  // 提取修正弹窗 - 只负责弹窗结构/事件/确认结果
  // ============================================
  class DialogManager {
- constructor() { this.registry = []; this.bound = new WeakSet(); }
+ constructor() { this.registry = []; this.bound = new WeakSet(); this.focusTrapHandler = null; }
  register(entries = []) {
  entries.filter(entry => entry?.el).forEach(entry => {
  this.registry = this.registry.filter(item => item.el !== entry.el).concat(entry);
@@ -7938,17 +7959,57 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  modal.setAttribute('role', 'dialog');
  modal.setAttribute('aria-modal', 'true');
  if (!modal.hasAttribute('aria-hidden')) modal.setAttribute('aria-hidden', 'true');
+ if (!modal.hasAttribute('tabindex')) modal.setAttribute('tabindex', '-1');
  if (this.bound.has(modal)) return;
  this.bound.add(modal);
  modal.addEventListener('click', e => { if (e.target === modal) this.close(modal); });
  }
+ getFocusableElements(modal) {
+ if (!modal) return [];
+ const selector = 'button, [href], input:not([type="hidden"]), select, textarea, [tabindex]:not([tabindex="-1"])';
+ return Array.from(modal.querySelectorAll(selector)).filter(el => !el.disabled && el.offsetParent !== null);
+ }
+ focusFirstInModal(modal) {
+ const focusables = this.getFocusableElements(modal);
+ if (focusables.length) focusables[0].focus();
+ else modal.focus();
+ }
+ trapFocus(activeModal) {
+ return event => {
+ if (!activeModal.classList.contains('active')) return;
+ if (activeModal.contains(event.target)) return;
+ event.preventDefault();
+ event.stopImmediatePropagation();
+ this.focusFirstInModal(activeModal);
+ };
+ }
+ bindFocusTrap(modal) {
+ this.unbindFocusTrap();
+ this.focusTrapHandler = this.trapFocus(modal);
+ document.addEventListener('focusin', this.focusTrapHandler, true);
+ }
+ unbindFocusTrap() {
+ if (this.focusTrapHandler) {
+ document.removeEventListener('focusin', this.focusTrapHandler, true);
+ this.focusTrapHandler = null;
+ }
+ }
  set(modal, visible) {
  if (!modal) return false;
  this.prepare(modal);
- if (visible) modal._lastFocus = document.activeElement;
+ if (visible) {
+ modal._lastFocus = document.activeElement;
+ this.bindFocusTrap(modal);
+ }
  modal.classList.toggle('active', visible);
  modal.setAttribute('aria-hidden', visible ? 'false' : 'true');
- if (!visible && modal._lastFocus?.focus) setTimeout(() => modal._lastFocus.focus(), 0);
+ if (visible) {
+ setTimeout(() => this.focusFirstInModal(modal), 0);
+ } else {
+ this.unbindFocusTrap();
+ const last = modal._lastFocus;
+ if (last?.focus && document.body.contains(last)) setTimeout(() => last.focus(), 0);
+ }
  this.syncBodyLock();
  return true;
  }
@@ -9391,8 +9452,25 @@ class EventDelegationFeature {
 
  const success = await this.copyToClipboard(app.el.orderOutput.textContent);
  app.showMessage(success ? 'success' : 'error', success ? '订单已生成并复制！' : '订单已生成，复制失败，请手动复制');
+
+ // 复制成功后尝试唤起微信（微信内置浏览器中不再重复跳转）
+ if (success) this.openWechatAfterCopy();
  } catch (error) {
  app.handleError('orderFlow.generateOrder', error, '生成失败，请检查输入数据');
+ }
+ }
+
+ openWechatAfterCopy() {
+ try {
+ const ua = String(navigator.userAgent || '').toLowerCase();
+ const isWechat = /micromessenger/i.test(ua);
+ if (isWechat) return; // 已在微信内，无需跳转
+ // 极短延迟唤起：复制已成功，给浏览器一次渲染机会显示 toast，同时接近理论最快
+ setTimeout(() => {
+ try { window.location.href = WECHAT_OPEN_URL; } catch (error) { appLogSilent(error); }
+ }, 50);
+ } catch (error) {
+ appLogSilent(error);
  }
  }
 
@@ -9484,7 +9562,8 @@ class EventDelegationFeature {
  const discountOverlayInput = discountOverlayValueText === '' ? null : app.inputFlowFeature.normalizeDiscountInputField(app.el.inputs.discountOverlay);
  const baseDiscount = app.currentMode === 1 ? (Number.isFinite(discountInput) ? discountInput : 1) : 1;
  const overlayDiscount = app.currentMode === 1 ? (Number.isFinite(discountOverlayInput) ? discountOverlayInput : 1) : 1;
- const appliedDiscount = baseDiscount * overlayDiscount;
+ // 折扣叠加后先消除浮点误差（如 0.8*0.9=0.7200000000000001），避免后续金额链累积偏差
+ const appliedDiscount = ProjectSettlementEngine.roundSix(baseDiscount * overlayDiscount);
 
  const paiDan = app.el.inputs.paiDan.value || '';
  const peiPei = app.el.inputs.peiPei.value || '';
@@ -14748,8 +14827,9 @@ class HistoryFeature {
  this.store = store;
  this._editingHistoryIndex = -1;
  this._eventScope = new FeatureEventScope();
-this._historyPageSize = 20;
-this._historyRenderLimit = this._historyPageSize;
+ // 与 HistoryStore.limit=10 配合，初始渲染 5 条，超出后“加载更多”才真正可用
+ this._historyPageSize = 5;
+ this._historyRenderLimit = this._historyPageSize;
  }
 
  // HistoryFeature 依赖清单：显式声明历史状态、协作模块与应用能力。
@@ -15783,20 +15863,27 @@ this.scheduleLazyFeatureLoad();
 'dcFillSection', 'dcFillOptions',
 ];
 
- ids.forEach(id => this.el[id] = document.getElementById(id));
+ const missing = [];
+ ids.forEach(id => {
+ this.el[id] = document.getElementById(id);
+ if (!this.el[id]) missing.push(id);
+ });
+ if (missing.length) {
+ appLogError('OrderCalculator.cacheElements', new Error(`缺失 DOM 元素: ${missing.join(', ')}`));
+ }
 
- // 输入框元素
+ // 输入框元素（核心输入缺失时回退到 document.getElementById，避免后续链式访问崩溃）
  this.el.inputs = {
- totalPrice: this.el.totalPrice,
- autoUnitPrice: this.el.autoUnitPrice,
- discount: this.el.discount,
- discountOverlay: this.el.discountOverlay,
- paiDan: this.el.paiDan,
- peiPei: this.el.peiPei,
- boss: this.el.boss,
- type: this.el.type,
- duration: this.el.duration,
- note: this.el.note
+ totalPrice: this.el.totalPrice || document.getElementById('totalPrice'),
+ autoUnitPrice: this.el.autoUnitPrice || document.getElementById('autoUnitPrice'),
+ discount: this.el.discount || document.getElementById('discount'),
+ discountOverlay: this.el.discountOverlay || document.getElementById('discountOverlay'),
+ paiDan: this.el.paiDan || document.getElementById('paiDan'),
+ peiPei: this.el.peiPei || document.getElementById('peiPei'),
+ boss: this.el.boss || document.getElementById('boss'),
+ type: this.el.type || document.getElementById('type'),
+ duration: this.el.duration || document.getElementById('duration'),
+ note: this.el.note || document.getElementById('note')
  };
 
  // 输入框清除按钮（历史/危险操作按钮不参与输入初始化）
