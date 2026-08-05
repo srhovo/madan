@@ -3737,7 +3737,7 @@ h1 { margin-bottom: 4px; }
  // Release note: 8.4.0-candidate 单价记忆库信息流调整——拆掉"高级规则与礼物"这层details包裹，区间价格规则/备注触发加价规则/礼物名称记忆三个子功能从"先展开外层再展开内层"改为直接可见可独立展开，减少一级不必要的点击；三者互相独立、互不影响，管理价格库/新增或编辑单价两者的互斥手风琴行为不变。仅改动这一处结构，不改其他模块。基于8.2.26（不含8.3.0候选版的配色改动）。
  // Release note: 8.2.23 修复结构化项目中间精度过早取整；结算量持久化保留6位，最终项目金额保留3位，并同步修正结构化历史派生结果。
 // Release note: 8.3.1 清理：删除冗余占位节点 pmLibraryAdmin / pmExactRuleDetails（hidden + display:none，从未渲染），修复未声明的 CSS 变量 --color-dark-video；下载文件“4 级渐进策略”修复 iOS Web App / Android APK 导出失效（Web Share → window.open → <a download> 兜底 + 失败提示）。
-// Release note: 8.3.3 维护更新：修复折扣/金额浮点精度、DOM 空引用保护、弹窗焦点陷阱、历史记录“加载更多”死代码；生成订单后支持唤起微信（50ms 延迟）；优化安卓自定义比例面板布局。
+// Release note: 8.3.3 维护更新：修复折扣/金额浮点精度、DOM 空引用保护、弹窗焦点陷阱、历史记录“加载更多”死代码；生成订单后支持唤起微信（50ms 延迟）；优化安卓自定义比例面板布局；修复接龙模式下未确认新名字不触发智能名字修正弹窗的问题。
 // 版本规则：第三位用于GPT/AI内部修订；第二位仅在整体达到预期、无已知阻断并确认可交付后晋升。
  // 核心存储 key：history、bossMemory、priceMemory、priceLibraries、modeRatios、enhancedNameExtractorData、recentBosses。
  // 核心存储 key：hiddenModules、layoutTemplates、lockedPeiPei/lockedPaiDan/lockedBoss；旧 key 禁止改名以免丢本地数据。
@@ -4368,7 +4368,8 @@ class InlineChunkLoader {
  }
 
  // 检查是否需要弹窗（智能判断）
- shouldShowCorrectionModal(names) {
+ // mode: 提取模式；接龙模式下所有未确认新名字都需弹窗确认，其他模式仅对“可能有问题”的名字弹窗
+ shouldShowCorrectionModal(names, mode = null) {
  try {
  if (!names || names.length === 0) return false;
 
@@ -4378,6 +4379,11 @@ class InlineChunkLoader {
  // 如果没有新名字需要确认，返回false
  if (namesToConfirm.length === 0) {
  return false;
+ }
+
+ // 接龙模式：名单通常是完整陪玩列表，每个未确认名字都需人工确认/修正/删除
+ if (mode === 'chain') {
+ return true;
  }
 
  // 检查是否包含可能需要修正的名字
@@ -4915,7 +4921,7 @@ class InlineChunkLoader {
  getNamesToConfirm(names, config = {}) {
  const list = this.uniqueNames(names);
  if (config.useInteractiveCorrection === false) return [];
- if (!this.enhancedExtractor.shouldShowCorrectionModal(list)) return [];
+ if (!this.enhancedExtractor.shouldShowCorrectionModal(list, config.mode)) return [];
  return this.enhancedExtractor.getNamesToConfirm(list);
  }
 
@@ -13720,7 +13726,10 @@ applyExtractResult(result, requestMeta) {
  return;
  }
 
- const namesToConfirm = this.extractorService.getNamesToConfirm(names, this.extractionConfig);
+ const namesToConfirm = this.extractorService.getNamesToConfirm(names, {
+ ...this.extractionConfig,
+ mode: requestMeta.mode
+ });
  if (!namesToConfirm.length) {
  this.commitExtractOutput(names, {
  message: `已提取 ${names.length} 个名字（${modeText}）`
