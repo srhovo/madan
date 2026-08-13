@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "updatedAt": "2026-08-13T00:00:00.000Z",
+  "clubs": [
+    {
+      "id": "xiacijian",
+      "label": "下次见",
+      "file": "下次见club.json",
+      "description": "下次见 club 专属记忆库"
+    }
+  ]
+}

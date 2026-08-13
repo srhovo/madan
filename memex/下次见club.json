@@ -1,0 +1,3163 @@
+{
+  "backupType": "pw-order-tool-backup",
+  "schemaVersion": 4,
+  "appVersion": "8.3.4",
+  "exportedAt": "2026-08-06T08:03:38.180Z",
+  "moduleVersions": {
+    "playableNames": 2,
+    "bossMemory": 1,
+    "priceLibraries": 3,
+    "priceMemory": 1,
+    "modeRatios": 1,
+    "nameLearningData": 2,
+    "layoutTemplates": 1
+  },
+  "modules": {
+    "playableNames": [
+      {
+        "name": "布奇",
+        "original": "bq",
+        "timestamp": 1785986269851,
+        "source": "interactive"
+      },
+      {
+        "name": "emo",
+        "original": "18抑郁帅哥",
+        "timestamp": 1784644266240,
+        "source": "interactive"
+      },
+      {
+        "name": "安然",
+        "original": "19天才少男",
+        "timestamp": 1784112699040,
+        "source": "interactive"
+      },
+      {
+        "name": "小怪",
+        "original": "小怪",
+        "timestamp": 1783795003056,
+        "source": "interactive"
+      },
+      {
+        "name": "绛于",
+        "original": "绛于",
+        "timestamp": 1783794796573,
+        "source": "interactive"
+      },
+      {
+        "name": "落笛",
+        "original": "落笛",
+        "timestamp": 1783794796573,
+        "source": "interactive"
+      },
+      {
+        "name": "喵喵",
+        "original": "喵喵",
+        "timestamp": 1783794796572,
+        "source": "interactive"
+      },
+      {
+        "name": "小珏",
+        "original": "小珏",
+        "timestamp": 1783794796572,
+        "source": "interactive"
+      },
+      {
+        "name": "贝斯",
+        "original": "贝斯麦永存",
+        "timestamp": 1783794557487,
+        "source": "interactive"
+      },
+      {
+        "name": "烟雾",
+        "original": "烟雾朝朝雾雾",
+        "timestamp": 1783794557487,
+        "source": "interactive"
+      },
+      {
+        "name": "橘子花",
+        "original": "橘花朝花夕拾",
+        "timestamp": 1783794557486,
+        "source": "interactive"
+      },
+      {
+        "name": "小鸣",
+        "original": "小鸣",
+        "timestamp": 1783794557486,
+        "source": "interactive"
+      },
+      {
+        "name": "小八",
+        "original": "小八",
+        "timestamp": 1783794557485,
+        "source": "interactive"
+      },
+      {
+        "name": "小元",
+        "original": "小元",
+        "timestamp": 1783794557485,
+        "source": "interactive"
+      },
+      {
+        "name": "佳乐",
+        "original": "佳乐",
+        "timestamp": 1783794557484,
+        "source": "interactive"
+      },
+      {
+        "name": "向北",
+        "original": "向北",
+        "timestamp": 1783786914297,
+        "source": "interactive"
+      },
+      {
+        "name": "菜菜",
+        "original": "菜菜",
+        "timestamp": 1783628127085,
+        "source": "interactive"
+      },
+      {
+        "name": "绝色",
+        "original": "绝色",
+        "timestamp": 1783628127084,
+        "source": "interactive"
+      },
+      {
+        "name": "绾绾",
+        "original": "绾绾",
+        "timestamp": 1783628127084,
+        "source": "interactive"
+      },
+      {
+        "name": "紫鱼",
+        "original": "紫鱼",
+        "timestamp": 1783628127084,
+        "source": "interactive"
+      },
+      {
+        "name": "林林",
+        "original": "林林",
+        "timestamp": 1783628127083,
+        "source": "interactive"
+      },
+      {
+        "name": "柒染",
+        "original": "柒染",
+        "timestamp": 1783628127083,
+        "source": "interactive"
+      },
+      {
+        "name": "时兴",
+        "original": "时兴",
+        "timestamp": 1783628127082,
+        "source": "interactive"
+      },
+      {
+        "name": "小洛",
+        "original": "小洛",
+        "timestamp": 1783628127082,
+        "source": "interactive"
+      },
+      {
+        "name": "小翊",
+        "original": "小翊",
+        "timestamp": 1783628127082,
+        "source": "interactive"
+      },
+      {
+        "name": "姜米",
+        "original": "姜米",
+        "timestamp": 1783628127081,
+        "source": "interactive"
+      },
+      {
+        "name": "么么叽",
+        "original": "么么叽",
+        "timestamp": 1783628127080,
+        "source": "interactive"
+      },
+      {
+        "name": "南粥",
+        "original": "南粥",
+        "timestamp": 1783628127080,
+        "source": "interactive"
+      },
+      {
+        "name": "香芋",
+        "original": "香芋",
+        "timestamp": 1783628070371,
+        "source": "interactive"
+      },
+      {
+        "name": "雨夜",
+        "original": "雨夜",
+        "timestamp": 1783628070370,
+        "source": "interactive"
+      },
+      {
+        "name": "长情",
+        "original": "长情",
+        "timestamp": 1783628070370,
+        "source": "interactive"
+      },
+      {
+        "name": "小辉",
+        "original": "小辉",
+        "timestamp": 1783628070369,
+        "source": "interactive"
+      },
+      {
+        "name": "小皓",
+        "original": "小皓",
+        "timestamp": 1783628070368,
+        "source": "interactive"
+      },
+      {
+        "name": "小影",
+        "original": "小影",
+        "timestamp": 1783628070368,
+        "source": "interactive"
+      },
+      {
+        "name": "江清",
+        "original": "江清",
+        "timestamp": 1782933523086,
+        "source": "interactive"
+      },
+      {
+        "name": "冬雨",
+        "original": "冬雨",
+        "timestamp": 1782933523085,
+        "source": "interactive"
+      },
+      {
+        "name": "情缘",
+        "original": "情缘",
+        "timestamp": 1782933523085,
+        "source": "interactive"
+      },
+      {
+        "name": "真心",
+        "original": "真心",
+        "timestamp": 1782493103137,
+        "source": "interactive"
+      },
+      {
+        "name": "kiss",
+        "original": "kiss",
+        "timestamp": 1782418517473,
+        "source": "interactive"
+      },
+      {
+        "name": "joker",
+        "original": "joker",
+        "timestamp": 1782418517472,
+        "source": "interactive"
+      },
+      {
+        "name": "眠眠",
+        "original": "眠眠",
+        "timestamp": 1782316501685,
+        "source": "interactive"
+      },
+      {
+        "name": "粥粥",
+        "original": "粥粥",
+        "timestamp": 1782316501685,
+        "source": "interactive"
+      },
+      {
+        "name": "小馒头",
+        "original": "小馒头",
+        "timestamp": 1782082948544,
+        "source": "interactive"
+      },
+      {
+        "name": "柚柚",
+        "original": "柚柚",
+        "timestamp": 1782082948544,
+        "source": "interactive"
+      },
+      {
+        "name": "天真泪",
+        "original": "天真泪",
+        "timestamp": 1782082948543,
+        "source": "interactive"
+      },
+      {
+        "name": "魅老师",
+        "original": "魅老师",
+        "timestamp": 1781969663535,
+        "source": "interactive"
+      },
+      {
+        "name": "难言",
+        "original": "难言",
+        "timestamp": 1781789535431,
+        "source": "interactive"
+      },
+      {
+        "name": "翅膀",
+        "original": "翅膀",
+        "timestamp": 1781789535430,
+        "source": "interactive"
+      },
+      {
+        "name": "纳泽",
+        "original": "纳泽",
+        "timestamp": 1781789535430,
+        "source": "interactive"
+      },
+      {
+        "name": "林子禾",
+        "original": "林子禾",
+        "timestamp": 1781789535429,
+        "source": "interactive"
+      },
+      {
+        "name": "小锦",
+        "original": "小锦",
+        "timestamp": 1781789535429,
+        "source": "interactive"
+      },
+      {
+        "name": "小辛",
+        "original": "小辛",
+        "timestamp": 1781789535429,
+        "source": "interactive"
+      },
+      {
+        "name": "小祥",
+        "original": "小祥",
+        "timestamp": 1781789535428,
+        "source": "interactive"
+      },
+      {
+        "name": "卷卷",
+        "original": "卷卷",
+        "timestamp": 1781789535427,
+        "source": "interactive"
+      },
+      {
+        "name": "小暑",
+        "original": "小暑",
+        "timestamp": 1781789535427,
+        "source": "interactive"
+      },
+      {
+        "name": "小优",
+        "original": "小优",
+        "timestamp": 1781789535427,
+        "source": "interactive"
+      },
+      {
+        "name": "三水",
+        "original": "三水",
+        "timestamp": 1781789535426,
+        "source": "interactive"
+      },
+      {
+        "name": "kk",
+        "original": "kk",
+        "timestamp": 1781789535426,
+        "source": "interactive"
+      },
+      {
+        "name": "白栀",
+        "original": "白栀",
+        "timestamp": 1781533438493,
+        "source": "interactive"
+      },
+      {
+        "name": "缘初",
+        "original": "缘初",
+        "timestamp": 1781533438493,
+        "source": "interactive"
+      },
+      {
+        "name": "帝纳",
+        "original": "帝纳",
+        "timestamp": 1781533438492,
+        "source": "interactive"
+      },
+      {
+        "name": "南宫问天",
+        "original": "南宫问天",
+        "timestamp": 1781533438492,
+        "source": "interactive"
+      },
+      {
+        "name": "低频",
+        "original": "低频",
+        "timestamp": 1781106798578,
+        "source": "interactive"
+      },
+      {
+        "name": "小玖",
+        "original": "小玖",
+        "timestamp": 1781106798578,
+        "source": "interactive"
+      },
+      {
+        "name": "kill",
+        "original": "kill",
+        "timestamp": 1781106798578,
+        "source": "interactive"
+      },
+      {
+        "name": "听雨",
+        "original": "听雨",
+        "timestamp": 1780858951712,
+        "source": "interactive"
+      },
+      {
+        "name": "晚星",
+        "original": "晚星",
+        "timestamp": 1780858951712,
+        "source": "interactive"
+      },
+      {
+        "name": "佳琪",
+        "original": "佳琪",
+        "timestamp": 1780858951711,
+        "source": "interactive"
+      },
+      {
+        "name": "呆呆",
+        "original": "呆呆",
+        "timestamp": 1780858918901,
+        "source": "interactive"
+      },
+      {
+        "name": "厌离",
+        "original": "厌离",
+        "timestamp": 1780858918901,
+        "source": "interactive"
+      },
+      {
+        "name": "元元",
+        "original": "元元",
+        "timestamp": 1780858918901,
+        "source": "interactive"
+      },
+      {
+        "name": "小陈",
+        "original": "小陈",
+        "timestamp": 1780743230509,
+        "source": "interactive"
+      },
+      {
+        "name": "小骨",
+        "original": "小骨",
+        "timestamp": 1780500191504,
+        "source": "interactive"
+      },
+      {
+        "name": "晞泠",
+        "original": "晞泠",
+        "timestamp": 1780335378089,
+        "source": "interactive"
+      },
+      {
+        "name": "惬沂",
+        "original": "惬沂",
+        "timestamp": 1780161185945,
+        "source": "interactive"
+      },
+      {
+        "name": "乌萨奇",
+        "original": "乌萨奇",
+        "timestamp": 1780147487067,
+        "source": "interactive"
+      },
+      {
+        "name": "绯鸢",
+        "original": "绯鸢",
+        "timestamp": 1779874680591,
+        "source": "interactive"
+      },
+      {
+        "name": "月落",
+        "original": "月落",
+        "timestamp": 1779874680590,
+        "source": "interactive"
+      },
+      {
+        "name": "小决",
+        "original": "小决",
+        "timestamp": 1779874680589,
+        "source": "interactive"
+      },
+      {
+        "name": "峰峰",
+        "original": "峰峰",
+        "timestamp": 1779813587673,
+        "source": "interactive"
+      },
+      {
+        "name": "流萤",
+        "original": "流萤",
+        "timestamp": 1779813587673,
+        "source": "interactive"
+      },
+      {
+        "name": "可心",
+        "original": "可心",
+        "timestamp": 1779813587672,
+        "source": "interactive"
+      },
+      {
+        "name": "蛋卷",
+        "original": "蛋卷",
+        "timestamp": 1779720707493,
+        "source": "interactive"
+      },
+      {
+        "name": "奶龙",
+        "original": "奶龙",
+        "timestamp": 1779720707492,
+        "source": "interactive"
+      },
+      {
+        "name": "一只羊",
+        "original": "一只羊",
+        "timestamp": 1779720707491,
+        "source": "interactive"
+      },
+      {
+        "name": "鱼饼",
+        "original": "鱼饼",
+        "timestamp": 1779576982514,
+        "source": "interactive"
+      },
+      {
+        "name": "落幕",
+        "original": "落幕",
+        "timestamp": 1779576982513,
+        "source": "interactive"
+      },
+      {
+        "name": "肉肉",
+        "original": "肉肉",
+        "timestamp": 1779576982513,
+        "source": "interactive"
+      },
+      {
+        "name": "晴天",
+        "original": "晴天",
+        "timestamp": 1779576982512,
+        "source": "interactive"
+      },
+      {
+        "name": "小温",
+        "original": "小温",
+        "timestamp": 1779576982511,
+        "source": "interactive"
+      },
+      {
+        "name": "cc",
+        "original": "Seecc",
+        "timestamp": 1779576982511,
+        "source": "interactive"
+      },
+      {
+        "name": "齐想",
+        "original": "齐想",
+        "timestamp": 1779576691648,
+        "source": "interactive"
+      },
+      {
+        "name": "青川",
+        "original": "青川",
+        "timestamp": 1779576691648,
+        "source": "interactive"
+      },
+      {
+        "name": "杀戮",
+        "original": "杀戮",
+        "timestamp": 1779576691647,
+        "source": "interactive"
+      },
+      {
+        "name": "小苒",
+        "original": "小苒",
+        "timestamp": 1779576691647,
+        "source": "interactive"
+      },
+      {
+        "name": "小阮",
+        "original": "小阮",
+        "timestamp": 1779576691647,
+        "source": "interactive"
+      },
+      {
+        "name": "大狗",
+        "original": "大狗",
+        "timestamp": 1779576691646,
+        "source": "interactive"
+      },
+      {
+        "name": "小耳",
+        "original": "小耳",
+        "timestamp": 1779576691646,
+        "source": "interactive"
+      },
+      {
+        "name": "11",
+        "original": "11",
+        "timestamp": 1779576691645,
+        "source": "interactive"
+      },
+      {
+        "name": "江辞",
+        "original": "江辞",
+        "timestamp": 1779576476600,
+        "source": "interactive"
+      },
+      {
+        "name": "江江",
+        "original": "江江",
+        "timestamp": 1779576275874,
+        "source": "interactive"
+      },
+      {
+        "name": "聆春愿",
+        "original": "聆春愿",
+        "timestamp": 1779576275874,
+        "source": "interactive"
+      },
+      {
+        "name": "椰丝",
+        "original": "椰丝",
+        "timestamp": 1779576275874,
+        "source": "interactive"
+      },
+      {
+        "name": "机智豆",
+        "original": "机智豆",
+        "timestamp": 1779576275873,
+        "source": "interactive"
+      },
+      {
+        "name": "梅柚饼",
+        "original": "梅柚饼",
+        "timestamp": 1779576275873,
+        "source": "interactive"
+      },
+      {
+        "name": "雨季",
+        "original": "雨季",
+        "timestamp": 1779468516889,
+        "source": "interactive"
+      },
+      {
+        "name": "错遇",
+        "original": "错遇",
+        "timestamp": 1779463200665,
+        "source": "interactive"
+      },
+      {
+        "name": "TT",
+        "original": "SeeTT",
+        "timestamp": 1779463200664,
+        "source": "interactive"
+      },
+      {
+        "name": "snake",
+        "original": "snake1",
+        "timestamp": 1779443700166,
+        "source": "interactive"
+      },
+      {
+        "name": "想静静",
+        "original": "想静静",
+        "timestamp": 1779386771671,
+        "source": "interactive"
+      },
+      {
+        "name": "许意",
+        "original": "许意",
+        "timestamp": 1779386771671,
+        "source": "interactive"
+      },
+      {
+        "name": "谊箩",
+        "original": "谊箩",
+        "timestamp": 1779386771671,
+        "source": "interactive"
+      },
+      {
+        "name": "尔尔",
+        "original": "尔尔",
+        "timestamp": 1779386771670,
+        "source": "interactive"
+      },
+      {
+        "name": "鸿辰",
+        "original": "鸿辰",
+        "timestamp": 1779356570664,
+        "source": "interactive"
+      },
+      {
+        "name": "西西",
+        "original": "西西",
+        "timestamp": 1779356570664,
+        "source": "interactive"
+      },
+      {
+        "name": "小行星",
+        "original": "小行星",
+        "timestamp": 1779356570664,
+        "source": "interactive"
+      },
+      {
+        "name": "小墨",
+        "original": "小墨",
+        "timestamp": 1779356570663,
+        "source": "interactive"
+      },
+      {
+        "name": "阿u",
+        "original": "阿u",
+        "timestamp": 1779108162547,
+        "source": "interactive"
+      },
+      {
+        "name": "陈平安",
+        "original": "陈平安",
+        "timestamp": 1779108162547,
+        "source": "interactive"
+      },
+      {
+        "name": "解药",
+        "original": "解药",
+        "timestamp": 1779108162546,
+        "source": "interactive"
+      },
+      {
+        "name": "iu",
+        "original": "Seeiu",
+        "timestamp": 1779108162546,
+        "source": "interactive"
+      },
+      {
+        "name": "伍优",
+        "original": "伍优",
+        "timestamp": 1778862146018,
+        "source": "interactive"
+      },
+      {
+        "name": "小逸",
+        "original": "小逸",
+        "timestamp": 1778862146018,
+        "source": "interactive"
+      },
+      {
+        "name": "鸽歌",
+        "original": "鸽歌",
+        "timestamp": 1778351821084,
+        "source": "interactive"
+      },
+      {
+        "name": "袁君瑭",
+        "original": "袁君瑭",
+        "timestamp": 1778351821084,
+        "source": "interactive"
+      },
+      {
+        "name": "江東",
+        "original": "江東",
+        "timestamp": 1778351821083,
+        "source": "interactive"
+      },
+      {
+        "name": "屿风",
+        "original": "屿风",
+        "timestamp": 1778351821083,
+        "source": "interactive"
+      },
+      {
+        "name": "欠欠",
+        "original": "欠欠",
+        "timestamp": 1778337948401,
+        "source": "interactive"
+      },
+      {
+        "name": "念春",
+        "original": "念春",
+        "timestamp": 1778337948400,
+        "source": "interactive"
+      },
+      {
+        "name": "小致",
+        "original": "小致",
+        "timestamp": 1778337948400,
+        "source": "interactive"
+      },
+      {
+        "name": "鸽鸽",
+        "original": "鸽鸽",
+        "timestamp": 1778169314747,
+        "source": "interactive"
+      },
+      {
+        "name": "花落",
+        "original": "花落",
+        "timestamp": 1778169314747,
+        "source": "interactive"
+      },
+      {
+        "name": "坨坨",
+        "original": "坨坨",
+        "timestamp": 1778169314747,
+        "source": "interactive"
+      },
+      {
+        "name": "大川",
+        "original": "大川",
+        "timestamp": 1777827709382,
+        "source": "interactive"
+      },
+      {
+        "name": "小铃铛",
+        "original": "小铃铛",
+        "timestamp": 1777827709382,
+        "source": "interactive"
+      },
+      {
+        "name": "糯米",
+        "original": "糯米",
+        "timestamp": 1777365956978,
+        "source": "interactive"
+      },
+      {
+        "name": "苏言",
+        "original": "苏言",
+        "timestamp": 1777365956978,
+        "source": "interactive"
+      },
+      {
+        "name": "弯月",
+        "original": "弯月",
+        "timestamp": 1777365956977,
+        "source": "interactive"
+      },
+      {
+        "name": "无计",
+        "original": "无计",
+        "timestamp": 1777365956977,
+        "source": "interactive"
+      },
+      {
+        "name": "小辰",
+        "original": "小辰",
+        "timestamp": 1777365956977,
+        "source": "interactive"
+      },
+      {
+        "name": "321",
+        "original": "321",
+        "timestamp": 1777365956976,
+        "source": "interactive"
+      },
+      {
+        "name": "不知道",
+        "original": "不知道",
+        "timestamp": 1777365956976,
+        "source": "interactive"
+      },
+      {
+        "name": "喵岛",
+        "original": "喵岛",
+        "timestamp": 1777365956976,
+        "source": "interactive"
+      },
+      {
+        "name": "天天",
+        "original": "天天",
+        "timestamp": 1777365956976,
+        "source": "interactive"
+      },
+      {
+        "name": "小卷毛",
+        "original": "小卷毛",
+        "timestamp": 1777365956976,
+        "source": "interactive"
+      },
+      {
+        "name": "Six",
+        "original": "SeeSix",
+        "timestamp": 1777365956976,
+        "source": "interactive"
+      },
+      {
+        "name": "沉默",
+        "original": "沉默",
+        "timestamp": 1777365864779,
+        "source": "interactive"
+      },
+      {
+        "name": "拾天",
+        "original": "拾天",
+        "timestamp": 1777365864779,
+        "source": "interactive"
+      },
+      {
+        "name": "西瓜",
+        "original": "西瓜",
+        "timestamp": 1776418422888,
+        "source": "interactive"
+      },
+      {
+        "name": "离线",
+        "original": "离线",
+        "timestamp": 1776418422887,
+        "source": "interactive"
+      },
+      {
+        "name": "牵挂",
+        "original": "牵挂",
+        "timestamp": 1776418422887,
+        "source": "interactive"
+      },
+      {
+        "name": "清清",
+        "original": "清清",
+        "timestamp": 1776418422887,
+        "source": "interactive"
+      },
+      {
+        "name": "想你",
+        "original": "想你",
+        "timestamp": 1776418422886,
+        "source": "interactive"
+      },
+      {
+        "name": "小耳朵",
+        "original": "小耳朵",
+        "timestamp": 1776418422886,
+        "source": "interactive"
+      },
+      {
+        "name": "小欧",
+        "original": "小欧",
+        "timestamp": 1776418422886,
+        "source": "interactive"
+      },
+      {
+        "name": "小文",
+        "original": "小文",
+        "timestamp": 1776418422886,
+        "source": "interactive"
+      },
+      {
+        "name": "小怡",
+        "original": "小怡",
+        "timestamp": 1776418422886,
+        "source": "interactive"
+      },
+      {
+        "name": "好困",
+        "original": "好困",
+        "timestamp": 1776418422885,
+        "source": "interactive"
+      },
+      {
+        "name": "coco",
+        "original": "coco",
+        "timestamp": 1776418422885,
+        "source": "interactive"
+      },
+      {
+        "name": "鹿北川",
+        "original": "鹿北川",
+        "timestamp": 1776319281922,
+        "source": "interactive"
+      },
+      {
+        "name": "小帆",
+        "original": "小帆",
+        "timestamp": 1776319281921,
+        "source": "interactive"
+      },
+      {
+        "name": "圣诞结",
+        "original": "小柳",
+        "timestamp": 1776165197247,
+        "source": "interactive"
+      },
+      {
+        "name": "辣条",
+        "original": "辣条",
+        "timestamp": 1776165162375,
+        "source": "interactive"
+      },
+      {
+        "name": "祈岁安",
+        "original": "祈岁安",
+        "timestamp": 1776165162375,
+        "source": "interactive"
+      },
+      {
+        "name": "萧然",
+        "original": "萧然",
+        "timestamp": 1776165162375,
+        "source": "interactive"
+      },
+      {
+        "name": "赵大钱",
+        "original": "f派赵大钱",
+        "timestamp": 1776165162375,
+        "source": "interactive"
+      },
+      {
+        "name": "情歌",
+        "original": "情歌",
+        "timestamp": 1776165162374,
+        "source": "interactive"
+      },
+      {
+        "name": "小如",
+        "original": "小如",
+        "timestamp": 1776165162374,
+        "source": "interactive"
+      },
+      {
+        "name": "真司",
+        "original": "真司",
+        "timestamp": 1776165162374,
+        "source": "interactive"
+      },
+      {
+        "name": "纯粹",
+        "original": "纯粹",
+        "timestamp": 1776159212002,
+        "source": "interactive"
+      },
+      {
+        "name": "清汐",
+        "original": "清汐",
+        "timestamp": 1776159212002,
+        "source": "interactive"
+      },
+      {
+        "name": "思卿",
+        "original": "思卿",
+        "timestamp": 1776159212002,
+        "source": "interactive"
+      },
+      {
+        "name": "小7",
+        "original": "小7",
+        "timestamp": 1776159212002,
+        "source": "interactive"
+      },
+      {
+        "name": "小楠",
+        "original": "小楠",
+        "timestamp": 1776159212002,
+        "source": "interactive"
+      },
+      {
+        "name": "小昕",
+        "original": "小昕",
+        "timestamp": 1776159212002,
+        "source": "interactive"
+      },
+      {
+        "name": "佳一",
+        "original": "佳一",
+        "timestamp": 1776159212001,
+        "source": "interactive"
+      },
+      {
+        "name": "奶兔",
+        "original": "奶兔",
+        "timestamp": 1776159212001,
+        "source": "interactive"
+      },
+      {
+        "name": "潇潇",
+        "original": "潇潇",
+        "timestamp": 1776159032311,
+        "source": "interactive"
+      },
+      {
+        "name": "小羊",
+        "original": "小羊",
+        "timestamp": 1776159032311,
+        "source": "interactive"
+      },
+      {
+        "name": "啾啾",
+        "original": "啾啾",
+        "timestamp": 1775916052287,
+        "source": "interactive"
+      },
+      {
+        "name": "君莫笑",
+        "original": "君莫笑",
+        "timestamp": 1775916052287,
+        "source": "interactive"
+      },
+      {
+        "name": "奶块",
+        "original": "奶块",
+        "timestamp": 1775916052287,
+        "source": "interactive"
+      },
+      {
+        "name": "下雪",
+        "original": "下雪",
+        "timestamp": 1775916052287,
+        "source": "interactive"
+      },
+      {
+        "name": "小梦",
+        "original": "小梦",
+        "timestamp": 1775916052287,
+        "source": "interactive"
+      },
+      {
+        "name": "小鱼诗",
+        "original": "小鱼诗",
+        "timestamp": 1775916052287,
+        "source": "interactive"
+      },
+      {
+        "name": "望仔",
+        "original": "望仔",
+        "timestamp": 1770152536023,
+        "source": "interactive"
+      },
+      {
+        "name": "小湫",
+        "original": "小湫",
+        "timestamp": 1770152536023,
+        "source": "interactive"
+      },
+      {
+        "name": "小秋",
+        "original": "小秋",
+        "timestamp": 1770152536023,
+        "source": "interactive"
+      },
+      {
+        "name": "孤豪",
+        "original": "孤豪",
+        "timestamp": 1770152536022,
+        "source": "interactive"
+      },
+      {
+        "name": "书信",
+        "original": "书信",
+        "timestamp": 1770152536022,
+        "source": "interactive"
+      },
+      {
+        "name": "小圣诞",
+        "original": "小圣诞",
+        "timestamp": 1770152536022,
+        "source": "interactive"
+      },
+      {
+        "name": "小怿",
+        "original": "小怿",
+        "timestamp": 1770152536022,
+        "source": "interactive"
+      },
+      {
+        "name": "77",
+        "original": "77",
+        "timestamp": 1770152536021,
+        "source": "interactive"
+      },
+      {
+        "name": "928H",
+        "original": "928H",
+        "timestamp": 1770152536021,
+        "source": "interactive"
+      },
+      {
+        "name": "阿鬼",
+        "original": "风铃阿鬼",
+        "timestamp": 1770152508684,
+        "source": "auto"
+      },
+      {
+        "name": "白也",
+        "original": "风铃白也",
+        "timestamp": 1770152508684,
+        "source": "auto"
+      },
+      {
+        "name": "屁屁",
+        "original": "屁屁 y 读懂我的星",
+        "timestamp": 1770152508684,
+        "source": "auto"
+      },
+      {
+        "name": "熊二",
+        "original": "风铃熊二",
+        "timestamp": 1770152508684,
+        "source": "auto"
+      },
+      {
+        "name": "寻笛",
+        "original": "风铃寻笛",
+        "timestamp": 1770152508684,
+        "source": "auto"
+      }
+    ],
+    "bossMemory": [
+      {
+        "name": "粥粥",
+        "paiDan": "清清",
+        "discount": 0.9
+      },
+      {
+        "name": "祈零",
+        "paiDan": "月归",
+        "discount": 0.92
+      },
+      {
+        "name": "小雅",
+        "paiDan": "悦悦",
+        "discount": 0.95
+      },
+      {
+        "name": "川川",
+        "paiDan": "安然",
+        "discount": 0.88
+      },
+      {
+        "name": "少宰",
+        "paiDan": "小雨",
+        "discount": 1
+      },
+      {
+        "name": "兔子",
+        "paiDan": "佳琪",
+        "discount": 0.96
+      },
+      {
+        "name": "01",
+        "paiDan": "悦悦",
+        "discount": 0.98
+      },
+      {
+        "name": "馨馨",
+        "paiDan": "谜～",
+        "discount": 0.92
+      },
+      {
+        "name": "小鱼",
+        "paiDan": "念春",
+        "discount": 0.98
+      },
+      {
+        "name": "土豆",
+        "paiDan": "佳一",
+        "discount": 0.88
+      },
+      {
+        "name": "77",
+        "paiDan": "下雪",
+        "discount": 0.97
+      },
+      {
+        "name": "夜鹭",
+        "paiDan": "泡泡",
+        "discount": 0.92
+      },
+      {
+        "name": "小痣",
+        "paiDan": "林林",
+        "discount": 0.88
+      },
+      {
+        "name": "小yu",
+        "paiDan": "米米",
+        "discount": 0.96
+      },
+      {
+        "name": "奶茶",
+        "paiDan": "小丸子",
+        "discount": 0.93
+      },
+      {
+        "name": "十一",
+        "paiDan": "谜～",
+        "discount": 0.98
+      },
+      {
+        "name": "云丝",
+        "paiDan": "六一",
+        "discount": 0.95
+      },
+      {
+        "name": "空空",
+        "paiDan": "小阮",
+        "discount": 0.96
+      },
+      {
+        "name": "方便面",
+        "paiDan": "六一",
+        "discount": 0.9
+      },
+      {
+        "name": "挽筝",
+        "paiDan": "小芮",
+        "discount": 0.95
+      },
+      {
+        "name": "嘟嘟",
+        "paiDan": "米米",
+        "discount": 0.88
+      },
+      {
+        "name": "小漪",
+        "paiDan": "粥粥",
+        "discount": 0.92
+      },
+      {
+        "name": "ee",
+        "paiDan": "心情",
+        "discount": 0.93
+      },
+      {
+        "name": "小玥",
+        "paiDan": "小豪",
+        "discount": 0.92
+      },
+      {
+        "name": "次元",
+        "paiDan": "悦悦",
+        "discount": 0.96
+      },
+      {
+        "name": "茶茶",
+        "paiDan": "小1",
+        "discount": 0.88
+      }
+    ],
+    "priceLibraries": {
+      "schemaVersion": 3,
+      "activeLibraryId": "price_library_295b7255",
+      "libraries": [
+        {
+          "id": "price_library_295b7255",
+          "name": "下次见常驻价格表",
+          "createdAt": 1784111046966,
+          "updatedAt": 1785998029896,
+          "items": [
+            {
+              "id": "price_item_d06f2b2e",
+              "serviceType": "技术匹配",
+              "serviceKey": "技术匹配",
+              "unitPrice": 17,
+              "settleType": "round",
+              "usageCount": 9,
+              "createdAt": 1784111791750,
+              "updatedAt": 1785927041060,
+              "lastUsed": 1785927041060
+            },
+            {
+              "id": "price_item_4aee9315",
+              "serviceType": "娱乐匹配",
+              "serviceKey": "娱乐匹配",
+              "unitPrice": 13,
+              "settleType": "round",
+              "usageCount": 9,
+              "createdAt": 1784112051436,
+              "updatedAt": 1785927000311,
+              "lastUsed": 1785927000311
+            },
+            {
+              "id": "price_item_a8e973b2",
+              "serviceType": "娱技匹配",
+              "serviceKey": "娱技匹配",
+              "unitPrice": 15,
+              "settleType": "round",
+              "usageCount": 8,
+              "createdAt": 1784111791750,
+              "updatedAt": 1785926938631,
+              "lastUsed": 1785926938631
+            },
+            {
+              "id": "price_item_9fdbb491",
+              "serviceType": "一起看",
+              "serviceKey": "一起看",
+              "unitPrice": 35,
+              "settleType": "hour",
+              "usageCount": 16,
+              "createdAt": 1784111791750,
+              "updatedAt": 1785926869311,
+              "lastUsed": 1785926869311
+            },
+            {
+              "id": "price_item_9334aacd",
+              "serviceType": "鹅鸭杀",
+              "serviceKey": "鹅鸭杀",
+              "unitPrice": 35,
+              "settleType": "hour",
+              "usageCount": 62,
+              "createdAt": 1784111791750,
+              "updatedAt": 1785867615070,
+              "lastUsed": 1785867615070
+            },
+            {
+              "id": "price_item_7816cbf0",
+              "serviceType": "端游",
+              "serviceKey": "端游",
+              "unitPrice": 50,
+              "settleType": "hour",
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784157903056,
+              "lastUsed": 1784157903056
+            },
+            {
+              "id": "price_item_e2cbd283",
+              "serviceType": "纯文",
+              "serviceKey": "纯文",
+              "unitPrice": 30,
+              "settleType": "hour",
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784157820241,
+              "lastUsed": 1784157820241
+            },
+            {
+              "id": "price_item_61b43b84",
+              "serviceType": "树洞",
+              "serviceKey": "树洞",
+              "unitPrice": 42,
+              "settleType": "hour",
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784157800252,
+              "lastUsed": 1784157800252
+            },
+            {
+              "id": "price_item_c66dc98c",
+              "serviceType": "其他手游",
+              "serviceKey": "其他手游",
+              "unitPrice": 40,
+              "settleType": "hour",
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784157775522,
+              "lastUsed": 1784157775522
+            },
+            {
+              "id": "price_item_e426811e",
+              "serviceType": "纯连",
+              "serviceKey": "纯连",
+              "unitPrice": 40,
+              "settleType": "hour",
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784157747891,
+              "lastUsed": 1784157747891
+            },
+            {
+              "id": "price_item_ea1a16b8",
+              "serviceType": "蹭金标",
+              "serviceKey": "蹭金标",
+              "unitPrice": 18,
+              "settleType": "round",
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784157708296,
+              "lastUsed": 1784157708296
+            },
+            {
+              "id": "price_item_313cf0b5",
+              "serviceType": "教学单",
+              "serviceKey": "教学单",
+              "unitPrice": 6,
+              "settleType": "round",
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784157652793,
+              "lastUsed": 1784157652793
+            },
+            {
+              "id": "price_item_1b563c5c",
+              "serviceType": "甜蜜单",
+              "serviceKey": "甜蜜单",
+              "unitPrice": 5,
+              "settleType": "round",
+              "usageCount": 2,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784157639698,
+              "lastUsed": 1784157639698
+            },
+            {
+              "id": "price_item_9965a3b2",
+              "serviceType": "技术娱乐",
+              "serviceKey": "技术娱乐",
+              "unitPrice": 17,
+              "settleType": "round",
+              "usageCount": 7,
+              "createdAt": 1784157600680,
+              "updatedAt": 1784157600680,
+              "lastUsed": 1784157600680
+            },
+            {
+              "id": "price_item_bb993cfd",
+              "serviceType": "小国蹭标",
+              "serviceKey": "小国蹭标",
+              "unitPrice": 28,
+              "settleType": "round",
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111934405,
+              "lastUsed": 1784111934405
+            },
+            {
+              "id": "price_item_1a21aa75",
+              "serviceType": "大国蹭标",
+              "serviceKey": "大国蹭标",
+              "unitPrice": 48,
+              "settleType": "round",
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111861657,
+              "lastUsed": 1784111861657
+            },
+            {
+              "id": "price_item_126a53b4",
+              "serviceType": "哄睡",
+              "serviceKey": "哄睡",
+              "unitPrice": 45,
+              "settleType": "hour",
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            }
+          ],
+          "rules": [
+            {
+              "id": "price_rule_29948266",
+              "kind": "rankRange",
+              "rangeLabel": "钻石及以下",
+              "alias": "",
+              "rankType": "lowerTier",
+              "minStar": null,
+              "maxStar": null,
+              "namedRanks": [
+                "钻石",
+                "铂金",
+                "黄金",
+                "白银",
+                "青铜"
+              ],
+              "prices": {
+                "normal": {
+                  "round": 13
+                },
+                "carry": {
+                  "round": 15
+                },
+                "starGuarantee": {
+                  "round": 18
+                }
+              },
+              "createdAt": 1784111791754,
+              "updatedAt": 1784111791754
+            },
+            {
+              "id": "price_rule_47adc9a1",
+              "kind": "rankRange",
+              "rangeLabel": "星耀",
+              "alias": "",
+              "rankType": "namedTier",
+              "minStar": null,
+              "maxStar": null,
+              "namedRanks": [
+                "星耀1",
+                "星耀2",
+                "星耀3",
+                "星耀4",
+                "星耀5"
+              ],
+              "prices": {
+                "normal": {
+                  "round": 15
+                },
+                "carry": {
+                  "round": 18
+                },
+                "starGuarantee": {
+                  "round": 20
+                }
+              },
+              "createdAt": 1784111791754,
+              "updatedAt": 1784111791754
+            },
+            {
+              "id": "price_rule_eb77fe39",
+              "kind": "rankRange",
+              "rangeLabel": "0-20星",
+              "alias": "低星",
+              "rankType": "star",
+              "minStar": 0,
+              "maxStar": 20,
+              "namedRanks": [],
+              "prices": {
+                "normal": {
+                  "round": 18
+                },
+                "carry": {
+                  "round": 20
+                },
+                "starGuarantee": {
+                  "round": 25
+                }
+              },
+              "createdAt": 1784111791754,
+              "updatedAt": 1784113343604
+            },
+            {
+              "id": "price_rule_a4d1d874",
+              "kind": "rankRange",
+              "rangeLabel": "21-35星",
+              "alias": "无双",
+              "rankType": "star",
+              "minStar": 21,
+              "maxStar": 35,
+              "namedRanks": [],
+              "prices": {
+                "normal": {
+                  "round": 20
+                },
+                "carry": {
+                  "round": 25
+                },
+                "starGuarantee": {
+                  "round": 30
+                }
+              },
+              "createdAt": 1784111791754,
+              "updatedAt": 1785965888286
+            },
+            {
+              "id": "price_rule_cf12f285",
+              "kind": "rankRange",
+              "rangeLabel": "36-50星",
+              "alias": "",
+              "rankType": "star",
+              "minStar": 36,
+              "maxStar": 50,
+              "namedRanks": [],
+              "prices": {
+                "normal": {
+                  "round": 25
+                },
+                "carry": {
+                  "round": 30
+                },
+                "starGuarantee": {
+                  "round": 40
+                }
+              },
+              "createdAt": 1784111791754,
+              "updatedAt": 1784111791754
+            },
+            {
+              "id": "price_rule_d6a9451e",
+              "kind": "rankRange",
+              "rangeLabel": "51-65星",
+              "alias": "荣耀",
+              "rankType": "star",
+              "minStar": 51,
+              "maxStar": 65,
+              "namedRanks": [],
+              "prices": {
+                "normal": {
+                  "round": 30
+                },
+                "carry": {
+                  "round": 35
+                },
+                "starGuarantee": {
+                  "round": 45
+                }
+              },
+              "createdAt": 1784111791754,
+              "updatedAt": 1785965905995
+            },
+            {
+              "id": "price_rule_f7ab0b17",
+              "kind": "rankRange",
+              "rangeLabel": "66-80星",
+              "alias": "",
+              "rankType": "star",
+              "minStar": 66,
+              "maxStar": 80,
+              "namedRanks": [],
+              "prices": {
+                "normal": {
+                  "round": 35
+                },
+                "carry": {
+                  "round": 40
+                },
+                "starGuarantee": {
+                  "round": 50
+                }
+              },
+              "createdAt": 1784111791754,
+              "updatedAt": 1784111791754
+            },
+            {
+              "id": "price_rule_cb03e9b8",
+              "kind": "rankRange",
+              "rangeLabel": "81-90星",
+              "alias": "",
+              "rankType": "star",
+              "minStar": 81,
+              "maxStar": 90,
+              "namedRanks": [],
+              "prices": {
+                "normal": {
+                  "round": 40
+                },
+                "carry": {
+                  "round": 45
+                },
+                "starGuarantee": {
+                  "round": 55
+                }
+              },
+              "createdAt": 1784111791754,
+              "updatedAt": 1784111791754
+            },
+            {
+              "id": "price_rule_f6ff43e5",
+              "kind": "rankRange",
+              "rangeLabel": "91-100星",
+              "alias": "",
+              "rankType": "star",
+              "minStar": 91,
+              "maxStar": 100,
+              "namedRanks": [],
+              "prices": {
+                "normal": {
+                  "round": 45
+                },
+                "carry": {
+                  "round": 50
+                },
+                "starGuarantee": {
+                  "round": 60
+                }
+              },
+              "createdAt": 1784111791754,
+              "updatedAt": 1784111791754
+            },
+            {
+              "id": "price_rule_2e5beed2",
+              "kind": "rankRange",
+              "rangeLabel": "101-110星",
+              "alias": "百星",
+              "rankType": "star",
+              "minStar": 101,
+              "maxStar": 110,
+              "namedRanks": [],
+              "prices": {
+                "normal": {
+                  "round": 50
+                },
+                "carry": {
+                  "round": 55
+                },
+                "starGuarantee": {
+                  "round": 65
+                }
+              },
+              "createdAt": 1784111791754,
+              "updatedAt": 1785965972734
+            },
+            {
+              "id": "price_rule_368a4d62",
+              "kind": "rankRange",
+              "rangeLabel": "111-120星",
+              "alias": "",
+              "rankType": "star",
+              "minStar": 111,
+              "maxStar": 120,
+              "namedRanks": [],
+              "prices": {
+                "normal": {
+                  "round": 55
+                },
+                "carry": {
+                  "round": 60
+                },
+                "starGuarantee": {
+                  "round": 70
+                }
+              },
+              "createdAt": 1784111791754,
+              "updatedAt": 1784111791754
+            },
+            {
+              "id": "price_rule_fba20c6b",
+              "kind": "exact",
+              "serviceName": "技术匹配",
+              "serviceKey": "技术匹配",
+              "alias": "",
+              "prices": {
+                "round": 17
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1785927041060
+            },
+            {
+              "id": "price_rule_6c5cdc1f",
+              "kind": "exact",
+              "serviceName": "娱乐匹配",
+              "serviceKey": "娱乐匹配",
+              "alias": "",
+              "prices": {
+                "round": 13
+              },
+              "legacyManaged": true,
+              "createdAt": 1784112051436,
+              "updatedAt": 1785927000311
+            },
+            {
+              "id": "price_rule_2a803f3d",
+              "kind": "exact",
+              "serviceName": "娱技匹配",
+              "serviceKey": "娱技匹配",
+              "alias": "",
+              "prices": {
+                "round": 15
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1785926938631
+            },
+            {
+              "id": "price_rule_8c6d1027",
+              "kind": "exact",
+              "serviceName": "一起看",
+              "serviceKey": "一起看",
+              "alias": "",
+              "prices": {
+                "hour": 35
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1785926869311
+            },
+            {
+              "id": "price_rule_043e0d56",
+              "kind": "exact",
+              "serviceName": "鹅鸭杀",
+              "serviceKey": "鹅鸭杀",
+              "alias": "",
+              "prices": {
+                "hour": 35
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1785867615070
+            },
+            {
+              "id": "price_rule_175ea7e0",
+              "kind": "exact",
+              "serviceName": "端游",
+              "serviceKey": "端游",
+              "alias": "",
+              "prices": {
+                "hour": 50
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784157903056
+            },
+            {
+              "id": "price_rule_041e072c",
+              "kind": "exact",
+              "serviceName": "纯文",
+              "serviceKey": "纯文",
+              "alias": "",
+              "prices": {
+                "hour": 30
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784157820241
+            },
+            {
+              "id": "price_rule_3af0985e",
+              "kind": "exact",
+              "serviceName": "树洞",
+              "serviceKey": "树洞",
+              "alias": "",
+              "prices": {
+                "hour": 42
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784157800252
+            },
+            {
+              "id": "price_rule_10917fff",
+              "kind": "exact",
+              "serviceName": "其他手游",
+              "serviceKey": "其他手游",
+              "alias": "",
+              "prices": {
+                "hour": 40
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784157775522
+            },
+            {
+              "id": "price_rule_81e6ef62",
+              "kind": "exact",
+              "serviceName": "纯连",
+              "serviceKey": "纯连",
+              "alias": "",
+              "prices": {
+                "hour": 40
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784157747891
+            },
+            {
+              "id": "price_rule_41c3cac4",
+              "kind": "exact",
+              "serviceName": "蹭金标",
+              "serviceKey": "蹭金标",
+              "alias": "",
+              "prices": {
+                "round": 18
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784157708296
+            },
+            {
+              "id": "price_rule_ec218d60",
+              "kind": "exact",
+              "serviceName": "教学单",
+              "serviceKey": "教学单",
+              "alias": "",
+              "prices": {
+                "round": 6
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784157652793
+            },
+            {
+              "id": "price_rule_b7d9ec52",
+              "kind": "exact",
+              "serviceName": "甜蜜单",
+              "serviceKey": "甜蜜单",
+              "alias": "",
+              "prices": {
+                "round": 5
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784157639698
+            },
+            {
+              "id": "price_rule_613165f1",
+              "kind": "exact",
+              "serviceName": "技术娱乐",
+              "serviceKey": "技术娱乐",
+              "alias": "",
+              "prices": {
+                "round": 17
+              },
+              "legacyManaged": true,
+              "createdAt": 1784157600680,
+              "updatedAt": 1784157600680
+            },
+            {
+              "id": "price_rule_5d194611",
+              "kind": "exact",
+              "serviceName": "小国蹭标",
+              "serviceKey": "小国蹭标",
+              "alias": "",
+              "prices": {
+                "round": 28
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111934405
+            },
+            {
+              "id": "price_rule_354f8916",
+              "kind": "exact",
+              "serviceName": "大国蹭标",
+              "serviceKey": "大国蹭标",
+              "alias": "",
+              "prices": {
+                "round": 48
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111861657
+            },
+            {
+              "id": "price_rule_f21f8536",
+              "kind": "exact",
+              "serviceName": "哄睡",
+              "serviceKey": "哄睡",
+              "alias": "",
+              "prices": {
+                "hour": 45
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750
+            }
+          ],
+          "surcharges": [
+            {
+              "id": "surcharge_rule_eca82dce",
+              "name": "教学单",
+              "keywords": [
+                "教学"
+              ],
+              "prices": {
+                "round": 6
+              },
+              "enabled": true,
+              "createdAt": 1785654687053,
+              "updatedAt": 1785654687053
+            },
+            {
+              "id": "surcharge_rule_f40f91fd",
+              "name": "甜蜜单",
+              "keywords": [
+                "甜蜜"
+              ],
+              "prices": {
+                "round": 5
+              },
+              "enabled": true,
+              "createdAt": 1785202745838,
+              "updatedAt": 1785202745838
+            },
+            {
+              "id": "surcharge_rule_40358f1e",
+              "name": "甜蜜单",
+              "keywords": [
+                "甜蜜"
+              ],
+              "prices": {
+                "round": 5
+              },
+              "enabled": true,
+              "createdAt": 1784767206044,
+              "updatedAt": 1784767206044
+            }
+          ],
+          "giftMemories": [
+            {
+              "id": "gift_memory_legacy_price_item_c0548baf",
+              "serviceType": "🍬",
+              "serviceKey": "🍬",
+              "mode": "fixed",
+              "unitPrice": 5,
+              "usageCount": 22,
+              "createdAt": 1784157992898,
+              "updatedAt": 1784750098336,
+              "lastUsed": 1784750098336
+            },
+            {
+              "id": "gift_memory_legacy_price_item_842ea3c4",
+              "serviceType": "零食店全套礼物单",
+              "serviceKey": "零食店全套礼物单",
+              "mode": "fixed",
+              "unitPrice": 1234,
+              "usageCount": 7,
+              "createdAt": 1784158895019,
+              "updatedAt": 1784158895019,
+              "lastUsed": 1784158895019
+            },
+            {
+              "id": "gift_memory_legacy_price_item_48bf5b42",
+              "serviceType": "花园全套礼物单",
+              "serviceKey": "花园全套礼物单",
+              "mode": "fixed",
+              "unitPrice": 1466,
+              "usageCount": 7,
+              "createdAt": 1784158737957,
+              "updatedAt": 1784158737957,
+              "lastUsed": 1784158737957
+            },
+            {
+              "id": "gift_memory_legacy_price_item_cfa2abb2",
+              "serviceType": "睡莲私语",
+              "serviceKey": "睡莲私语",
+              "mode": "fixed",
+              "unitPrice": 520,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784158660136,
+              "lastUsed": 1784158660136
+            },
+            {
+              "id": "gift_memory_legacy_price_item_70dc6b3c",
+              "serviceType": "KFC疯狂星期四全套礼物单",
+              "serviceKey": "kfc疯狂星期四全套礼物单",
+              "mode": "fixed",
+              "unitPrice": 602,
+              "usageCount": 7,
+              "createdAt": 1784158584018,
+              "updatedAt": 1784158584018,
+              "lastUsed": 1784158584018
+            },
+            {
+              "id": "gift_memory_legacy_price_item_97f41776",
+              "serviceType": "神之一脚",
+              "serviceKey": "神之一脚",
+              "mode": "fixed",
+              "unitPrice": 520,
+              "usageCount": 7,
+              "createdAt": 1784158305167,
+              "updatedAt": 1784158305167,
+              "lastUsed": 1784158305167
+            },
+            {
+              "id": "gift_memory_legacy_price_item_5f0087f4",
+              "serviceType": "变音药水",
+              "serviceKey": "变音药水",
+              "mode": "fixed",
+              "unitPrice": 288,
+              "usageCount": 7,
+              "createdAt": 1784111791751,
+              "updatedAt": 1784158245850,
+              "lastUsed": 1784158245850
+            },
+            {
+              "id": "gift_memory_legacy_price_item_c0a5c4d4",
+              "serviceType": "环球全套礼物单",
+              "serviceKey": "环球全套礼物单",
+              "mode": "fixed",
+              "unitPrice": 520,
+              "usageCount": 7,
+              "createdAt": 1784158171678,
+              "updatedAt": 1784158171678,
+              "lastUsed": 1784158171678
+            },
+            {
+              "id": "gift_memory_legacy_price_item_e6c87a67",
+              "serviceType": "月星",
+              "serviceKey": "月星",
+              "mode": "fixed",
+              "unitPrice": 172,
+              "usageCount": 7,
+              "createdAt": 1784157930451,
+              "updatedAt": 1784157930451,
+              "lastUsed": 1784157930451
+            },
+            {
+              "id": "gift_memory_legacy_price_item_d2edcdba",
+              "serviceType": "爱的卡牌",
+              "serviceKey": "爱的卡牌",
+              "mode": "fixed",
+              "unitPrice": 288,
+              "usageCount": 7,
+              "createdAt": 1784111791751,
+              "updatedAt": 1784111791751,
+              "lastUsed": 1784111791751
+            },
+            {
+              "id": "gift_memory_legacy_price_item_5bbe751d",
+              "serviceType": "冰岛",
+              "serviceKey": "冰岛",
+              "mode": "fixed",
+              "unitPrice": 104,
+              "usageCount": 7,
+              "createdAt": 1784111791751,
+              "updatedAt": 1784111791751,
+              "lastUsed": 1784111791751
+            },
+            {
+              "id": "gift_memory_legacy_price_item_ca451fc0",
+              "serviceType": "宠物项圈",
+              "serviceKey": "宠物项圈",
+              "mode": "fixed",
+              "unitPrice": 365,
+              "usageCount": 7,
+              "createdAt": 1784111791751,
+              "updatedAt": 1784111791751,
+              "lastUsed": 1784111791751
+            },
+            {
+              "id": "gift_memory_legacy_price_item_2c3fd099",
+              "serviceType": "绿色心情",
+              "serviceKey": "绿色心情",
+              "mode": "fixed",
+              "unitPrice": 222,
+              "usageCount": 7,
+              "createdAt": 1784111791751,
+              "updatedAt": 1784111791751,
+              "lastUsed": 1784111791751
+            },
+            {
+              "id": "gift_memory_legacy_price_item_570f5bc9",
+              "serviceType": "满天星",
+              "serviceKey": "满天星",
+              "mode": "fixed",
+              "unitPrice": 10,
+              "usageCount": 7,
+              "createdAt": 1784111791751,
+              "updatedAt": 1784111791751,
+              "lastUsed": 1784111791751
+            },
+            {
+              "id": "gift_memory_legacy_price_item_bc77b925",
+              "serviceType": "美国",
+              "serviceKey": "美国",
+              "mode": "fixed",
+              "unitPrice": 104,
+              "usageCount": 7,
+              "createdAt": 1784111791751,
+              "updatedAt": 1784111791751,
+              "lastUsed": 1784111791751
+            },
+            {
+              "id": "gift_memory_legacy_price_item_190baffd",
+              "serviceType": "奶油蛋糕",
+              "serviceKey": "奶油蛋糕",
+              "mode": "fixed",
+              "unitPrice": 128,
+              "usageCount": 7,
+              "createdAt": 1784111791751,
+              "updatedAt": 1784111791751,
+              "lastUsed": 1784111791751
+            },
+            {
+              "id": "gift_memory_legacy_price_item_6cb5e845",
+              "serviceType": "日本",
+              "serviceKey": "日本",
+              "mode": "fixed",
+              "unitPrice": 104,
+              "usageCount": 7,
+              "createdAt": 1784111791751,
+              "updatedAt": 1784111791751,
+              "lastUsed": 1784111791751
+            },
+            {
+              "id": "gift_memory_legacy_price_item_2577ca7f",
+              "serviceType": "瑞士",
+              "serviceKey": "瑞士",
+              "mode": "fixed",
+              "unitPrice": 104,
+              "usageCount": 7,
+              "createdAt": 1784111791751,
+              "updatedAt": 1784111791751,
+              "lastUsed": 1784111791751
+            },
+            {
+              "id": "gift_memory_legacy_price_item_48f6aa27",
+              "serviceType": "少女发带",
+              "serviceKey": "少女发带",
+              "mode": "fixed",
+              "unitPrice": 15,
+              "usageCount": 7,
+              "createdAt": 1784111791751,
+              "updatedAt": 1784111791751,
+              "lastUsed": 1784111791751
+            },
+            {
+              "id": "gift_memory_legacy_price_item_1e85c347",
+              "serviceType": "天使之翼",
+              "serviceKey": "天使之翼",
+              "mode": "fixed",
+              "unitPrice": 88,
+              "usageCount": 7,
+              "createdAt": 1784111791751,
+              "updatedAt": 1784111791751,
+              "lastUsed": 1784111791751
+            },
+            {
+              "id": "gift_memory_legacy_price_item_9d385fce",
+              "serviceType": "甜心便签",
+              "serviceKey": "甜心便签",
+              "mode": "fixed",
+              "unitPrice": 188,
+              "usageCount": 7,
+              "createdAt": 1784111791751,
+              "updatedAt": 1784111791751,
+              "lastUsed": 1784111791751
+            },
+            {
+              "id": "gift_memory_legacy_price_item_8aa25b8e",
+              "serviceType": "同心结",
+              "serviceKey": "同心结",
+              "mode": "fixed",
+              "unitPrice": 5,
+              "usageCount": 7,
+              "createdAt": 1784111791751,
+              "updatedAt": 1784111791751,
+              "lastUsed": 1784111791751
+            },
+            {
+              "id": "gift_memory_legacy_price_item_bb0bb298",
+              "serviceType": "雪花恋歌",
+              "serviceKey": "雪花恋歌",
+              "mode": "fixed",
+              "unitPrice": 35,
+              "usageCount": 7,
+              "createdAt": 1784111791751,
+              "updatedAt": 1784111791751,
+              "lastUsed": 1784111791751
+            },
+            {
+              "id": "gift_memory_legacy_price_item_e349a936",
+              "serviceType": "一束花开",
+              "serviceKey": "一束花开",
+              "mode": "fixed",
+              "unitPrice": 52,
+              "usageCount": 7,
+              "createdAt": 1784111791751,
+              "updatedAt": 1784111791751,
+              "lastUsed": 1784111791751
+            },
+            {
+              "id": "gift_memory_legacy_price_item_a5058988",
+              "serviceType": "英国",
+              "serviceKey": "英国",
+              "mode": "fixed",
+              "unitPrice": 104,
+              "usageCount": 7,
+              "createdAt": 1784111791751,
+              "updatedAt": 1784111791751,
+              "lastUsed": 1784111791751
+            },
+            {
+              "id": "gift_memory_legacy_price_item_93f7bac5",
+              "serviceType": "爱吃小零食",
+              "serviceKey": "爱吃小零食",
+              "mode": "fixed",
+              "unitPrice": 128,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_66c60c64",
+              "serviceType": "薄荷糖果",
+              "serviceKey": "薄荷糖果",
+              "mode": "fixed",
+              "unitPrice": 168,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_9229a381",
+              "serviceType": "冰芙果酱",
+              "serviceKey": "冰芙果酱",
+              "mode": "fixed",
+              "unitPrice": 128,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_8ee80c59",
+              "serviceType": "冰淇淋",
+              "serviceKey": "冰淇淋",
+              "mode": "fixed",
+              "unitPrice": 12,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_24216587",
+              "serviceType": "啵啵奶茶",
+              "serviceKey": "啵啵奶茶",
+              "mode": "fixed",
+              "unitPrice": 52,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_77e7f6a2",
+              "serviceType": "草莓牛奶",
+              "serviceKey": "草莓牛奶",
+              "mode": "fixed",
+              "unitPrice": 88,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_a686462d",
+              "serviceType": "春游日记",
+              "serviceKey": "春游日记",
+              "mode": "fixed",
+              "unitPrice": 35,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_62782daa",
+              "serviceType": "蛋挞",
+              "serviceKey": "蛋挞",
+              "mode": "fixed",
+              "unitPrice": 25,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_ff7d0907",
+              "serviceType": "蝶赴花期",
+              "serviceKey": "蝶赴花期",
+              "mode": "fixed",
+              "unitPrice": 10900,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_cfdf28a5",
+              "serviceType": "蝶栖芳缕",
+              "serviceKey": "蝶栖芳缕",
+              "mode": "fixed",
+              "unitPrice": 122,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_ec855e40",
+              "serviceType": "蝶吻清薇",
+              "serviceKey": "蝶吻清薇",
+              "mode": "fixed",
+              "unitPrice": 1314,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_b8212da2",
+              "serviceType": "芳丛引蝶",
+              "serviceKey": "芳丛引蝶",
+              "mode": "fixed",
+              "unitPrice": 520,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_eaf0700f",
+              "serviceType": "好运来财",
+              "serviceKey": "好运来财",
+              "mode": "fixed",
+              "unitPrice": 52,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_47bd832d",
+              "serviceType": "红豆派",
+              "serviceKey": "红豆派",
+              "mode": "fixed",
+              "unitPrice": 28,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_b18a7d89",
+              "serviceType": "花烬蝶影",
+              "serviceKey": "花烬蝶影",
+              "mode": "fixed",
+              "unitPrice": 5200,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_7dc4ec02",
+              "serviceType": "花园信笺",
+              "serviceKey": "花园信笺",
+              "mode": "fixed",
+              "unitPrice": 299,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_4a4111e4",
+              "serviceType": "黄金鸡块",
+              "serviceKey": "黄金鸡块",
+              "mode": "fixed",
+              "unitPrice": 15,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_25b9f926",
+              "serviceType": "回忆杀马特",
+              "serviceKey": "回忆杀马特",
+              "mode": "fixed",
+              "unitPrice": 38,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_8c958fea",
+              "serviceType": "锦蝶缠芳",
+              "serviceKey": "锦蝶缠芳",
+              "mode": "fixed",
+              "unitPrice": 8800,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_95a74311",
+              "serviceType": "巨无霸汉堡",
+              "serviceKey": "巨无霸汉堡",
+              "mode": "fixed",
+              "unitPrice": 168,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_e599d180",
+              "serviceType": "可乐",
+              "serviceKey": "可乐",
+              "mode": "fixed",
+              "unitPrice": 10,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_6c74afd6",
+              "serviceType": "蓝莓蛋挞",
+              "serviceKey": "蓝莓蛋挞",
+              "mode": "fixed",
+              "unitPrice": 38,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_bf2a574a",
+              "serviceType": "浪漫星河",
+              "serviceKey": "浪漫星河",
+              "mode": "fixed",
+              "unitPrice": 2888,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_ceaa2485",
+              "serviceType": "栗司巧克力",
+              "serviceKey": "栗司巧克力",
+              "mode": "fixed",
+              "unitPrice": 99,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_d73508ca",
+              "serviceType": "零食果篮",
+              "serviceKey": "零食果篮",
+              "mode": "fixed",
+              "unitPrice": 168,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_7f5b5fac",
+              "serviceType": "莓果布蕾糕",
+              "serviceKey": "莓果布蕾糕",
+              "mode": "fixed",
+              "unitPrice": 520,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_d1b01543",
+              "serviceType": "梦幻城堡",
+              "serviceKey": "梦幻城堡",
+              "mode": "fixed",
+              "unitPrice": 3344,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_6f0f74c2",
+              "serviceType": "绵绵奶油熊",
+              "serviceKey": "绵绵奶油熊",
+              "mode": "fixed",
+              "unitPrice": 88,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_5cfca3d0",
+              "serviceType": "莫奈心锁",
+              "serviceKey": "莫奈心锁",
+              "mode": "fixed",
+              "unitPrice": 52,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_85397c38",
+              "serviceType": "暮晓时分",
+              "serviceKey": "暮晓时分",
+              "mode": "fixed",
+              "unitPrice": 5200,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_d615285a",
+              "serviceType": "凝蝶栖棠",
+              "serviceKey": "凝蝶栖棠",
+              "mode": "fixed",
+              "unitPrice": 6600,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_fc04e338",
+              "serviceType": "琼花舞蝶",
+              "serviceKey": "琼花舞蝶",
+              "mode": "fixed",
+              "unitPrice": 15200,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_dece30a6",
+              "serviceType": "软萌小猫",
+              "serviceKey": "软萌小猫",
+              "mode": "fixed",
+              "unitPrice": 328,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_24e8509f",
+              "serviceType": "三明治",
+              "serviceKey": "三明治",
+              "mode": "fixed",
+              "unitPrice": 15,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_6a903615",
+              "serviceType": "薯条",
+              "serviceKey": "薯条",
+              "mode": "fixed",
+              "unitPrice": 128,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_12674e95",
+              "serviceType": "逃跑菠萝饭",
+              "serviceKey": "逃跑菠萝饭",
+              "mode": "fixed",
+              "unitPrice": 288,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_e0857468",
+              "serviceType": "天使剪窗",
+              "serviceKey": "天使剪窗",
+              "mode": "fixed",
+              "unitPrice": 99,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_9b235840",
+              "serviceType": "望远镜",
+              "serviceKey": "望远镜",
+              "mode": "fixed",
+              "unitPrice": 52,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_bff977c8",
+              "serviceType": "我被控制了",
+              "serviceKey": "我被控制了",
+              "mode": "fixed",
+              "unitPrice": 188,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_070ceee9",
+              "serviceType": "我是声优",
+              "serviceKey": "我是声优",
+              "mode": "fixed",
+              "unitPrice": 88,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_d3c5e898",
+              "serviceType": "香脆热狗",
+              "serviceKey": "香脆热狗",
+              "mode": "fixed",
+              "unitPrice": 88,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_a104fe63",
+              "serviceType": "香辣鸡翅",
+              "serviceKey": "香辣鸡翅",
+              "mode": "fixed",
+              "unitPrice": 18,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_4fdb97f2",
+              "serviceType": "小熊棉花糖",
+              "serviceKey": "小熊棉花糖",
+              "mode": "fixed",
+              "unitPrice": 21,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_74996b0e",
+              "serviceType": "雪糕",
+              "serviceKey": "雪糕",
+              "mode": "fixed",
+              "unitPrice": 38,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_bae4ef25",
+              "serviceType": "雪国风情",
+              "serviceKey": "雪国风情",
+              "mode": "fixed",
+              "unitPrice": 1314,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_be0da7b3",
+              "serviceType": "洋葱圈",
+              "serviceKey": "洋葱圈",
+              "mode": "fixed",
+              "unitPrice": 20,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_2d41444f",
+              "serviceType": "雨落汐生",
+              "serviceKey": "雨落汐生",
+              "mode": "fixed",
+              "unitPrice": 520,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_0474a73f",
+              "serviceType": "云之白泽",
+              "serviceKey": "云之白泽",
+              "mode": "fixed",
+              "unitPrice": 999,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_9c6876ca",
+              "serviceType": "芝士帕尼尼",
+              "serviceKey": "芝士帕尼尼",
+              "mode": "fixed",
+              "unitPrice": 52,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_e9808021",
+              "serviceType": "指南针",
+              "serviceKey": "指南针",
+              "mode": "fixed",
+              "unitPrice": 128,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_6e5bcc93",
+              "serviceType": "逐蝶寻光",
+              "serviceKey": "逐蝶寻光",
+              "mode": "fixed",
+              "unitPrice": 3344,
+              "usageCount": 7,
+              "createdAt": 1784111791750,
+              "updatedAt": 1784111791750,
+              "lastUsed": 1784111791750
+            },
+            {
+              "id": "gift_memory_legacy_price_item_0c5ee040",
+              "serviceType": "礼物",
+              "serviceKey": "礼物",
+              "mode": "variable",
+              "unitPrice": null,
+              "usageCount": 5,
+              "createdAt": 1784313286133,
+              "updatedAt": 1784767240801,
+              "lastUsed": 1784767240801
+            },
+            {
+              "id": "gift_memory_0_1785966033872",
+              "serviceType": "红包",
+              "serviceKey": "红包",
+              "mode": "variable",
+              "unitPrice": null,
+              "usageCount": 1,
+              "createdAt": 1785966033872,
+              "updatedAt": 1785966033876,
+              "lastUsed": 1785966033876
+            }
+          ]
+        }
+      ],
+      "createdAt": 1785008615644,
+      "updatedAt": 1785998029896
+    },
+    "priceMemory": [
+      {
+        "unitPrice": 17,
+        "settleType": "round",
+        "serviceType": "技术匹配",
+        "usageCount": 9,
+        "lastUsed": 1785927041060,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 13,
+        "settleType": "round",
+        "serviceType": "娱乐匹配",
+        "usageCount": 9,
+        "lastUsed": 1785927000311,
+        "createdAt": 1784112051436
+      },
+      {
+        "unitPrice": 15,
+        "settleType": "round",
+        "serviceType": "娱技匹配",
+        "usageCount": 8,
+        "lastUsed": 1785926938631,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 35,
+        "settleType": "hour",
+        "serviceType": "一起看",
+        "usageCount": 16,
+        "lastUsed": 1785926869311,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 35,
+        "settleType": "hour",
+        "serviceType": "鹅鸭杀",
+        "usageCount": 62,
+        "lastUsed": 1785867615070,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 50,
+        "settleType": "hour",
+        "serviceType": "端游",
+        "usageCount": 7,
+        "lastUsed": 1784157903056,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 30,
+        "settleType": "hour",
+        "serviceType": "纯文",
+        "usageCount": 7,
+        "lastUsed": 1784157820241,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 42,
+        "settleType": "hour",
+        "serviceType": "树洞",
+        "usageCount": 7,
+        "lastUsed": 1784157800252,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 40,
+        "settleType": "hour",
+        "serviceType": "其他手游",
+        "usageCount": 7,
+        "lastUsed": 1784157775522,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 40,
+        "settleType": "hour",
+        "serviceType": "纯连",
+        "usageCount": 7,
+        "lastUsed": 1784157747891,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 18,
+        "settleType": "round",
+        "serviceType": "蹭金标",
+        "usageCount": 7,
+        "lastUsed": 1784157708296,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 6,
+        "settleType": "round",
+        "serviceType": "教学单",
+        "usageCount": 7,
+        "lastUsed": 1784157652793,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 5,
+        "settleType": "round",
+        "serviceType": "甜蜜单",
+        "usageCount": 2,
+        "lastUsed": 1784157639698,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 17,
+        "settleType": "round",
+        "serviceType": "技术娱乐",
+        "usageCount": 7,
+        "lastUsed": 1784157600680,
+        "createdAt": 1784157600680
+      },
+      {
+        "unitPrice": 28,
+        "settleType": "round",
+        "serviceType": "小国蹭标",
+        "usageCount": 7,
+        "lastUsed": 1784111934405,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 48,
+        "settleType": "round",
+        "serviceType": "大国蹭标",
+        "usageCount": 7,
+        "lastUsed": 1784111861657,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 45,
+        "settleType": "hour",
+        "serviceType": "哄睡",
+        "usageCount": 7,
+        "lastUsed": 1784111791750,
+        "createdAt": 1784111791750
+      }
+    ],
+    "modeRatios": {
+      "mode1": {
+        "currentRatioId": "default",
+        "customRatios": [
+          {
+            "id": "custom_1785998029892_0",
+            "name": "5/20/75",
+            "group": 5,
+            "platform": 20,
+            "earning": 75,
+            "timestamp": "2026/8/4 20:18:35"
+          },
+          {
+            "id": "custom_1785998029892_1",
+            "name": "5/15/80",
+            "group": 5,
+            "platform": 15,
+            "earning": 80,
+            "timestamp": "2026/8/4 20:19:10"
+          }
+        ]
+      },
+      "mode2": {
+        "currentRatioId": "default",
+        "customRatios": []
+      }
+    },
+    "nameLearningData": {
+      "corrections": [
+        {
+          "original": "bq",
+          "corrected": "布奇",
+          "timestamp": 1785986269849,
+          "lastUsed": 1785986269849,
+          "usageCount": 1,
+          "source": "interactive"
+        },
+        {
+          "original": "19天才少男",
+          "corrected": "安然",
+          "timestamp": 1784112699024,
+          "lastUsed": 1784112699024,
+          "usageCount": 1,
+          "source": "interactive"
+        },
+        {
+          "original": "91布先生",
+          "corrected": "布奇",
+          "timestamp": 1783702268859,
+          "usageCount": 1,
+          "lastUsed": 1783702268859
+        }
+      ],
+      "patterns": [],
+      "stats": {
+        "totalExtractions": 98,
+        "autoCorrections": 0,
+        "userCorrections": 0
+      },
+      "commonNames": [
+        "布奇",
+        "安然"
+      ]
+    },
+    "layoutTemplates": [
+      {
+        "id": "layout_tpl_1785746791090",
+        "name": "复用",
+        "hiddenModules": [
+          "customRatioBtn",
+          "totalPrice",
+          "duration"
+        ],
+        "updatedAt": 1785746791090
+      },
+      {
+        "id": "layout_tpl_1783521870266",
+        "name": "常规",
+        "hiddenModules": [
+          "customRatioBtn"
+        ],
+        "updatedAt": 1783521870266
+      }
+    ]
+  },
+  "integrity": {
+    "algorithm": "fnv1a32",
+    "value": "ab6949ec"
+  }
+}

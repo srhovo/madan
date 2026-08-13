@@ -1,6 +1,6 @@
 {
-  "version": "8.3.6",
-  "url": "https://madan.pages.dev/madan-8.3.6.zip",
-  "checksum": "31d5e168565bb9889085c684889653a40e7dec29eee631c603667167b915b1a5",
-  "notes": "首个 OTA 版本：接入热更新能力，业务功能与 8.3.4 一致"
+  "version": "8.3.7",
+  "url": "https://madan.pages.dev/madan-8.3.7.zip",
+  "checksum": "4666fca123d75dadfb7386bc905ee44d9fe202e39246d698e0a906413db573ef",
+  "notes": "修复「选择 Club」功能：Club 数据迁移至 Cloudflare Pages 同源，添加网络请求 8 秒超时，避免加载卡住"
 }
