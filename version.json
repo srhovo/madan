@@ -1,6 +1,6 @@
 {
-  "version": "8.3.7",
-  "url": "https://madan.pages.dev/madan-8.3.7.zip",
-  "checksum": "4666fca123d75dadfb7386bc905ee44d9fe202e39246d698e0a906413db573ef",
-  "notes": "修复「选择 Club」功能：Club 数据迁移至 Cloudflare Pages 同源，添加网络请求 8 秒超时，避免加载卡住"
+  "version": "8.3.8",
+  "url": "https://madan.pages.dev/madan-8.3.8.zip",
+  "checksum": "7f52f187c6fb7b9a579ee513b307f392844ea6f56643501472eb8f09a24f407f",
+  "notes": "新增匿名使用统计（启动次数/活跃用户），纯独立模块，不改动任何现有功能"
 }
