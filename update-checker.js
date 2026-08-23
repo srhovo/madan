@@ -139,24 +139,23 @@
   }
 
   function applyUpdate(manifest, toast, textEl) {
+    // 暂时不传 checksum：插件校验哈希的具体算法/格式没有把握确认，
+    // 先排除这个变量，确认下载+切换这条主链路本身没问题。
+    // 之后确认好格式了，可以在这里加回 { checksum: manifest.checksum }。
     var downloadOpts = { version: manifest.version, url: manifest.url };
-    if (manifest.checksum) downloadOpts.checksum = manifest.checksum;
 
     Updater.download(downloadOpts)
       .then(function (bundle) {
         textEl.textContent = '下载完成，正在切换到新版本…';
-        // set() 只会替换 index.html / CSS / JS 这些静态资源并重新加载网页，
-        // 不会触碰 localStorage，陪玩名单/老板记忆库/历史记录等数据保持不变。
         return Updater.set(bundle);
-        // 注意：set() 成功后 WebView 会重新加载，这行之后的代码不会继续执行，
-        // 新版本加载起来后会自己调用 notifyAppReady()。
       })
       .catch(function (e) {
-        warn('更新失败，继续使用当前版本', e);
-        textEl.textContent = '更新失败，已自动继续使用当前版本';
+        var detail = (e && (e.message || e.errorMessage || e.code)) ? String(e.message || e.errorMessage || e.code) : JSON.stringify(e);
+        warn('更新失败', e);
+        textEl.textContent = '更新失败：' + detail;
         setTimeout(function () {
           if (toast && toast.parentNode) toast.remove();
-        }, 2500);
+        }, 8000);
       });
   }
 

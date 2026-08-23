@@ -1,6 +1,6 @@
 {
   "version": "8.3.8",
   "url": "https://madan.pages.dev/madan-8.3.8.zip",
-  "checksum": "7f52f187c6fb7b9a579ee513b307f392844ea6f56643501472eb8f09a24f407f",
-  "notes": "新增匿名使用统计（启动次数/活跃用户），纯独立模块，不改动任何现有功能"
+  "checksum": "baef7030fabc64ce63f33e9442aa38ec5db809fd7277584864e8028803ca9947",
+  "notes": "新增匿名使用统计；修复上次更新失败时看不到具体原因的问题（现在会显示真实报错），并暂时跳过checksum校验以排查上次失败原因"
 }
