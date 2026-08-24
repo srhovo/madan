@@ -10,9 +10,11 @@
  * - 环境变量：CF_ACCOUNT_ID（你的 Cloudflare 账号 ID）
  * - 环境变量：CF_API_TOKEN（有 Account Analytics Read 权限的 API Token）
  *
- * 这几个查询用的 SQL 语法是 Cloudflare Analytics Engine 自己的方言，
- * 参考自官方文档；如果部署后某条查询报语法错误，把返回的报错信息
- * 发出来，照着调整对应函数名即可，不影响其余部分。
+ * SQL 语法要点（Cloudflare Analytics Engine 自己的方言，跟一般 SQL 不完全一样）：
+ * - COUNT() 必须不带任何参数，COUNT(*) / COUNT(DISTINCT x) 都不支持。
+ * - 去重计数改用"先 GROUP BY 折叠成一行一个值，再 COUNT() 这些行"的写法。
+ * - 官方文档确认存在的函数：NOW()、INTERVAL、toStartOfDay()、COUNT()、SUM()。
+ *   没有直接证据的函数（比如 toDate()）一律不用，全部用 toStartOfDay() 分桶。
  */
 
 const DATASET_NAME = 'madan_events';
@@ -41,6 +43,41 @@ function scalar(rows, field, fallback) {
   return v === undefined || v === null ? fallback : v;
 }
 
+async function fetchAllStats(env) {
+  const [
+    totalToday, totalYesterday, dau, wau, mau,
+    trend30Launches, trend30Uniques
+  ] = await Promise.all([
+    runSql(env, `SELECT COUNT() AS c FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > toStartOfDay(NOW())`),
+    runSql(env, `SELECT COUNT() AS c FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp >= toStartOfDay(NOW()) - INTERVAL '1' DAY AND timestamp < toStartOfDay(NOW())`),
+    // 去重计数：先按 index1 分组折叠成"每个设备一行"，再对这些行 COUNT()。
+    runSql(env, `SELECT COUNT() AS c FROM (SELECT index1 FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > toStartOfDay(NOW()) GROUP BY index1)`),
+    runSql(env, `SELECT COUNT() AS c FROM (SELECT index1 FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > NOW() - INTERVAL '7' DAY GROUP BY index1)`),
+    runSql(env, `SELECT COUNT() AS c FROM (SELECT index1 FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > NOW() - INTERVAL '30' DAY GROUP BY index1)`),
+    // 趋势：拆成"每日启动次数"和"每日独立设备数"两条查询，代码里按日期合并，
+    // 避免依赖不确定是否支持的嵌套聚合写法。
+    runSql(env, `SELECT toStartOfDay(timestamp) AS day, COUNT() AS launches FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > NOW() - INTERVAL '30' DAY GROUP BY day ORDER BY day`),
+    runSql(env, `SELECT day, COUNT() AS uniques FROM (SELECT toStartOfDay(timestamp) AS day, index1 FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > NOW() - INTERVAL '30' DAY GROUP BY day, index1) GROUP BY day ORDER BY day`)
+  ]);
+
+  const uniquesByDay = {};
+  (trend30Uniques || []).forEach(r => { uniquesByDay[r.day] = r.uniques; });
+  const trend30 = (trend30Launches || []).map(r => ({
+    day: r.day,
+    launches: r.launches,
+    uniques: uniquesByDay[r.day] || 0
+  }));
+
+  return {
+    today: scalar(totalToday, 'c', 0),
+    yesterday: scalar(totalYesterday, 'c', 0),
+    dau: scalar(dau, 'c', 0),
+    wau: scalar(wau, 'c', 0),
+    mau: scalar(mau, 'c', 0),
+    trend30
+  };
+}
+
 export async function onRequestGet(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -53,35 +90,15 @@ export async function onRequestGet(context) {
   let stats;
   let queryError = '';
   try {
-    const [totalToday, totalYesterday, dau, wau, mau, trend7, trend30] = await Promise.all([
-      runSql(env, `SELECT COUNT(*) AS c FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > toStartOfDay(NOW())`),
-      runSql(env, `SELECT COUNT(*) AS c FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp >= toStartOfDay(NOW()) - INTERVAL '1' DAY AND timestamp < toStartOfDay(NOW())`),
-      runSql(env, `SELECT COUNT(DISTINCT index1) AS c FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > toStartOfDay(NOW())`),
-      runSql(env, `SELECT COUNT(DISTINCT index1) AS c FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > NOW() - INTERVAL '7' DAY`),
-      runSql(env, `SELECT COUNT(DISTINCT index1) AS c FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > NOW() - INTERVAL '30' DAY`),
-      runSql(env, `SELECT toDate(timestamp) AS day, COUNT(*) AS launches, COUNT(DISTINCT index1) AS uniques FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > NOW() - INTERVAL '7' DAY GROUP BY day ORDER BY day`),
-      runSql(env, `SELECT toDate(timestamp) AS day, COUNT(*) AS launches, COUNT(DISTINCT index1) AS uniques FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > NOW() - INTERVAL '30' DAY GROUP BY day ORDER BY day`)
-    ]);
-
+    const queried = await fetchAllStats(env);
     const totalLaunchesAllTime = env.COUNTERS ? parseInt((await env.COUNTERS.get('counter:total_launches')) || '0', 10) : 0;
     const totalUniqueDevicesAllTime = env.COUNTERS ? parseInt((await env.COUNTERS.get('counter:total_unique_devices')) || '0', 10) : 0;
-
-    stats = {
-      totalLaunchesAllTime,
-      totalUniqueDevicesAllTime,
-      today: scalar(totalToday, 'c', 0),
-      yesterday: scalar(totalYesterday, 'c', 0),
-      dau: scalar(dau, 'c', 0),
-      wau: scalar(wau, 'c', 0),
-      mau: scalar(mau, 'c', 0),
-      trend7: trend7 || [],
-      trend30: trend30 || []
-    };
+    stats = { totalLaunchesAllTime, totalUniqueDevicesAllTime, ...queried };
   } catch (e) {
     queryError = e && e.message ? e.message : String(e);
     stats = {
       totalLaunchesAllTime: 0, totalUniqueDevicesAllTime: 0,
-      today: 0, yesterday: 0, dau: 0, wau: 0, mau: 0, trend7: [], trend30: []
+      today: 0, yesterday: 0, dau: 0, wau: 0, mau: 0, trend30: []
     };
   }
 
