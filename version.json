@@ -1,6 +1,6 @@
 {
-  "version": "8.3.9",
-  "url": "https://madan.pages.dev/madan-8.3.9.zip",
-  "checksum": "f416e0aafb29b03e42901df7be61076d038493555d6127dad133b6088c5d644c",
-  "notes": "陪玩提取已保存名字支持手动添加；备注旁新增加价输入框（数字/关键词均可触发），输出模版备注关键词自动替换为规则名称"
+  "version": "8.3.10",
+  "url": "https://madan.pages.dev/madan-8.3.10.zip",
+  "checksum": "c3567523573bba8e4025b22ff7731a8729ea60e8e74cd3e32514a5e36a3f7c5d",
+  "notes": "备注输入框高度与加价框完全对齐；备注长文字自动缩小字号完整显示、删短自动恢复；移除加价框占位提示文字"
 }

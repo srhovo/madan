@@ -367,6 +367,9 @@
  flex: 0 0 132px;
  }
 
+ /* 备注与加价等高：input 原生行高会超出 min-height（实测47px），显式定高与备注 textarea（44px）对齐 */
+ .note-surcharge-row > .input-group.field-surcharge > input { height: 44px; }
+
  .discount-combo-group {
  min-width: 0;
  }
@@ -438,8 +441,10 @@
  .gift-mode-discount-group .gift-discount-note { display: block; }
 
  .input-group textarea { height: 44px; min-height: 44px; resize: vertical; line-height: 1.4; }
- .input-group.field-note { --field-action-center-y: 55px; }
- .input-group.field-note textarea { height: 60px; min-height: 60px; padding-top: 7px; padding-bottom: 7px; line-height: 1.35; }
+ /* 备注与加价框横向并排：备注压成单行高度（44px）与加价框对齐；清除按钮回归默认中心线 */
+ /* font-size 不参与过渡（基础样式 transition:all 会动画化自适应缩放，导致测量读到中间值）；边框/阴影过渡保留 */
+ .input-group.field-note textarea { height: 44px; min-height: 44px; padding-top: 11px; padding-bottom: 11px; line-height: 1.3; overflow-y: auto; transition: border-color var(--transition-base), box-shadow var(--transition-base); }
+ .input-group.field-note textarea::placeholder { font-size: var(--font-size-xs); line-height: 1.2; }
 
  .clear-btn {
  position: absolute; right: var(--spacing-sm); top: var(--field-action-center-y, 42px); background: var(--color-danger-start); color: var(--color-white);
@@ -3769,7 +3774,7 @@ h1 { margin-bottom: 4px; }
 
 
  <script>
- const APP_VERSION = '8.3.9';
+ const APP_VERSION = '8.3.10';
  const TUTORIAL_VIDEO_URL = 'https://cdn.jsdelivr.net/gh/srhovo/tutorialvideo@main/video.mp4';
  const WECHAT_OPEN_URL = 'weixin://'; // 生成订单后尝试唤起微信主界面
  // Release note: 8.2.25 统一“时长计算 / 提取名字”的按钮高度、文字字号、图标尺寸和垂直基线；保留手机、平板与桌面端原有布局及全部业务逻辑。
@@ -9307,8 +9312,7 @@ class AppShellRenderer {
  id: 'surcharge',
  label: '加价（可选）',
  type: 'input',
- inputType: 'text',
- placeholder: '如15或关键词'
+ inputType: 'text'
  }
  ];
  }
@@ -13172,6 +13176,23 @@ class PriceMemoryFeature {
  this.updatePeiPeiCount();
  this.syncPeiPeiScroll(input, { followCaret: true });
  }
+ if (key === 'note') this.fitNoteTextarea(input);
+ }
+
+ // 备注框高度与加价框对齐后为单行高度：文字超出时自动缩小字号确保完整显示，缩短后字号自动恢复
+ // 注意：空值时 placeholder 的高度会被计入 scrollHeight（实测两行 placeholder 导致空框也"溢出"），故空值直接重置字号
+ fitNoteTextarea(input = this.el.inputs?.note) {
+ if (!input) return false;
+ const BASE_SIZE = 15; // 与 --font-size-md 一致
+ const MIN_SIZE = 10; // 与 --font-size-xs 一致，仍超出则框内滚动
+ input.style.fontSize = '';
+ if (!input.value) return true;
+ let size = BASE_SIZE;
+ while (size > MIN_SIZE && input.scrollHeight > input.clientHeight) {
+ size -= 0.5;
+ input.style.fontSize = `${size}px`;
+ }
+ return true;
  }
 
  isFieldLocked(key) {
@@ -13364,6 +13385,7 @@ class PriceMemoryFeature {
  this.updatePeiPeiCount();
  this.syncPeiPeiScroll(input, { followCaret: true });
  }
+ if (key === 'note') this.fitNoteTextarea(input);
  return true;
  }
 
