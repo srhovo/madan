@@ -1,6 +1,6 @@
 {
-  "version": "8.3.8",
-  "url": "https://madan.pages.dev/madan-8.3.8.zip",
-  "checksum": "baef7030fabc64ce63f33e9442aa38ec5db809fd7277584864e8028803ca9947",
-  "notes": "新增匿名使用统计；修复上次更新失败时看不到具体原因的问题（现在会显示真实报错），并暂时跳过checksum校验以排查上次失败原因"
+  "version": "8.3.9",
+  "url": "https://madan.pages.dev/madan-8.3.9.zip",
+  "checksum": "f416e0aafb29b03e42901df7be61076d038493555d6127dad133b6088c5d644c",
+  "notes": "陪玩提取已保存名字支持手动添加；备注旁新增加价输入框（数字/关键词均可触发），输出模版备注关键词自动替换为规则名称"
 }

@@ -349,6 +349,24 @@
  font-size: var(--font-size-md);
  }
 
+ /* 备注 + 加价 横向并列行 */
+ .note-surcharge-row {
+ display: flex;
+ gap: var(--spacing-md);
+ align-items: flex-start;
+ margin-bottom: var(--spacing-lg);
+ }
+
+ .note-surcharge-row > .input-group {
+ flex: 1 1 0;
+ min-width: 0;
+ margin-bottom: 0;
+ }
+
+ .note-surcharge-row > .input-group.field-surcharge {
+ flex: 0 0 132px;
+ }
+
  .discount-combo-group {
  min-width: 0;
  }
@@ -1630,6 +1648,22 @@
 
  .saved-names-search-clear:hover { opacity: 1; transform: translateY(-50%) scale(1.08); }
 
+ .saved-names-add {
+ display: flex;
+ align-items: center;
+ gap: var(--spacing-sm);
+ margin-bottom: var(--spacing-md);
+ }
+
+ .saved-names-add-input {
+ padding-right: 12px;
+ }
+
+ .saved-names-add-btn {
+ flex-shrink: 0;
+ white-space: nowrap;
+ }
+
  .saved-names-list {
  max-height: 50vh;
  overflow-y: auto;
@@ -1936,6 +1970,8 @@
 
  @media (max-width: 480px) {
  .discount-paidan-row { flex-direction: column; }
+ .note-surcharge-row { gap: var(--spacing-sm); }
+ .note-surcharge-row > .input-group.field-surcharge { flex-basis: 106px; }
  .discount-combo-row { grid-template-columns: minmax(0, 1fr) minmax(92px, 0.8fr); }
  }
 
@@ -2025,6 +2061,7 @@ h1 { margin-bottom: 4px; }
 
 #primaryFieldsContainer > .input-group,
 #primaryFieldsContainer > .discount-paidan-row,
+#primaryFieldsContainer > .note-surcharge-row,
 #primaryFieldsContainer > .duration-calc-row,
 #primaryFieldsContainer > .auto-price-panel,
 #primaryFieldsContainer > .auto-price-quick-panel,
@@ -2039,6 +2076,7 @@ h1 { margin-bottom: 4px; }
 }
 
 #primaryFieldsContainer > .discount-paidan-row,
+#primaryFieldsContainer > .note-surcharge-row,
 #primaryFieldsContainer > .field-peiPei,
 #primaryFieldsContainer > .field-boss,
 #primaryFieldsContainer > .field-note {
@@ -3646,6 +3684,10 @@ h1 { margin-bottom: 4px; }
  <input type="text" id="savedNamesSearchInput" class="saved-names-search-input" placeholder="搜索原始名字或确认后的名字" autocomplete="off">
  <button class="saved-names-search-clear" id="savedNamesSearchClearBtn" type="button" aria-label="清空搜索">×</button>
  </div>
+ <div class="saved-names-add">
+ <input type="text" id="savedNamesAddInput" class="saved-names-search-input saved-names-add-input" placeholder="手动添加陪玩名字（提取不干净时先加这里）" autocomplete="off">
+ <button class="saved-names-add-btn app-btn app-btn--primary app-btn--sm" id="savedNamesAddBtn" type="button">添加</button>
+ </div>
  <div class="saved-names-meta" id="savedNamesMeta">共 0 个已保存名字</div>
 
  <div class="saved-names-list" id="savedNamesList">
@@ -3727,7 +3769,7 @@ h1 { margin-bottom: 4px; }
 
 
  <script>
- const APP_VERSION = '8.3.8';
+ const APP_VERSION = '8.3.9';
  const TUTORIAL_VIDEO_URL = 'https://cdn.jsdelivr.net/gh/srhovo/tutorialvideo@main/video.mp4';
  const WECHAT_OPEN_URL = 'weixin://'; // 生成订单后尝试唤起微信主界面
  // Release note: 8.2.25 统一“时长计算 / 提取名字”的按钮高度、文字字号、图标尺寸和垂直基线；保留手机、平板与桌面端原有布局及全部业务逻辑。
@@ -5026,6 +5068,11 @@ class InlineChunkLoader {
  return this.stripLeadingDiscountText(note);
  }
 
+ static getHistoryRawSurcharge(order) {
+ if (!order) return '';
+ return typeof order.surchargeRaw === 'string' ? order.surchargeRaw.trim() : '';
+ }
+
  static getOrderDiscountSummary(order) {
  if (!order) return '';
  return this.buildDiscountPrefix(
@@ -5100,6 +5147,8 @@ class InlineChunkLoader {
  duration: context.duration,
  note: context.noteRaw,
  noteRaw: context.noteRaw,
+ surchargeRaw: String(context.surchargeRaw ?? ''),
+ noteDisplayBase: String(context.noteDisplayBase ?? context.noteRaw ?? ''),
  noteDisplay: finalNote,
  orderText: this.buildOrderText(context, result, finalNote),
  discountedPrice: result.discountedPrice,
@@ -5985,6 +6034,42 @@ class SurchargeRuleEngine {
 
  static escapeRegExp(value) { return String(value ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
+ // 手动数字加价：纯数字（含小数、全角）解析为加价值，否则返回 null
+ static parseManualSurcharge(value) {
+ let text = String(value ?? '').trim();
+ if (!text) return null;
+ try { if (typeof text.normalize === 'function') text = text.normalize('NFKC'); } catch (error) { appLogSilent(error); }
+ text = text.replace(/[\s　]+/g, '');
+ if (!/^\d+(?:\.\d+)?$/.test(text)) return null;
+ return PriceRuleEngine.normalizePositivePrice(text);
+ }
+
+ // 关键词→规则名称替换（输出模版用）：单次遍历，避免规则名包含其他关键词时被二次改写
+ static buildDisplayText(text, rules) {
+ const source = String(text ?? '');
+ if (!source.trim()) return source;
+ const activeRules = this.normalizeRules(rules).filter(rule => rule.enabled);
+ const entries = [];
+ activeRules.forEach(rule => (rule.keywords || []).forEach(keyword => {
+ const key = this.normalizeText(keyword);
+ if (key) entries.push({ keyword: String(keyword), name: rule.name });
+ }));
+ if (!entries.length) return source;
+ entries.sort((a, b) => b.keyword.length - a.keyword.length);
+ const pattern = new RegExp(entries.map(item => this.escapeRegExp(item.keyword)).join('|'), 'giu');
+ const byKey = new Map(entries.map(item => [this.normalizeText(item.keyword), item.name]));
+ return source.replace(pattern, match => byKey.get(this.normalizeText(match)) ?? match);
+ }
+
+ // 加价输入框的输出文案：数字 → “加价X”；关键词 → 规则名称替换后的文本
+ static buildSurchargeDisplay(raw, rules) {
+ const text = String(raw ?? '').trim();
+ if (!text) return '';
+ const manual = this.parseManualSurcharge(text);
+ if (manual !== null) return `加价${manual}`;
+ return this.buildDisplayText(text, rules);
+ }
+
  static findRuleMention(note, rule) {
  const text = this.normalizeText(note);
  if (!text || !rule?.enabled) return { matched: false, bare: false, targets: [], keyword: '' };
@@ -6046,12 +6131,15 @@ class SurchargeRuleEngine {
  return { ok: false, code: 'target-ambiguous', indexes };
  }
 
- static apply(note, projects, rules) {
+ static apply(note, projects, rules, options = {}) {
  const sourceProjects = Array.isArray(projects) ? projects.filter(Boolean) : [];
  const activeRules = this.normalizeRules(rules).filter(rule => rule.enabled);
- const matched = activeRules.map(rule => ({ rule, mention: this.findRuleMention(note, rule) })).filter(item => item.mention.matched);
+ const surchargeText = String(options?.surchargeText ?? '').trim();
+ const manualSurcharge = this.parseManualSurcharge(surchargeText);
+ const combinedNote = [String(note ?? '').trim(), surchargeText].filter(Boolean).join('\n');
+ const matched = activeRules.map(rule => ({ rule, mention: this.findRuleMention(combinedNote, rule) })).filter(item => item.mention.matched);
  const baseAggregate = ProjectSettlementEngine.aggregateProjects(sourceProjects);
- if (!matched.length) return { ok: true, triggered: false, projects: sourceProjects, aggregate: baseAggregate, applications: [], errors: [] };
+ if (!matched.length && manualSurcharge === null) return { ok: true, triggered: false, projects: sourceProjects, aggregate: baseAggregate, applications: [], errors: [] };
  const errors = [];
  const applications = [];
  const byProject = new Map();
@@ -6094,6 +6182,26 @@ class SurchargeRuleEngine {
  byProject.set(index, list);
  });
  });
+
+ // 手动数字加价：按每个项目自身的结算单位（局/小时）应用到全部项目
+ if (manualSurcharge !== null && sourceProjects.length) {
+ sourceProjects.forEach((project, index) => {
+ const settleType = project?.quantityMode === 'hour' ? 'hour' : 'round';
+ const application = {
+ ruleId: 'manual_surcharge',
+ name: '加价',
+ keyword: String(manualSurcharge),
+ target: project?.serviceDisplay || project?.serviceRaw || `第${index + 1}项`,
+ settleType,
+ unitPrice: manualSurcharge,
+ projectIndex: index
+ };
+ applications.push(application);
+ const list = byProject.get(index) || [];
+ list.push(application);
+ byProject.set(index, list);
+ });
+ }
 
  if (errors.length) return { ok: false, triggered: true, projects: sourceProjects, aggregate: baseAggregate, applications: [], errors };
  const adjustedProjects = sourceProjects.map((project, index) => {
@@ -7321,7 +7429,10 @@ class UltimateStorageManager {
  };
  const result = OrderEngine.computeCalculationResult(context);
  const noteRaw = OrderEngine.getHistoryRawNote(order);
- const finalNote = OrderEngine.buildOrderNote(noteRaw, discountInput, discountOverlayInput, mode);
+ const noteBase = typeof order.noteDisplayBase === 'string' && order.noteDisplayBase.trim()
+ ? order.noteDisplayBase.trim()
+ : noteRaw;
+ const finalNote = OrderEngine.buildOrderNote(noteBase, discountInput, discountOverlayInput, mode);
  normalized.totalPrice = aggregate.totalPrice;
  normalized.type = aggregate.typeText;
  normalized.duration = aggregate.durationText;
@@ -7335,6 +7446,8 @@ class UltimateStorageManager {
  normalized.isMultiMode = peiPeiCount > 1;
  normalized.note = noteRaw;
  normalized.noteRaw = noteRaw;
+ normalized.surchargeRaw = OrderEngine.getHistoryRawSurcharge(order);
+ normalized.noteDisplayBase = noteBase;
  normalized.noteDisplay = finalNote;
  normalized.discountedPrice = result.discountedPrice;
  normalized.groupCommission = result.groupCommission;
@@ -9189,6 +9302,13 @@ class AppShellRenderer {
  auxBlocks: [
  '<div class="surcharge-status" id="surchargeStatus" role="status" aria-live="polite"></div>'
  ]
+ },
+ {
+ id: 'surcharge',
+ label: '加价（可选）',
+ type: 'input',
+ inputType: 'text',
+ placeholder: '如15或关键词'
  }
  ];
  }
@@ -9284,6 +9404,16 @@ class AppShellRenderer {
  ${nextNextConfig ? this.renderPrimaryField(nextNextConfig) : ''}
  </div>`);
  i += 2;
+ continue;
+ }
+
+ if (config?.id === 'note' && nextConfig?.id === 'surcharge') {
+ html.push(`
+ <div class="note-surcharge-row">
+ ${this.renderPrimaryField(config)}
+ ${this.renderPrimaryField(nextConfig)}
+ </div>`);
+ i += 1;
  continue;
  }
 
@@ -9437,7 +9567,7 @@ class EventDelegationFeature {
  return false;
  }
  const result = OrderEngine.computeCalculationResult(context);
- const finalNote = OrderEngine.buildOrderNote(context.noteRaw, context.discountInput, context.discountOverlayInput, context.currentMode);
+ const finalNote = OrderEngine.buildOrderNote(context.noteDisplayBase ?? context.noteRaw, context.discountInput, context.discountOverlayInput, context.currentMode);
 
  this.renderCalculationOutput(context, result, finalNote);
 
@@ -9588,6 +9718,8 @@ class EventDelegationFeature {
  const type = hasStructuredProjects ? projectSummary.typeText : (app.el.inputs.type.value || '');
  const duration = hasStructuredProjects ? projectSummary.durationText : (app.el.inputs.duration.value || '');
  const noteRaw = app.el.inputs.note.value || '';
+ const surchargeRaw = String(app.el.inputs.surcharge?.value ?? '');
+ const noteDisplayBase = app.surchargeFeature?.buildNoteDisplayBase?.() ?? noteRaw;
 
  const peiPeiList = peiPei.split(/[\s,，、]+/).filter(Boolean);
  const peiPeiCount = peiPeiList.length;
@@ -9612,6 +9744,8 @@ class EventDelegationFeature {
  type,
  duration,
  noteRaw,
+ surchargeRaw,
+ noteDisplayBase,
  peiPeiList,
  peiPeiCount,
  modeKey,
@@ -10092,6 +10226,7 @@ class EventDelegationFeature {
  { id: 'durationCalcBtn', label: '时长计算按钮', selector: '[data-layout-module="durationCalcBtn"]' },
  { id: 'type', label: '服务类型输入框', selector: '[data-layout-module="type"]' },
  { id: 'note', label: '备注输入框', selector: '[data-layout-module="note"]' },
+ { id: 'surcharge', label: '加价输入框', selector: '[data-layout-module="surcharge"]' },
  { id: 'calculateBtn', label: '生成并复制按钮', selector: '[data-layout-module="calculateBtn"]' },
  { id: 'clearAllBtn', label: '全部清除按钮', selector: '[data-layout-module="clearAllBtn"]' },
  { id: 'bossMemoryEntry', label: '老板记忆库入口', selector: '[data-layout-module="bossMemoryEntry"]' },
@@ -12049,6 +12184,9 @@ class SurchargeFeature {
  this._eventScope.on(this.el.inputs?.note, 'input', () => {
  this.app.scheduleUiTask('surchargeOrderPreview', () => this.refreshOrderPreview());
  });
+ this._eventScope.on(this.el.inputs?.surcharge, 'input', () => {
+ this.app.scheduleUiTask('surchargeOrderPreview', () => this.refreshOrderPreview());
+ });
  return true;
  } catch (error) {
  this._eventScope.clear();
@@ -12212,10 +12350,21 @@ class SurchargeFeature {
 
  resolveProjects(projects, { render = true } = {}) {
  const result = Number(this.app.currentMode) === 1
- ? SurchargeRuleEngine.apply(this.el.inputs?.note?.value || '', projects, this.getRules())
+ ? SurchargeRuleEngine.apply(this.el.inputs?.note?.value || '', projects, this.getRules(), { surchargeText: this.el.inputs?.surcharge?.value || '' })
  : { ok: true, triggered: false, projects, aggregate: ProjectSettlementEngine.aggregateProjects(projects), applications: [], errors: [] };
  if (render) this.renderStatus(result);
  return result;
+ }
+
+ // 输出模版备注区文案：备注关键词→规则名称替换 + 加价输入内容（数字→“加价X”，换行分隔）
+ buildNoteDisplayBase() {
+ const noteRaw = String(this.el.inputs?.note?.value ?? '').trim();
+ const surchargeRaw = String(this.el.inputs?.surcharge?.value ?? '').trim();
+ if (!noteRaw && !surchargeRaw) return '';
+ const rules = this.getRules();
+ const noteDisplay = noteRaw ? SurchargeRuleEngine.buildDisplayText(noteRaw, rules) : '';
+ const surchargeDisplay = surchargeRaw ? SurchargeRuleEngine.buildSurchargeDisplay(surchargeRaw, rules) : '';
+ return [noteDisplay, surchargeDisplay].filter(Boolean).join('\n');
  }
 
  refreshOrderPreview() {
@@ -13030,7 +13179,7 @@ class PriceMemoryFeature {
  return Boolean(config && this[config.stateKey] !== null);
  }
 
- getInputFlowFieldOrder() { return ['totalPrice', 'autoUnitPrice', 'discount', 'discountOverlay', 'paiDan', 'peiPei', 'boss', 'duration', 'type', 'note']; }
+ getInputFlowFieldOrder() { return ['totalPrice', 'autoUnitPrice', 'discount', 'discountOverlay', 'paiDan', 'peiPei', 'boss', 'duration', 'type', 'note', 'surcharge']; }
 
  getInputFlowElement(key) { return this.el.inputs?.[key]; }
 
@@ -13141,8 +13290,8 @@ class PriceMemoryFeature {
  if (!input || this._inputFlowBoundElements.has(input)) return;
  this._inputFlowBoundElements.add(input);
  input.dataset.inputFlowBound = 'true';
- input.setAttribute('enterkeyhint', key === 'note' ? 'enter' : 'next');
- if (key !== 'note') this._eventScope.on(input, 'keydown', event => this.advanceInputFlowFromElement(input, event));
+ input.setAttribute('enterkeyhint', key === 'note' || key === 'surcharge' ? 'enter' : 'next');
+ if (key !== 'note' && key !== 'surcharge') this._eventScope.on(input, 'keydown', event => this.advanceInputFlowFromElement(input, event));
  boundAny = true;
  });
  return boundAny;
@@ -13256,6 +13405,7 @@ class PriceMemoryFeature {
  }
  if (targetId === 'totalPrice') this.resetAutoPriceState();
  if (targetId === 'totalPrice' || targetId === 'discount' || targetId === 'discountOverlay') this.orderFlow.resetResults();
+ if (targetId === 'note' || targetId === 'surcharge') this.surchargeFeature?.refreshOrderPreview?.();
  }
 
  getLockedValue(key) {
@@ -13640,6 +13790,10 @@ class PriceMemoryFeature {
  this._eventScope.on(this.el.extractInput, 'input', this.debounce(() => this.extractNames(), 300));
  this._eventScope.on(this.el.extractOutput, 'input', () => this.updateExtractCount());
  this._eventScope.on(this.el.savedNamesSearchInput, 'input', this.debounce(() => this.handleSavedNamesSearchInput(), 80));
+ this._eventScope.on(this.el.savedNamesAddBtn, 'click', () => this.handleSavedNamesAdd());
+ this._eventScope.on(this.el.savedNamesAddInput, 'keydown', event => {
+ if (event.key === 'Enter') { event.preventDefault(); this.handleSavedNamesAdd(); }
+ });
  this._eventScope.on(this.el.savedNamesList, 'scroll', () => this.handleSavedNamesListScroll());
  return true;
  } catch (error) {
@@ -13877,6 +14031,39 @@ toggleSavedNamesSearchClear() {
  }
  }
 
+handleSavedNamesAdd() {
+ const input = this.el.savedNamesAddInput;
+ const raw = String(input?.value ?? '').trim();
+ if (!raw) {
+ this.showInfo('请输入要添加的陪玩名字');
+ input?.focus();
+ return;
+ }
+ const name = this.enhancedExtractor.cleanName(raw);
+ if (!name) {
+ this.showError('该名字清理后为空（可能全是表情或特殊符号），无法保存');
+ input?.focus();
+ return;
+ }
+ if (this.enhancedExtractor.isNameConfirmed(name)) {
+ this.showInfo(`“${name}”已在已保存名字中`);
+ input.value = '';
+ input.focus();
+ return;
+ }
+ this.captureLearningSnapshot();
+ if (!this.enhancedExtractor.confirmName(name, raw, 'manual')) {
+ this.showError('添加名字失败，请重试');
+ input?.focus();
+ return;
+ }
+ input.value = '';
+ this.resetSavedNamesSearch();
+ this.updateSavedNamesList();
+ input.focus();
+ this.showSuccess(`已添加“${name}”，重新粘贴文本即可正常提取`);
+ }
+
 applySavedNameToPeipei(name) {
  try {
  this.submitNamesToPeiPei(name, {
@@ -14102,6 +14289,7 @@ class OrderDraftSnapshotCoordinator {
  quantityMode: feature.mode,
  input,
  note: String(feature.getElement('note')?.value || ''),
+ surcharge: String(feature.getElement('surcharge')?.value || ''),
  expressionActive: Boolean(feature._expressionActive),
  expressionSource: String(feature._expressionSource || ''),
  expressionSuppressedSource: String(feature._expressionSuppressedSource || ''),
@@ -14977,7 +15165,7 @@ prepare: items => items.slice(0, this._historyRenderLimit),
  const ratioText = order.ratio && order.ratio.id !== 'default' ? ` (${order.ratio.group}/${order.ratio.platform}/${order.ratio.earning})` : '';
  const multiText = order.isMultiMode ? ` (${order.peiPeiCount}人)` : '';
  const projectText = Array.isArray(order.projects) && order.projects.length ? ` · ${order.projects.length}项${order.priceLibrary?.name ? `/${this.escapeHtml(order.priceLibrary.name)}` : ''}` : '';
- const noteText = OrderEngine.getHistoryRawNote(order);
+ const noteText = String(order?.noteDisplayBase ?? '').trim() || OrderEngine.getHistoryRawNote(order);
  const discountTagText = OrderEngine.getOrderDiscountSummary(order);
  const discountTag = discountTagText ? ` · ${this.escapeHtml(discountTagText)}` : '';
  return `<div class="history-item app-list-item" data-index="${index}"><div class="history-item-content app-list-item__content"><div><strong>${this.escapeHtml(order.peiPei)} - ${this.escapeHtml(order.boss)}</strong></div><div>${this.escapeHtml(order.type)} - ￥${this.formatNumber(order.discountedPrice)} - ${modeText}${ratioText}${multiText}${discountTag}${projectText}</div><div class="history-item-time">${this.escapeHtml(order.timestamp)}</div>${noteText ? `<div class="app-list-note">备注：${this.escapeHtml(noteText)}</div>` : ''}</div>${this.renderEditDeleteActions('history-item', { index }, { sizeClass: 'danger-icon-btn--md', textSizeClass: 'danger-icon-btn--md-text' })}</div>`;
@@ -15020,12 +15208,13 @@ renderHistoryPagination() {
  discount: discount !== undefined && discount !== null && discount !== 1 ? discount : '',
  discountOverlay: overlay !== undefined && overlay !== null && overlay !== 1 ? overlay : '',
  paiDan: order?.paiDan ?? '', peiPei: order?.peiPei ?? '', boss: order?.boss ?? '',
- type: structured ? '' : (order?.type ?? ''), duration: structured ? '' : (order?.duration ?? ''), note: OrderEngine.getHistoryRawNote(order)
+ type: structured ? '' : (order?.type ?? ''), duration: structured ? '' : (order?.duration ?? ''), note: OrderEngine.getHistoryRawNote(order),
+ surcharge: OrderEngine.getHistoryRawSurcharge(order)
  };
  ['totalPrice', 'discount', 'discountOverlay', 'paiDan', 'peiPei'].forEach(key => this.setInputValue(key, values[key], { source: 'history' }));
  if (this.lockedBoss === null) this.setInputValue('boss', values.boss, { source: 'history' });
  this.clearSoftTypeSuggestion({ keepValue: false });
- ['type', 'duration', 'note'].forEach(key => this.setInputValue(key, values[key], { source: 'history' }));
+ ['type', 'duration', 'note', 'surcharge'].forEach(key => this.setInputValue(key, values[key], { source: 'history' }));
  return true;
  }
 
@@ -15799,7 +15988,7 @@ this.lazyFeatures = {
  : this.renderNamedEmptyState('savedNames'),
  renderItem: item => {
  const date = new Date(item.timestamp).toLocaleString();
- const sourceText = item.source === 'interactive' ? '交互确认' : '自动确认';
+ const sourceText = item.source === 'manual' ? '手动添加' : (item.source === 'interactive' ? '交互确认' : '自动确认');
  const safeName = this.escapeHtml(item.name);
  return `<div class="saved-name-item app-list-item" data-name="${safeName}"><div class="saved-name-info" title="点击应用到陪陪输入框"><div class="saved-name-name">${safeName}</div><div class="saved-name-original app-list-note">原始: ${this.escapeHtml(item.original)} | 来源: ${sourceText}</div><div class="saved-name-original app-list-note">确认时间: ${this.escapeHtml(date)}</div></div>${this.renderIconActions([{ className: 'saved-name-apply', sizeClass: 'danger-icon-btn--lg', title: '应用到陪陪输入框', dataset: { name: item.name }, labelHtml: '<span class="icon-emoji" aria-hidden="true">➕</span>' }, { className: 'saved-name-delete', sizeClass: 'danger-icon-btn--lg', title: '从已确认列表中删除', dataset: { name: item.name }, labelHtml: '<span class="icon-emoji" aria-hidden="true">×</span>' }], 'app-list-actions')}</div>`;
  }
@@ -15870,7 +16059,7 @@ this.scheduleLazyFeatureLoad();
  this.el = {};
  const ids = [
  'helpIcon', 'instructions', 'diyLayoutBtn', 'diyLayoutModal', 'layoutModuleList', 'layoutTemplateName', 'layoutTemplateSaveBtn', 'layoutTemplateList', 'layoutShowAllBtn', 'layoutSaveBtn', 'tutorialVideoBtn', 'tutorialVideoModal', 'tutorialVideoPlayer', 'successMessage', 'mode1Btn', 'mode2Btn', 'customRatioBtn', 'totalPrice', 'autoUnitPrice',
- 'discount', 'discountOverlay', 'totalPriceError', 'discountError', 'discountOverlayError', 'paiDan', 'peiPei', 'boss', 'type', 'duration', 'note', 'apModeRound', 'apModeHour',
+ 'discount', 'discountOverlay', 'totalPriceError', 'discountError', 'discountOverlayError', 'paiDan', 'peiPei', 'boss', 'type', 'duration', 'note', 'surcharge', 'apModeRound', 'apModeHour',
  'lockPeiPeiBtn', 'unlockPeiPeiBtn', 'peiPeiLockInfo', 'lockedPeiPeiName',
  'lockPaiDanBtn', 'unlockPaiDanBtn', 'paiDanLockInfo', 'lockedPaiDanName', 'peiPeiCount',
  'peiPeiCountValue', 'addBossBtn', 'bossMemoryList', 'bossNameInput', 'bossPaiDanInput',
@@ -15886,7 +16075,7 @@ this.scheduleLazyFeatureLoad();
  'confirmModal', 'confirmMessage', 'confirmYes', 'confirmNo',
  'lockBossBtn', 'unlockBossBtn', 'bossLockInfo', 'lockedBossName',
  'enhancedCorrectionModal', 'savedNamesModal', 'savedNamesList', 'savedNamesMeta',
- 'savedNamesSearchInput', 'savedNamesSearchClearBtn', 'undoLearningData',
+ 'savedNamesSearchInput', 'savedNamesSearchClearBtn', 'savedNamesAddInput', 'savedNamesAddBtn', 'undoLearningData',
 'bossMemTabBtn', 'priceMemTabBtn', 'bossMemPanel', 'priceMemPanel', 'dataPortabilityPanel',
  'pmLibraryBox', 'pmLibrarySelect', 'pmLibraryCount', 'pmLibraryName', 'pmLibraryCreateBtn', 'pmLibraryRenameBtn', 'pmLibraryCopyBtn', 'pmLibraryDeleteBtn', 'pmLibraryStatus',
  'pmRangeManager', 'pmRangeToggleBtn', 'pmRangeCount', 'pmRangeBody', 'pmRangeType', 'pmRangeLabel', 'pmRangeAlias', 'pmRangeStarBoundary', 'pmRangeNamedBoundary', 'pmRangeLowerBoundary', 'pmRangeMinStar', 'pmRangeMaxStar', 'pmRangeNamedRanks', 'pmRangeNormalRound', 'pmRangeNormalHour', 'pmRangeCarryRound', 'pmRangeCarryHour', 'pmRangeStarRound', 'pmRangeStarHour', 'pmRangeSaveBtn', 'pmRangeCancelBtn', 'pmRangeList',
@@ -15921,7 +16110,8 @@ this.scheduleLazyFeatureLoad();
  boss: this.el.boss || document.getElementById('boss'),
  type: this.el.type || document.getElementById('type'),
  duration: this.el.duration || document.getElementById('duration'),
- note: this.el.note || document.getElementById('note')
+ note: this.el.note || document.getElementById('note'),
+ surcharge: this.el.surcharge || document.getElementById('surcharge')
  };
 
  // 输入框清除按钮（历史/危险操作按钮不参与输入初始化）
