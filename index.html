@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.4</title>
+ <title>码单器8.3.11</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -494,6 +494,14 @@
 
  .success-message.show { transform: translateX(0); }
  .success-message.info { background: var(--color-primary); }
+
+ /* 【四.9 删除10秒撤销】toast 内的撤销按钮：容器 pointer-events:none，按钮需单独放开 */
+ .success-message .toast-undo-btn {
+ pointer-events: auto; margin-left: var(--spacing-md); padding: var(--spacing-xs) var(--spacing-md);
+ background: transparent; border: 1px solid rgba(255, 255, 255, 0.85); color: var(--color-white);
+ border-radius: var(--border-radius-md); font-weight: 600; cursor: pointer;
+ }
+ .success-message .toast-undo-btn:active { transform: scale(0.96); }
 
  .history-section {
  background: var(--color-white); border-radius: var(--border-radius-lg);  box-shadow: var(--shadow-md);
@@ -3681,8 +3689,14 @@ h1 { margin-bottom: 4px; }
  <div class="saved-names-content app-modal__panel">
  <div class="saved-names-body app-modal__body">
  <div class="dialog-header">
- <h3 class="dialog-title"><i class="fas fa-database" aria-hidden="true"><svg class="app-icon"><use href="#app-icon-database"></use></svg></i> 已确认的陪陪名字</h3>
+ <h3 class="dialog-title"><i class="fas fa-database" aria-hidden="true"><svg class="app-icon"><use href="#app-icon-database"></use></svg></i> 名字与学习管理</h3>
  <button class="modal-exit-btn" id="savedNamesCloseBtn" type="button" data-modal-close="savedNamesModal" aria-label="退出已保存名字弹窗">×</button>
+ </div>
+
+ <div class="pm-tabs saved-names-tabs" id="savedNamesTabs" role="tablist">
+ <button class="pm-tab active" type="button" data-tab="confirmed" role="tab" aria-selected="true">已确认名字</button>
+ <button class="pm-tab" type="button" data-tab="corrections" role="tab" aria-selected="false">学习映射</button>
+ <button class="pm-tab" type="button" data-tab="ignored" role="tab" aria-selected="false">忽略名单</button>
  </div>
 
  <div class="saved-names-search">
@@ -3774,7 +3788,7 @@ h1 { margin-bottom: 4px; }
 
 
  <script>
- const APP_VERSION = '8.3.10';
+ const APP_VERSION = '8.3.11';
  const TUTORIAL_VIDEO_URL = 'https://cdn.jsdelivr.net/gh/srhovo/tutorialvideo@main/video.mp4';
  const WECHAT_OPEN_URL = 'weixin://'; // 生成订单后尝试唤起微信主界面
  // Release note: 8.2.25 统一“时长计算 / 提取名字”的按钮高度、文字字号、图标尺寸和垂直基线；保留手机、平板与桌面端原有布局及全部业务逻辑。
@@ -4044,7 +4058,8 @@ class InlineChunkLoader {
  maxStoredCorrections: 4200,
  confidenceThreshold: 0.7,
  maxConfirmedNames: 1200,
- maxCommonNames: 1200
+ maxCommonNames: 1200,
+ maxIgnoredNames: 600
  };
 
  // 初始化数据（包含新增的confirmedNames字段）
@@ -4057,13 +4072,14 @@ class InlineChunkLoader {
  userCorrections: 0
  },
  commonNames: [], // 常用名字
- confirmedNames: [] // 已确认的名字（新字段）
+ confirmedNames: [], // 已确认的名字（新字段）
+ ignoredNames: [] // 忽略名单：用户在修正弹窗删除过的名字，后续提取不再输出、不再弹窗
  };
 
  this.commonPatterns = this.initExpertRules();
  this._learningIndexes = null;
  this._learningCollectionsDirty = true;
- this.lastLearningTrim = { corrections: 0, confirmedNames: 0, commonNames: 0 };
+ this.lastLearningTrim = { corrections: 0, confirmedNames: 0, commonNames: 0, ignoredNames: 0 };
 
  // 加载数据
  this.loadData();
@@ -4164,6 +4180,25 @@ class InlineChunkLoader {
  return [...map.values()].slice(0, this.config.maxCommonNames);
  }
 
+ normalizeIgnoredCollection(list) {
+ const map = new Map();
+ (Array.isArray(list) ? list : []).forEach(raw => {
+ const name = this.cleanName(raw?.name ?? raw);
+ if (!name) return;
+ const item = {
+ name,
+ timestamp: Number(raw?.timestamp) || Date.now(),
+ source: this.normalizeLearningText(raw?.source ?? 'modal') || 'modal'
+ };
+ const key = name.toLowerCase();
+ const current = map.get(key);
+ if (!current || item.timestamp >= current.timestamp) map.set(key, item);
+ });
+ return [...map.values()]
+ .sort((a, b) => b.timestamp - a.timestamp || a.name.localeCompare(b.name, 'zh-Hans-CN'))
+ .slice(0, this.config.maxIgnoredNames);
+ }
+
  invalidateLearningIndexes() { this._learningIndexes = null; }
 
  markLearningCollectionsDirty() {
@@ -4176,15 +4211,18 @@ class InlineChunkLoader {
  const before = {
  corrections: Array.isArray(this.data.corrections) ? this.data.corrections.length : 0,
  confirmedNames: Array.isArray(this.data.confirmedNames) ? this.data.confirmedNames.length : 0,
- commonNames: Array.isArray(this.data.commonNames) ? this.data.commonNames.length : 0
+ commonNames: Array.isArray(this.data.commonNames) ? this.data.commonNames.length : 0,
+ ignoredNames: Array.isArray(this.data.ignoredNames) ? this.data.ignoredNames.length : 0
  };
  this.data.corrections = this.normalizeCorrectionCollection(this.data.corrections);
  this.data.confirmedNames = this.normalizeConfirmedCollection(this.data.confirmedNames);
  this.data.commonNames = this.normalizeCommonNames(this.data.commonNames);
+ this.data.ignoredNames = this.normalizeIgnoredCollection(this.data.ignoredNames);
  this.lastLearningTrim = {
  corrections: Math.max(0, before.corrections - this.data.corrections.length),
  confirmedNames: Math.max(0, before.confirmedNames - this.data.confirmedNames.length),
- commonNames: Math.max(0, before.commonNames - this.data.commonNames.length)
+ commonNames: Math.max(0, before.commonNames - this.data.commonNames.length),
+ ignoredNames: Math.max(0, before.ignoredNames - this.data.ignoredNames.length)
  };
  this._learningCollectionsDirty = false;
  this.invalidateLearningIndexes();
@@ -4225,7 +4263,12 @@ class InlineChunkLoader {
  if (originalKey && originalKey !== nameKey && !originalMap.has(originalKey)) originalMap.set(originalKey, name);
  });
  const namesByLength = Array.from(confirmedSet).sort((a, b) => b.length - a.length || a.localeCompare(b, 'zh-Hans-CN'));
- return { correctionExactMap, prefixCorrectionBuckets, confirmedSet, confirmedNameKeys, confirmedByKey, originalMap, namesByLength };
+ const ignoredNameKeys = new Set();
+ (Array.isArray(this.data.ignoredNames) ? this.data.ignoredNames : []).forEach(item => {
+ const name = this.cleanName(item?.name);
+ if (name) ignoredNameKeys.add(name.toLowerCase());
+ });
+ return { correctionExactMap, prefixCorrectionBuckets, confirmedSet, confirmedNameKeys, confirmedByKey, originalMap, namesByLength, ignoredNameKeys };
  }
 
  getLearningIndexes() {
@@ -4251,6 +4294,7 @@ class InlineChunkLoader {
  this.data.stats = saved.stats && typeof saved.stats === 'object' ? saved.stats : this.data.stats;
  this.data.commonNames = Array.isArray(saved.commonNames) ? saved.commonNames : [];
  this.data.confirmedNames = Array.isArray(saved.confirmedNames) ? saved.confirmedNames : [];
+ this.data.ignoredNames = Array.isArray(saved.ignoredNames) ? saved.ignoredNames : [];
  if (saved.confirmedNames === undefined && Array.isArray(saved.corrections)) {
  this.migrateOldCorrectionsToConfirmed();
  migratedLegacy = true;
@@ -4259,7 +4303,8 @@ class InlineChunkLoader {
  const currentLearningVersion = String(saved?.version || '') === '2.2';
  const exceedsCurrentLimits = this.data.corrections.length > this.config.maxStoredCorrections
  || this.data.confirmedNames.length > this.config.maxConfirmedNames
- || this.data.commonNames.length > this.config.maxCommonNames;
+ || this.data.commonNames.length > this.config.maxCommonNames
+ || this.data.ignoredNames.length > this.config.maxIgnoredNames;
  if (!currentLearningVersion || migratedLegacy || exceedsCurrentLimits) {
  this.markLearningCollectionsDirty();
  this.normalizeStoredCollections();
@@ -4272,6 +4317,7 @@ class InlineChunkLoader {
  appLogSilent(error);
  this.data.corrections = Array.isArray(this.data.corrections) ? this.data.corrections : [];
  this.data.confirmedNames = Array.isArray(this.data.confirmedNames) ? this.data.confirmedNames : [];
+ this.data.ignoredNames = Array.isArray(this.data.ignoredNames) ? this.data.ignoredNames : [];
  this.markLearningCollectionsDirty();
  this.normalizeStoredCollections();
  }
@@ -4307,6 +4353,7 @@ class InlineChunkLoader {
  stats: this.data.stats,
  commonNames: this.data.commonNames,
  confirmedNames: this.data.confirmedNames,
+ ignoredNames: this.data.ignoredNames,
  lastUpdated: Date.now(),
  version: '2.2'
  };
@@ -4326,6 +4373,7 @@ class InlineChunkLoader {
  this.data.corrections = Array.isArray(this.data.corrections) ? this.data.corrections : [];
  this.data.confirmedNames = Array.isArray(this.data.confirmedNames) ? this.data.confirmedNames : [];
  this.data.commonNames = Array.isArray(this.data.commonNames) ? this.data.commonNames : [];
+ this.data.ignoredNames = Array.isArray(this.data.ignoredNames) ? this.data.ignoredNames : [];
  this.markLearningCollectionsDirty();
  return this.saveData();
  }
@@ -4339,6 +4387,65 @@ class InlineChunkLoader {
  this.data.confirmedNames.splice(index, 1);
  this.markLearningCollectionsDirty();
  return this.saveData();
+ } catch {
+ return false;
+ }
+ }
+
+ // 删除学习映射（不再自动把 original 修正为 corrected）
+ removeCorrection(original, { persist = true } = {}) {
+ try {
+ const key = this.getLearningKey(original);
+ if (!key) return false;
+ const index = (this.data.corrections || []).findIndex(item => this.getLearningKey(item?.original) === key);
+ if (index < 0) return false;
+ this.data.corrections.splice(index, 1);
+ this.markLearningCollectionsDirty();
+ if (persist) this.saveData();
+ return true;
+ } catch {
+ return false;
+ }
+ }
+
+ // 检查名字是否在忽略名单（用户在修正弹窗删除过）
+ isNameIgnored(name) {
+ try {
+ const key = this.cleanName(name).toLowerCase();
+ return Boolean(key && this.getLearningIndexes().ignoredNameKeys.has(key));
+ } catch {
+ return false;
+ }
+ }
+
+ // 忽略名字：修正弹窗中删除时记录，后续提取不再输出、不再弹窗
+ ignoreName(name, { persist = true } = {}) {
+ try {
+ const cleaned = this.cleanName(name);
+ if (!cleaned) return false;
+ const key = cleaned.toLowerCase();
+ if (this.getLearningIndexes().ignoredNameKeys.has(key)) return false;
+ this.data.ignoredNames.push({ name: cleaned, timestamp: Date.now(), source: 'modal' });
+ this.markLearningCollectionsDirty();
+ if (persist) this.saveData();
+ return true;
+ } catch (error) {
+ appLogSilent(error);
+ return false;
+ }
+ }
+
+ // 解除忽略（学习管理页签中恢复该名字的正常提取与弹窗确认）
+ removeIgnoredName(name, { persist = true } = {}) {
+ try {
+ const key = this.cleanName(name).toLowerCase();
+ if (!key) return false;
+ const index = (this.data.ignoredNames || []).findIndex(item => this.cleanName(item?.name).toLowerCase() === key);
+ if (index < 0) return false;
+ this.data.ignoredNames.splice(index, 1);
+ this.markLearningCollectionsDirty();
+ if (persist) this.saveData();
+ return true;
  } catch {
  return false;
  }
@@ -4364,6 +4471,8 @@ class InlineChunkLoader {
  const cleanName = this.cleanName(name);
  if (!cleanName) return false;
  const key = cleanName.toLowerCase();
+ // 用户主动确认代表想要该名字：若它此前被删除进忽略名单，需一并解除，避免"确认了却被忽略"的矛盾
+ this.removeIgnoredName(cleanName, { persist: false });
  const existing = this.getLearningIndexes().confirmedByKey.get(key);
  const now = Date.now();
  if (!existing) {
@@ -4400,6 +4509,9 @@ class InlineChunkLoader {
 
  // 跳过已确认的名字
  if (this.isNameConfirmed(cleanName)) return false;
+
+ // 跳过用户删除过的名字（忽略名单：不再弹窗）
+ if (this.isNameIgnored(cleanName)) return false;
 
  // 跳过太短的名字（可能是误提取）
  if (cleanName.length < 2) return false;
@@ -4705,6 +4817,29 @@ class InlineChunkLoader {
 
  const candidates = [];
  const noPrefix = this.stripExtractPlatformPrefix(this.stripExtractQuotes(normalizedRaw));
+
+ // 【修复#11-规则1】清洗后全等豁免：主体（去引号/前缀/emoji装饰）与已确认名完全一致时直接高置信命中，
+ // 修复"团小雪🌸"这类带装饰的名字被前缀剥离/强分隔符规则切碎的问题
+ const exactCleanKey = this.normalizeOutputName(noPrefix).toLowerCase();
+ if (exactCleanKey) {
+ const exactCleanMemory = this.getConfirmedMemoryIndex();
+ for (const name of exactCleanMemory.confirmedSet) {
+ if (this.normalizeOutputName(name).toLowerCase() === exactCleanKey) {
+ return {
+ name,
+ raw: normalizedRaw,
+ mode,
+ score: 96,
+ confidence: 0.96,
+ level: 'high',
+ needReview: false,
+ reasons: ['主体清洗后与已确认名完全一致'],
+ candidates: [{ name, score: 96, trace: ['主体清洗后与已确认名完全一致'] }]
+ };
+ }
+ }
+ }
+
  this.addPlayableCandidate(candidates, noPrefix, 18, ['去除平台/来源前缀后的主体']);
 
  const bracket = noPrefix.split(this.roleBoundaryModelRe())[0];
@@ -4723,7 +4858,19 @@ class InlineChunkLoader {
  if (roleTail) this.addPlayableCandidate(candidates, roleTail, 32, ['身份残字修复候选']);
 
  const prefixDrop = noPrefix.replace(/^(派|板|团|厅|群|号)([\u4e00-\u9fa5A-Za-z0-9]{2,4})(?:[^\u4e00-\u9fa5A-Za-z0-9].*)?$/u, '$2');
- if (prefixDrop !== noPrefix) this.addPlayableCandidate(candidates, prefixDrop, 76, ['非标准来源前缀去除候选']);
+ if (prefixDrop !== noPrefix) {
+ // 【修复#11-规则3】前缀误切校正：主体是确认名的自然延伸（如"团小雪呀"延伸自已确认的"团小雪"）时，
+ // 首字符其实是名字的一部分而非来源前缀，抑制前缀剥离的高分，避免把"团"切掉
+ const mainCompact = this.compactExtractName(noPrefix);
+ const prefixMemory = this.getConfirmedMemoryIndex();
+ const extendsConfirmed = [...prefixMemory.confirmedSet].some(name => {
+ const n = this.compactExtractName(name);
+ return n.length >= 2 && mainCompact.length > n.length && mainCompact.startsWith(n);
+ });
+ const prefixTrace = ['非标准来源前缀去除候选'];
+ if (extendsConfirmed) prefixTrace.push('主体为确认名延伸，抑制前缀误切');
+ this.addPlayableCandidate(candidates, prefixDrop, extendsConfirmed ? 76 - 30 : 76, prefixTrace);
+ }
 
  const suffixPairs = [['思君', 2], ['朵世', 2], ['泱岁', 2], ['漪声', 2], ['此生爱', 3], ['佳遇微云', 2], ['阮语诉', 2]];
  suffixPairs.forEach(([word, minLen]) => {
@@ -4740,6 +4887,17 @@ class InlineChunkLoader {
  this.findConfirmedNameHits(noPrefix).forEach((name, index) => {
  this.addPlayableCandidate(candidates, name, 58 - index * 4, [`确认名单命中：${name}`], { memoryHit: true });
  });
+
+ // 【修复#11-规则2】完整主体保护：主体清洗后是合理长度的名字（2-6字、不含身份词），且比所有确认名单命中更长时，
+ // 主体优先于短的记忆子串命中——修复已确认"小雪"后永远把真实名字"小雪呀"吞成"小雪"的问题
+ const fullMainName = this.normalizeOutputName(noPrefix);
+ if (fullMainName && fullMainName.length >= 2 && fullMainName.length <= 6 && !this.roleBoundaryModelRe().test(fullMainName)) {
+ const memoryHitsForMain = this.findConfirmedNameHits(noPrefix);
+ const hasShorterHit = memoryHitsForMain.some(name => this.normalizeOutputName(name).length < fullMainName.length);
+ if (hasShorterHit) {
+ this.addPlayableCandidate(candidates, fullMainName, 72, ['完整主体名保护：主体比确认名单命中更长，优先完整主体']);
+ }
+ }
 
  if (mode === 'chain') {
  const lead = noPrefix.replace(/^\d+(?=[\u4e00-\u9fa5A-Za-z])/u, '');
@@ -4970,14 +5128,22 @@ class InlineChunkLoader {
  return this.enhancedExtractor.getNamesToConfirm(list);
  }
 
- mergeNamesWithCorrections(originalNames, correctedNames) {
- const result = this.uniqueNames(originalNames);
+ mergeNamesWithCorrections(originalNames, correctedNames, deletedNames = []) {
+ // 【修复#8 弹窗说到做到】此前弹窗里删除的名字会经 originalNames 重新回到输出；
+ // 现在先按删除名单过滤，再做替换/追加合并
+ const deletedSet = new Set(this.uniqueNames(deletedNames));
+ const result = this.uniqueNames(originalNames).filter(name => !deletedSet.has(name));
 
  this.uniqueNames(correctedNames).forEach(correctedName => {
- const originalIndex = result.findIndex(name =>
- name === correctedName
- || this.enhancedExtractor.findExactCorrection(name)?.corrected === correctedName
+ // 【修复#9】两趟查找：优先替换"能映射到修正名的脏名"（如刚在弹窗里把"小雪呀"改为"小雪"），
+ // 找不到脏名时才匹配同名项；否则同名项先命中导致替换落空、脏名残留在输出里
+ let originalIndex = result.findIndex(name =>
+ this.enhancedExtractor.findExactCorrection(name)?.corrected === correctedName
  );
+
+ if (originalIndex === -1) {
+ originalIndex = result.findIndex(name => name === correctedName);
+ }
 
  if (originalIndex !== -1) {
  result[originalIndex] = correctedName;
@@ -6834,6 +7000,7 @@ class UltimateStorageManager {
  this._storageWarningSeq = 0;
  this._storageWarningDispatchScheduled = false;
  this._lastCookieWriteFailure = null;
+ this._corruptWarnedKeys = new Set(); // 已上报过"本地数据损坏"的 key，避免重复告警刷屏
  this.backupKeys = new Set(['history', 'bossMemory', 'priceMemory', 'modeRatios', 'enhancedNameExtractorData', 'recentBosses', 'hiddenModules', 'layoutTemplates']);
  this._saving = new Set(); // 细粒度锁：按 key 追踪，不同 key 并发写入互不阻塞
  this._pending = new Map(); // 待写队列：同一 key 并发时保留最新值，写入完成后自动 flush
@@ -6907,6 +7074,10 @@ class UltimateStorageManager {
  try {
  return JSON.parse(value);
  } catch {
+ // 损坏的 JSON（本应是对象/数组但写坏）：返回 undefined 标记损坏，
+ // 让 get() 的多级降级链继续尝试 cookie 备份，而不是把损坏字符串当有效数据返回
+ const trimmed = value.trim();
+ if (trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.startsWith('"')) return undefined;
  return value;
  }
  }
@@ -6972,7 +7143,8 @@ class UltimateStorageManager {
  }
  document.cookie = `${fullName}=${encodedValue}${expires}; path=/`;
  const written = document.cookie.includes(`${fullName}=`) || days < 0;
- if (!written) this._lastCookieWriteFailure = { name, encodedLength: encodedValue.length, limit: this.cookieValueLimit, reason: 'write' };
+ // 成功时清除失败标记，保证 _lastCookieWriteFailure 始终反映最近一次真实结果
+ this._lastCookieWriteFailure = written ? null : { name, encodedLength: encodedValue.length, limit: this.cookieValueLimit, reason: 'write' };
  return written;
  } catch {
  return false;
@@ -7050,6 +7222,13 @@ class UltimateStorageManager {
  if (result?.cookie) {
  signature = 'cookie-fallback';
  message = '本地存储不可用，本次数据已由 Cookie 兜底保存；大型数据无法保证完整，请尽快导出备份。';
+ // backupToCookie 在 set 内先于本方法执行：标记非空说明本次 Cookie 备份确实没写进去（多为数据超限）
+ if (this._lastCookieWriteFailure) {
+ signature = 'cookie-partial';
+ level = 'error';
+ code = 'storage-cookie-partial';
+ message = '本地存储不可用，且 Cookie 备份写入失败（数据可能过大）；数据可能仅当前页面有效，请立即导出备份。';
+ }
  } else if (result?.memory) {
  signature = 'memory-only';
  level = 'error';
@@ -7094,6 +7273,12 @@ class UltimateStorageManager {
  if (value !== null && value !== undefined && value !== '') {
  const parsed = this.safeParseJSON(value);
  if (parsed !== null && parsed !== undefined) return parsed;
+ // 值非空但解析损坏：标记并继续降级链（cookie 备份 → 默认值），每个 key 只告警一次
+ if (adapter.type === 'localStorage' && !this._corruptWarnedKeys.has(key)) {
+ this._corruptWarnedKeys.add(key);
+ appLogError('storage.get', new Error(`本地数据「${key}」解析损坏，已尝试从备份恢复`));
+ this.notifyStorageWarning(`检测到「${key}」的本地数据已损坏，已尝试从其他备份恢复；若列表数据异常请立即导出备份。`, { level: 'info', code: `storage-corrupt:${key}` });
+ }
  }
  } catch (error) {
  appLogSilent(error);
@@ -7474,6 +7659,11 @@ class UltimateStorageManager {
  load() {
  const raw = this.storage.get(this.key, []);
  const normalized = this.normalize(raw);
+ // raw 有内容但不是数组（结构异常/损坏）：不自动覆写，避免把可抢救的历史数据清空
+ if (raw && !Array.isArray(raw)) {
+ appLogError('historyStore.load', new Error('本地历史数据结构异常，已跳过自动覆写'));
+ return normalized;
+ }
  // 轻量级变更检测：仅比较关键字段而非全量 JSON.stringify
  const needsSave = !Array.isArray(raw) || raw.length !== normalized.length
  || normalized.some((order, i) => {
@@ -8159,13 +8349,14 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  window.appDialogManager = new DialogManager();
 
  class NameCorrectionModal {
- constructor({ modal, service, renderHtml, clearHtml, showSuccess, setModalState }) {
+ constructor({ modal, service, renderHtml, clearHtml, showSuccess, setModalState, onBeforeApply }) {
  this.modal = modal;
  this.service = service;
  this.renderHtml = renderHtml;
  this.clearHtml = clearHtml;
  this.showSuccess = showSuccess;
  this.setModalState = setModalState;
+ this.onBeforeApply = onBeforeApply; // 应用前回调：用于拍摄学习数据快照，支持"撤销上次删除"
  this.pendingResolve = null;
  this.currentNames = [];
  }
@@ -8249,7 +8440,7 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  <i class="fas fa-redo" aria-hidden="true"><svg class="app-icon"><use href="#app-icon-redo"></use></svg></i> 重置
  </button>
  </div>
- <div class="learning-tip">确认后的名字将不再弹窗提示</div>
+ <div class="learning-tip">确认或删除都会被记住：确认后自动应用，删除后不再提取（可在名字管理中恢复）</div>
  </div>
  </div>
  `;
@@ -8272,10 +8463,12 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  if (target.closest('#smartAllBtn')) return this.smartCorrectAllNames(this.currentNames);
  if (target.closest('#confirmCorrectionBtn')) return this.confirm();
  if (target.closest('#cancelCorrectionBtn')) return this.close([]);
- if (target.closest('#resetCorrectionBtn')) return this.reset(this.currentNames);
+ if (target.closest('#resetCorrectionBtn')) return this.reset();
  });
 
  content.addEventListener('keydown', e => {
+ // 【修复#24 拼音保护】输入法组合期间 Enter 是"上屏候选词"，不能当作"确认修正"
+ if (e.isComposing || e.keyCode === 229) return;
  if (e.key !== 'Enter' || !e.target.closest('.name-input')) return;
  e.preventDefault();
  this.confirm();
@@ -8305,40 +8498,67 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  const nameItem = this.modal.querySelector(`.name-item[data-index="${index}"]`);
  if (nameItem) {
  nameItem.remove();
- this.showSuccess('已删除该名字');
+ this.showSuccess(`已删除“${this.currentNames[index] ?? '该名字'}”，重置可恢复`);
  }
  }
 
- getCorrectedNames() {
- const correctedNames = [];
+ // 汇总弹窗编辑结果：保留的名字、删除的名字、实际修改数
+ // 删除途径有二：点击 × 移除该行；或把输入框清空——两者都代表"不要这个名字"
+ getCorrectionResult() {
+ const kept = [];
+ const deleted = [];
+ const pendingConfirm = [];
+ let modifiedCount = 0;
 
- this.modal.querySelectorAll('.name-input').forEach(input => {
+ this.currentNames.forEach((original, index) => {
+ const input = this.modal.querySelector(`.name-item[data-index="${index}"] .name-input`);
+ if (!input) {
+ deleted.push(original);
+ return;
+ }
  const name = input.value.trim();
- const original = input.dataset.original;
+ if (!name) {
+ deleted.push(original);
+ return;
+ }
 
- if (!name) return;
- correctedNames.push(name);
+ kept.push(name);
+ if (name !== original) modifiedCount++;
+ pendingConfirm.push({ name, original });
+ });
 
+ // 先写忽略（删除），再确认保留的名字；confirmName 会解除与其同名的忽略记录，
+ // 两趟写入避免"同一名字既被删又被改出来"时因行序不同产生矛盾状态
+ this.service.uniqueNames(deleted).forEach(name => {
+ this.service.enhancedExtractor.ignoreName(name, { persist: false });
+ });
+ pendingConfirm.forEach(({ name, original }) => {
  if (name !== original) {
  this.service.enhancedExtractor.learnFromCorrection(original, name, { persist: false });
  }
  this.service.enhancedExtractor.confirmName(name, original, 'interactive', { persist: false });
  });
 
- return this.service.uniqueNames(correctedNames).sort();
+ return {
+ kept: this.service.uniqueNames(kept).sort(),
+ deleted: this.service.uniqueNames(deleted),
+ modifiedCount
+ };
  }
 
  confirm() {
- const correctedNames = this.getCorrectedNames();
+ if (typeof this.onBeforeApply === 'function') {
+ try { this.onBeforeApply(); } catch (error) { appLogSilent(error); }
+ }
+ const result = this.getCorrectionResult();
  this.service.enhancedExtractor.saveData();
- this.close(correctedNames);
+ this.close(result);
  }
 
- reset(originalNames) {
- originalNames.forEach((name, index) => {
- const input = this.modal.querySelector(`.name-item[data-index="${index}"] .name-input`);
- if (input) input.value = name;
- });
+ reset() {
+ // 重新渲染整个列表：被删除的行也一并恢复，保证"重置"回到弹窗初始状态
+ this.renderHtml(this.modal, this.createHTML(this.currentNames));
+ this.bindEvents();
  this.showSuccess('已重置所有名字');
  }
  }
@@ -9069,6 +9289,10 @@ class UiRenderHelper {
  priceMemorySearch: { className: 'pm-empty', text: '没有找到匹配的单价记录', note: '换个关键词试试，或清空搜索查看全部' },
  savedNames: { className: 'saved-names-empty app-empty-state--panel', text: '暂无已确认的名字', note: '提取名字并确认后，会记录在这里' },
  savedNamesSearch: { className: 'saved-names-empty app-empty-state--panel', text: '没有找到匹配的名字', note: '换个关键词试试，或清空搜索查看全部' },
+ learningMappings: { className: 'saved-names-empty app-empty-state--panel', text: '暂无学习映射', note: '在修正弹窗中改名后会自动记录在这里' },
+ learningMappingsSearch: { className: 'saved-names-empty app-empty-state--panel', text: '没有找到匹配的学习映射', note: '换个关键词试试，或清空搜索查看全部' },
+ ignoredNames: { className: 'saved-names-empty app-empty-state--panel', text: '暂无忽略的名字', note: '在修正弹窗中删除名字后会记录在这里' },
+ ignoredNamesSearch: { className: 'saved-names-empty app-empty-state--panel', text: '没有找到匹配的忽略名字', note: '换个关键词试试，或清空搜索查看全部' },
   ratioCards: { className: 'no-cards-message app-empty-state--panel', iconHtml: '📋', iconClass: 'no-cards-icon', text: '该模式下暂无自定义比例' },
  ratioCreate: { className: 'no-cards-message app-empty-state--panel', iconHtml: '📋', text: '暂无自定义比例，请先创建一个' }
  };
@@ -9504,6 +9728,7 @@ class EventDelegationFeature {
  try {
  this.setupCollectionActions();
  this.setupPmTabs();
+ this.setupSavedNamesTabs();
  return true;
  } catch (error) {
  this._eventScope.clear();
@@ -9520,9 +9745,23 @@ class EventDelegationFeature {
  return this.bindDelegatedActions({
  container: this.app.el.savedNamesList,
  itemSelector: '.saved-name-item',
- getPayload: item => item.dataset.name,
- actions: [{ selector: '.saved-name-delete', handler: name => this.app.deleteSavedName(name) }],
- onItem: name => this.app.applySavedNameToPeipei(name)
+ getPayload: item => item,
+ actions: [
+ { selector: '.saved-name-delete', handler: item => this.app.handleSavedNameDeleteAction(item) },
+ { selector: '.saved-name-restore', handler: item => this.app.restoreIgnoredName(item?.dataset?.name) }
+ ],
+ onItem: item => {
+ if (this.app._savedNamesTab === 'confirmed') this.app.applySavedNameToPeipei(item?.dataset?.name);
+ }
+ });
+ }
+
+ setupSavedNamesTabs() {
+ return this.bindDelegatedActions({
+ container: this.app.el.savedNamesTabs,
+ itemSelector: '.pm-tab',
+ getPayload: item => item.dataset.tab,
+ actions: [{ selector: '.pm-tab', handler: tab => this.app.switchSavedNamesTab(tab) }]
  });
  }
 
@@ -9561,13 +9800,23 @@ class EventDelegationFeature {
  runCalculation({ persist = false, recordBoss = false, showSuccess = true } = {}) {
  const app = this.app;
  try {
- if (!app.validateInput(app.el.inputs.totalPrice)) return false;
- if (app.el.inputs.discount.value.trim() !== '' && !app.validateInput(app.el.inputs.discount)) return false;
- if (app.el.inputs.discountOverlay?.value.trim() !== '' && !app.validateInput(app.el.inputs.discountOverlay)) return false;
+ // 【修复#25 校验三件套】校验失败不再静默返回：滚动到问题字段、聚焦并给出具体提示
+ if (!app.validateInput(app.el.inputs.totalPrice)) {
+ app.focusInvalidInput(app.el.inputs.totalPrice, '请填写有效的总价金额后再生成');
+ return false;
+ }
+ if (app.el.inputs.discount.value.trim() !== '' && !app.validateInput(app.el.inputs.discount)) {
+ app.focusInvalidInput(app.el.inputs.discount, '折扣需在 0~1 之间，例如 0.7');
+ return false;
+ }
+ if (app.el.inputs.discountOverlay?.value.trim() !== '' && !app.validateInput(app.el.inputs.discountOverlay)) {
+ app.focusInvalidInput(app.el.inputs.discountOverlay, '叠加折扣需在 0~1 之间，例如 0.7');
+ return false;
+ }
 
  const context = this.buildCalculationContext();
  if (context.surchargeError) {
- app.showInfo(context.surchargeError);
+ app.focusInvalidInput(app.el.inputs.surcharge, context.surchargeError);
  return false;
  }
  const result = OrderEngine.computeCalculationResult(context);
@@ -11107,6 +11356,8 @@ class EventDelegationFeature {
  }
 
  handleTypeSuggestionKeydown(e) {
+ // 【修复#24 拼音保护】组合输入期间方向键属于输入法候选导航，不拦截、不移动建议选中项
+ if (e.isComposing || e.keyCode === 229 || this.isComposing()) return false;
  if (this.priceQuickPickFeature?.ownsSuggestionSurface?.()) return this.priceQuickPickFeature.handleSuggestionKeydown(e);
  if (!this.ownsSuggestionSurface() || !this.el.typeSuggestList?.classList.contains('show')) return false;
  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -11186,7 +11437,10 @@ class PriceQuickPickFeature {
  try {
  this._eventScope.on(totalPriceInput, 'input', () => this.handleGiftPriceInput());
  this._eventScope.on(typeInput, 'input', () => this.handleGiftServiceInput());
- [totalPriceInput, typeInput].forEach(input => this._eventScope.on(input, 'keydown', event => this.handleSuggestionKeydown(event)));
+ // 【修复#22 方向键跳项】type 输入框的 keydown 已由 ServiceSuggestionFeature.handleTypeSuggestionKeydown
+ // 统一接手并在价格速选持有面板时委托给本类；若在此重复绑定，一次方向键会被处理两次导致选中跳两格。
+ // totalPrice 输入框没有那条委托链路，仍需在此绑定。
+ this._eventScope.on(totalPriceInput, 'keydown', event => this.handleSuggestionKeydown(event));
  [totalPriceInput, typeInput].forEach(input => this._eventScope.on(input, 'blur', () => {
  const close = () => {
  if (![totalPriceInput, typeInput].includes(document.activeElement) && this.ownsSuggestionSurface()) this.hideSharedSuggestions();
@@ -11339,6 +11593,8 @@ class PriceQuickPickFeature {
  return this.applySuggestionElement(items[this._suggestionActiveIndex >= 0 ? this._suggestionActiveIndex : 0], { fallbackSourceKey: fromKey, focusNext: true });
  }
  handleSuggestionKeydown(event) {
+ // 【修复#24 拼音保护】组合输入期间不处理建议面板键盘事件（同 handleTypeSuggestionKeydown）
+ if (event.isComposing || event.keyCode === 229) return false;
  if (!this.ownsSuggestionSurface() || !this.el.typeSuggestList?.classList.contains('show')) return false;
  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); return this.moveSuggestionSelection(event.key === 'ArrowDown' ? 1 : -1); }
  if (event.key === 'Escape') { event.preventDefault(); this.hideSharedSuggestions(); return true; }
@@ -11491,6 +11747,7 @@ class PriceRuleEditorFeature {
  this._eventScope.on(this.el.pmLibrarySelect, 'change', event => this.switchPriceLibrary(event.target.value));
  this._eventScope.on(this.el.pmRangeType, 'change', () => this.updateRangeBoundaryUI());
  this._eventScope.on(this.el.pmLibraryName, 'keydown', event => {
+ if (event.isComposing || event.keyCode === 229) return; // 【#24】组合期间 Enter 是上屏
  if (event.key !== 'Enter') return;
  event.preventDefault();
  this.renamePriceLibrary();
@@ -12933,6 +13190,8 @@ class PriceMemoryFeature {
  }
 
  handleShortcut(event) {
+ // 【修复#24 拼音保护】组合输入期间不响应全局快捷键（避免 Escape 关闭正在输入的弹窗）
+ if (event.isComposing || event.keyCode === 229) return;
  if (event.ctrlKey && event.key === 'Enter') {
  event.preventDefault();
  this.orderFlow.calculate();
@@ -13627,6 +13886,17 @@ class PriceMemoryFeature {
  return isValid;
  }
 
+ // 【修复#25 校验三件套】生成/计算被必填项校验拦下时：自动滚动到该输入项 + 聚焦 + 明确提示。
+ // 移动端屏幕窄，错误提示常在视野外，用户只看到"点了没反应"；滚动+聚焦让问题字段直接出现在眼前。
+ focusInvalidInput(input, message = '') {
+ if (!input) return false;
+ try { input.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+ catch { try { input.scrollIntoView(); } catch (error) { appLogSilent(error); } }
+ try { input.focus({ preventScroll: true }); } catch { try { input.focus(); } catch (error) { appLogSilent(error); } }
+ if (message) this.app.showInfo(message);
+ return true;
+ }
+
  }
 
 
@@ -13772,6 +14042,8 @@ class PriceMemoryFeature {
  set extractRequestSeq(value) { this.app.extractRequestSeq = value; }
  get _savedNamesSearchQuery() { return this.app._savedNamesSearchQuery; }
  set _savedNamesSearchQuery(value) { this.app._savedNamesSearchQuery = value; }
+ get _savedNamesTab() { return this.app._savedNamesTab; }
+ set _savedNamesTab(value) { this.app._savedNamesTab = value; }
  get _savedNamesBatchSize() { return this.app._savedNamesBatchSize; }
  set _savedNamesBatchSize(value) { this.app._savedNamesBatchSize = value; }
  get _savedNamesRenderLimit() { return this.app._savedNamesRenderLimit; }
@@ -13814,6 +14086,8 @@ class PriceMemoryFeature {
  this._eventScope.on(this.el.savedNamesSearchInput, 'input', this.debounce(() => this.handleSavedNamesSearchInput(), 80));
  this._eventScope.on(this.el.savedNamesAddBtn, 'click', () => this.handleSavedNamesAdd());
  this._eventScope.on(this.el.savedNamesAddInput, 'keydown', event => {
+ // 【修复#24 拼音保护】组合期间 Enter 是上屏，不触发"添加名字"
+ if (event.isComposing || event.keyCode === 229) return;
  if (event.key === 'Enter') { event.preventDefault(); this.handleSavedNamesAdd(); }
  });
  this._eventScope.on(this.el.savedNamesList, 'scroll', () => this.handleSavedNamesListScroll());
@@ -13911,11 +14185,17 @@ isCurrentExtractRequest(meta) {
 
 applyExtractResult(result, requestMeta) {
  if (!this.isCurrentExtractRequest(requestMeta)) return;
- const names = result?.names || [];
+ // 【#8/#10】忽略名单过滤：修正弹窗中删除过的名字不再进入输出，也不再弹窗
+ const rawNames = result?.names || [];
+ const names = rawNames.filter(name => !this.enhancedExtractor.isNameIgnored(name));
+ const ignoredCount = rawNames.length - names.length;
+ const ignoredSuffix = ignoredCount > 0 ? `，已忽略 ${ignoredCount} 个删除过的名字` : '';
  const modeText = result?.source === 'model' ? '模型模式' : '提取模式';
 
  if (!names.length) {
- this.commitExtractOutput([]);
+ this.commitExtractOutput([], {
+ message: ignoredCount > 0 ? `已忽略 ${ignoredCount} 个删除过的名字` : ''
+ });
  return;
  }
 
@@ -13925,28 +14205,36 @@ applyExtractResult(result, requestMeta) {
  });
  if (!namesToConfirm.length) {
  this.commitExtractOutput(names, {
- message: `已提取 ${names.length} 个名字（${modeText}）`
+ message: `已提取 ${names.length} 个名字（${modeText}）${ignoredSuffix}`
  });
  return;
  }
 
- this.openEnhancedCorrectionModal(namesToConfirm).then(correctedNames => {
+ this.openEnhancedCorrectionModal(namesToConfirm).then(modalResult => {
  if (!this.isCurrentExtractRequest(requestMeta)) return;
- if (correctedNames && correctedNames.length > 0) {
- const finalNames = this.mergeNamesWithCorrections(names, correctedNames);
+ // 兼容旧数组返回（取消路径 close([])）
+ const correctedNames = Array.isArray(modalResult) ? modalResult : (modalResult?.kept || []);
+ const deletedNames = Array.isArray(modalResult) ? [] : (modalResult?.deleted || []);
+ const modifiedCount = Array.isArray(modalResult) ? 0 : (Number(modalResult?.modifiedCount) || 0);
+
+ if (correctedNames.length > 0 || deletedNames.length > 0) {
+ const finalNames = this.mergeNamesWithCorrections(names, correctedNames, deletedNames);
+ const parts = [];
+ if (modifiedCount > 0) parts.push(`${modifiedCount}个已修正`);
+ if (deletedNames.length > 0) parts.push(`${deletedNames.length}个已删除`);
  this.commitExtractOutput(finalNames, {
- message: `已处理 ${finalNames.length} 个名字（${correctedNames.length}个已修正）`
+ message: `已处理 ${finalNames.length} 个名字${parts.length ? `（${parts.join('，')}）` : ''}${ignoredSuffix}`
  });
  return;
  }
 
  this.commitExtractOutput(names, {
- message: `已提取 ${names.length} 个名字（用户取消修正）`
+ message: `已提取 ${names.length} 个名字（用户取消修正）${ignoredSuffix}`
  });
  });
  }
 
-mergeNamesWithCorrections(originalNames, correctedNames) { return this.extractorService.mergeNamesWithCorrections(originalNames, correctedNames); }
+mergeNamesWithCorrections(originalNames, correctedNames, deletedNames = []) { return this.extractorService.mergeNamesWithCorrections(originalNames, correctedNames, deletedNames); }
 
 updateExtractCount() {
  try {
@@ -13972,6 +14260,7 @@ async openEnhancedCorrectionModal(names) {
 
 openSavedNamesModal() {
  this.resetSavedNamesSearch();
+ this.updateSavedNamesTabs();
  this.updateSavedNamesList();
  this.openModal(this.el.savedNamesModal);
  }
@@ -13980,9 +14269,40 @@ closeSavedNamesModal() {
  this.closeModal(this.el.savedNamesModal);
  }
 
+switchSavedNamesTab(tab) {
+ if (!['confirmed', 'corrections', 'ignored'].includes(tab)) return;
+ if (this._savedNamesTab === tab) return;
+ this._savedNamesTab = tab;
+ this.resetSavedNamesSearch();
+ this.updateSavedNamesTabs();
+ this.updateSavedNamesList();
+ }
+
+updateSavedNamesTabs() {
+ (this.el.savedNamesTabs?.querySelectorAll('.pm-tab') || []).forEach(btn => {
+ const active = btn.dataset.tab === this._savedNamesTab;
+ btn.classList.toggle('active', active);
+ btn.setAttribute('aria-selected', String(active));
+ });
+ // 手动添加仅对"已确认名字"页签有意义
+ const addRow = this.el.savedNamesModal?.querySelector('.saved-names-add');
+ if (addRow) addRow.style.display = this._savedNamesTab === 'confirmed' ? '' : 'none';
+ }
+
 getFilteredSavedNamesViewItems() {
- const all = [...(this.enhancedExtractor.data.confirmedNames || [])].sort((a, b) => b.timestamp - a.timestamp);
  const query = this._savedNamesSearchQuery;
+ if (this._savedNamesTab === 'corrections') {
+ const all = [...(this.enhancedExtractor.data.corrections || [])]
+ .sort((a, b) => (Number(b.lastUsed) || Number(b.timestamp) || 0) - (Number(a.lastUsed) || Number(a.timestamp) || 0));
+ return query
+ ? all.filter(item => String(item?.original || '').toLowerCase().includes(query) || String(item?.corrected || '').toLowerCase().includes(query))
+ : all;
+ }
+ if (this._savedNamesTab === 'ignored') {
+ const all = [...(this.enhancedExtractor.data.ignoredNames || [])].sort((a, b) => b.timestamp - a.timestamp);
+ return query ? all.filter(item => String(item?.name || '').toLowerCase().includes(query)) : all;
+ }
+ const all = [...(this.enhancedExtractor.data.confirmedNames || [])].sort((a, b) => b.timestamp - a.timestamp);
  return query ? all.filter(item => item.name?.toLowerCase().includes(query) || item.original?.toLowerCase().includes(query)) : all;
  }
 
@@ -13997,12 +14317,23 @@ resetSavedNamesRenderLimit() {
 
 updateSavedNamesMeta() {
  if (!this.el.savedNamesMeta) return;
- const total = this.enhancedExtractor.data.confirmedNames?.length || 0;
+ const tab = this._savedNamesTab;
+ let total = 0;
+ let label = '已保存名字';
+ if (tab === 'corrections') {
+ total = this.enhancedExtractor.data.corrections?.length || 0;
+ label = '学习映射';
+ } else if (tab === 'ignored') {
+ total = this.enhancedExtractor.data.ignoredNames?.length || 0;
+ label = '忽略名字';
+ } else {
+ total = this.enhancedExtractor.data.confirmedNames?.length || 0;
+ }
  const filtered = this.getFilteredSavedNamesViewItems().length;
  const rendered = Math.min(filtered, this._savedNamesRenderLimit);
  const query = this._savedNamesSearchQuery;
  const suffix = rendered < filtered ? `，已显示 ${rendered} 个` : '';
- const text = query ? `共 ${total} 个已保存名字，当前筛选 ${filtered} 个${suffix}` : `共 ${total} 个已保存名字${suffix}`;
+ const text = query ? `共 ${total} 个${label}，当前筛选 ${filtered} 个${suffix}` : `共 ${total} 个${label}${suffix}`;
  if (this.el.savedNamesMeta.textContent !== text) this.el.savedNamesMeta.textContent = text;
  }
 
@@ -14110,6 +14441,47 @@ async deleteSavedName(name) {
  } catch (error) {
  appLogSilent(error);
  }
+ }
+
+// 学习映射页签：删除一条 original→corrected 映射，此后不再自动修正
+async deleteLearningMapping(original) {
+ try {
+ const key = this.enhancedExtractor.getLearningKey(original);
+ const entry = (this.enhancedExtractor.data.corrections || []).find(item => this.enhancedExtractor.getLearningKey(item?.original) === key);
+ if (!entry) return;
+ const confirmed = await this.showConfirm(`确定删除映射“${entry.original} → ${entry.corrected}”吗？删除后将不再自动修正`);
+ if (!confirmed) return;
+ this.captureLearningSnapshot();
+ if (!this.enhancedExtractor.removeCorrection(entry.original)) return this.showError('删除映射失败');
+ this.updateSavedNamesList();
+ this.showSuccess('已删除映射，恢复原始提取');
+ } catch (error) {
+ appLogSilent(error);
+ }
+ }
+
+// 忽略名单页签：恢复该名字的正常提取与弹窗确认
+async restoreIgnoredName(name) {
+ try {
+ const clean = this.enhancedExtractor.cleanName(name);
+ if (!clean || !this.enhancedExtractor.isNameIgnored(clean)) return;
+ this.captureLearningSnapshot();
+ if (!this.enhancedExtractor.removeIgnoredName(clean)) return this.showError('恢复失败，请重试');
+ this.updateSavedNamesList();
+ this.showSuccess(`已恢复“${clean}”，之后会正常提取`);
+ } catch (error) {
+ appLogSilent(error);
+ }
+ }
+
+// 列表删除按钮统一入口：按当前页签分派（已确认删除 / 删除映射）
+async handleSavedNameDeleteAction(item) {
+ const name = item?.dataset?.name;
+ const original = item?.dataset?.original;
+ if (this._savedNamesTab === 'corrections' && original !== undefined) {
+ return this.deleteLearningMapping(original);
+ }
+ return this.deleteSavedName(name);
  }
 
 switchExtractMode(mode) {
@@ -15120,7 +15492,8 @@ class HistoryFeature {
  if (source.closest('.history-item-delete')) {
  event.preventDefault();
  event.stopPropagation();
- if (await this.showConfirm('确定要删除这条历史记录吗？')) this.deleteHistoryItem(index);
+ // 【四.9 删除改10秒撤销】不再弹确认框：立即删除，toast 提供 10 秒撤销入口
+ this.deleteHistoryItem(index);
  return;
  }
  this.loadFromHistory(index);
@@ -15289,15 +15662,46 @@ renderHistoryPagination() {
  }
  }
 
+ // 【四.9 删除改10秒撤销】拍摄历史状态快照（深拷贝，条目均为可序列化对象）
+ snapshotHistoryState() {
+ return {
+ history: JSON.parse(JSON.stringify(this.history || [])),
+ editingIndex: this.editingHistoryIndex
+ };
+ }
+
+ // 【四.9 删除改10秒撤销】撤销入口的 toast：绕过"成功提示抑制"——撤销按钮是功能入口而非纯通知
+ showUndoToast(message, onUndo) {
+ return this.app.showMessage('success', message, {
+ duration: 10000,
+ action: { label: '撤销', onClick: onUndo }
+ });
+ }
+
+ restoreHistorySnapshot(snapshot) {
+ try {
+ if (!snapshot || !Array.isArray(snapshot.history)) return false;
+ this.history = this.store.save(snapshot.history) || snapshot.history;
+ this.editingHistoryIndex = snapshot.editingIndex;
+ this.updateUI();
+ this.showSuccess('已撤销删除');
+ return true;
+ } catch (error) {
+ this.handleError('restoreHistorySnapshot', error, '撤销失败，请重试');
+ return false;
+ }
+ }
+
  deleteHistoryItem(index) {
  try {
+ const snapshot = this.snapshotHistoryState();
  const nextHistory = this.store.removeAt(this.history, index);
  if (!nextHistory) return false;
  if (this.editingHistoryIndex === index) this.editingHistoryIndex = -1;
  else if (this.editingHistoryIndex > index) this.editingHistoryIndex -= 1;
  this.history = nextHistory;
  this.updateUI();
- this.showSuccess('已删除历史记录');
+ this.showUndoToast('已删除历史记录', () => this.restoreHistorySnapshot(snapshot));
  return true;
  } catch (error) {
  this.handleError('deleteAction', error, '删除失败，请重试');
@@ -15310,12 +15714,12 @@ renderHistoryPagination() {
  this.showInfo('历史记录已为空');
  return false;
  }
- const confirmed = await this.showConfirm('确定要清空所有历史记录吗？此操作不可撤销。');
- if (!confirmed) return false;
+ // 【四.9 删除改10秒撤销】清空同样改为立即执行 + 10 秒撤销（原"不可撤销"确认框移除）
+ const snapshot = this.snapshotHistoryState();
  this.history = this.store.clear();
  this.editingHistoryIndex = -1;
  this.updateUI();
- this.showSuccess('历史记录已清除');
+ this.showUndoToast(`已清除 ${snapshot.history.length} 条历史记录`, () => this.restoreHistorySnapshot(snapshot));
  return true;
  }
 }
@@ -15646,6 +16050,8 @@ class BossMemoryFeature {
  }
 
  handleBossSuggestionKeydown(event) {
+ // 【修复#24 拼音保护】组合输入期间方向键/Enter 属于输入法操作，不接管
+ if (event.isComposing || event.keyCode === 229 || this._bossComposing) return false;
  if (!this.el.bossSuggestList?.classList.contains('show')) return false;
  if (event.key === 'ArrowDown') {
  event.preventDefault();
@@ -15720,6 +16126,7 @@ class OrderCalculator {
  this.correctionModal = null;
  this.extractRequestSeq = 0;
  this._savedNamesSearchQuery = ''; // 已保存名字弹窗的搜索关键词（瞬态UI状态，不纳入业务state）
+ this._savedNamesTab = 'confirmed'; // 已保存名字弹窗当前页签：confirmed | corrections | ignored
  this._savedNamesBatchSize = 100;
  this._savedNamesRenderLimit = this._savedNamesBatchSize;
  this._savedNamesLoadingMore = false;
@@ -15948,6 +16355,7 @@ this.lazyFeatures = {
  formatDiscountInputValue(...args) { return this.inputFlowFeature.formatDiscountInputValue(...args); }
  normalizeDiscountInputField(...args) { return this.inputFlowFeature.normalizeDiscountInputField(...args); }
  validateInput(...args) { return this.inputFlowFeature.validateInput(...args); }
+ focusInvalidInput(...args) { return this.inputFlowFeature.focusInvalidInput(...args); }
 
  getStateValueForStorage(key) {
  if (key === 'recentBosses') return this.bossDirectory.normalizeRecentBosses(this.recentBosses);
@@ -16004,11 +16412,31 @@ this.lazyFeatures = {
  savedNames: {
  container: () => this.el.savedNamesList,
  items: () => this.getSavedNamesViewItems(),
- getKey: item => this.enhancedExtractor.cleanName(item?.name).toLowerCase(),
- empty: () => this._savedNamesSearchQuery
- ? this.renderNamedEmptyState('savedNamesSearch')
- : this.renderNamedEmptyState('savedNames'),
+ getKey: item => this._savedNamesTab === 'corrections'
+ ? this.enhancedExtractor.getLearningKey(item?.original)
+ : this.enhancedExtractor.cleanName(item?.name).toLowerCase(),
+ empty: () => {
+ if (this._savedNamesTab === 'corrections') {
+ return this.renderNamedEmptyState(this._savedNamesSearchQuery ? 'learningMappingsSearch' : 'learningMappings');
+ }
+ if (this._savedNamesTab === 'ignored') {
+ return this.renderNamedEmptyState(this._savedNamesSearchQuery ? 'ignoredNamesSearch' : 'ignoredNames');
+ }
+ return this.renderNamedEmptyState(this._savedNamesSearchQuery ? 'savedNamesSearch' : 'savedNames');
+ },
  renderItem: item => {
+ if (this._savedNamesTab === 'corrections') {
+ const safeOriginal = this.escapeHtml(item.original);
+ const safeCorrected = this.escapeHtml(item.corrected);
+ const usage = Number(item.usageCount) || 1;
+ const lastUsed = new Date(Number(item.lastUsed) || Number(item.timestamp) || Date.now()).toLocaleString();
+ return `<div class="saved-name-item app-list-item" data-original="${safeOriginal}" data-name="${safeCorrected}"><div class="saved-name-info"><div class="saved-name-name">${safeOriginal} <span class="app-list-note">→</span> ${safeCorrected}</div><div class="saved-name-original app-list-note">自动修正 | 使用 ${usage} 次 | 最近: ${this.escapeHtml(lastUsed)}</div></div>${this.renderIconActions([{ className: 'saved-name-delete', sizeClass: 'danger-icon-btn--lg', title: '删除该映射（不再自动修正）', dataset: { original: item.original }, labelHtml: '<span class="icon-emoji" aria-hidden="true">×</span>' }], 'app-list-actions')}</div>`;
+ }
+ if (this._savedNamesTab === 'ignored') {
+ const safeName = this.escapeHtml(item.name);
+ const date = new Date(item.timestamp).toLocaleString();
+ return `<div class="saved-name-item app-list-item" data-name="${safeName}"><div class="saved-name-info"><div class="saved-name-name">${safeName}</div><div class="saved-name-original app-list-note">在修正弹窗删除于: ${this.escapeHtml(date)} | 不再提取、不再弹窗</div></div>${this.renderIconActions([{ className: 'saved-name-restore', sizeClass: 'danger-icon-btn--lg', title: '恢复提取（此后正常弹出确认）', dataset: { name: item.name }, labelHtml: '<span class="icon-emoji" aria-hidden="true">↩</span>' }], 'app-list-actions')}</div>`;
+ }
  const date = new Date(item.timestamp).toLocaleString();
  const sourceText = item.source === 'manual' ? '手动添加' : (item.source === 'interactive' ? '交互确认' : '自动确认');
  const safeName = this.escapeHtml(item.name);
@@ -16073,7 +16501,8 @@ this.scheduleLazyFeatureLoad();
  renderHtml: (modal, html) => this.setRenderedHtml(modal, html),
  clearHtml: modal => this.clearRenderedHtml(modal),
  showSuccess: message => this.showSuccess(message),
- setModalState: (modal, visible) => this.setModalState(modal, visible)
+ setModalState: (modal, visible) => this.setModalState(modal, visible),
+ onBeforeApply: () => this.captureLearningSnapshot()
  });
  }
 
@@ -16096,7 +16525,7 @@ this.scheduleLazyFeatureLoad();
  'bossSuggestList',
  'confirmModal', 'confirmMessage', 'confirmYes', 'confirmNo',
  'lockBossBtn', 'unlockBossBtn', 'bossLockInfo', 'lockedBossName',
- 'enhancedCorrectionModal', 'savedNamesModal', 'savedNamesList', 'savedNamesMeta',
+ 'enhancedCorrectionModal', 'savedNamesModal', 'savedNamesList', 'savedNamesMeta', 'savedNamesTabs',
  'savedNamesSearchInput', 'savedNamesSearchClearBtn', 'savedNamesAddInput', 'savedNamesAddBtn', 'undoLearningData',
 'bossMemTabBtn', 'priceMemTabBtn', 'bossMemPanel', 'priceMemPanel', 'dataPortabilityPanel',
  'pmLibraryBox', 'pmLibrarySelect', 'pmLibraryCount', 'pmLibraryName', 'pmLibraryCreateBtn', 'pmLibraryRenameBtn', 'pmLibraryCopyBtn', 'pmLibraryDeleteBtn', 'pmLibraryStatus',
@@ -16304,6 +16733,42 @@ scheduleLazyFeatureLoad() {
  this.lockedPaiDan = null;
  this.lockedBoss = null;
  }
+
+ // 跨标签页数据同步（修复：多标签页各自持有内存态、后保存者整库覆盖先保存者的新增）
+ // 其他标签页写入 pw_ultimate_* 时，本页在可见状态下重载历史/老板记忆等展示数据
+ this._registerCrossTabSync();
+ }
+
+ _registerCrossTabSync() {
+ if (this._crossTabSyncBound) return;
+ this._crossTabSyncBound = true;
+ window.addEventListener('storage', event => {
+ if (!event.key || !event.key.startsWith('pw_ultimate_')) return;
+ if (event.storageArea !== window.localStorage) return;
+ this._pendingCrossTabSync = true;
+ // 本页可见时防抖同步；不可见时等切回本页（visibilitychange）再同步
+ if (document.visibilityState === 'visible') {
+ clearTimeout(this._crossTabSyncTimer);
+ this._crossTabSyncTimer = setTimeout(() => this._syncFromOtherTab(), 300);
+ }
+ });
+ document.addEventListener('visibilitychange', () => {
+ if (document.visibilityState === 'visible') this._syncFromOtherTab();
+ });
+ }
+
+ _syncFromOtherTab() {
+ if (!this._pendingCrossTabSync) return;
+ this._pendingCrossTabSync = false;
+ try {
+ this.historyFeature.load();
+ this.historyFeature.updateUI();
+ this.bossMemoryFeature.load();
+ this.bossMemoryFeature.refresh();
+ this.recentBosses = this.bossDirectory.loadRecent();
+ } catch (error) {
+ appLogError('crossTabSync', error);
+ }
  }
 
  loadModeRatios() {
@@ -16486,10 +16951,14 @@ scheduleLazyFeatureLoad() {
  closeSavedNamesModal(...args) { return this.extractionFeature.closeSavedNamesModal(...args); }
  getSavedNamesViewItems(...args) { return this.extractionFeature.getSavedNamesViewItems(...args); }
  updateSavedNamesList(...args) { return this.extractionFeature.updateSavedNamesList(...args); }
+ switchSavedNamesTab(...args) { return this.extractionFeature.switchSavedNamesTab(...args); }
 
 
  applySavedNameToPeipei(...args) { return this.extractionFeature.applySavedNameToPeipei(...args); }
  deleteSavedName(...args) { return this.extractionFeature.deleteSavedName(...args); }
+ deleteLearningMapping(...args) { return this.extractionFeature.deleteLearningMapping(...args); }
+ restoreIgnoredName(...args) { return this.extractionFeature.restoreIgnoredName(...args); }
+ handleSavedNameDeleteAction(...args) { return this.extractionFeature.handleSavedNameDeleteAction(...args); }
 
 
  // ============================================
@@ -16610,16 +17079,30 @@ scheduleLazyFeatureLoad() {
  // 消息提示
  // ============================================
 
- showMessage(type = 'success', message = '') {
+ showMessage(type = 'success', message = '', { duration = 3000, action = null } = {}) {
  try {
  const toast = this.el.successMessage;
  if (!toast) return false;
  const safeType = ['success', 'error', 'info'].includes(type) ? type : 'info';
  toast.textContent = String(message ?? '');
+ // 【四.9 删除10秒撤销】支持在 toast 内放置一个动作按钮（如"撤销"）
+ if (action && action.label && typeof action.onClick === 'function') {
+ const btn = document.createElement('button');
+ btn.type = 'button';
+ btn.className = 'toast-undo-btn';
+ btn.textContent = String(action.label);
+ btn.addEventListener('click', () => {
+ window.clearTimeout(this.toastTimer);
+ toast.classList.remove('show');
+ try { action.onClick(); } catch (error) { this.logError('toastAction', error); }
+ });
+ toast.appendChild(btn);
+ }
  toast.setAttribute('aria-live', safeType === 'error' ? 'assertive' : 'polite');
  toast.className = `success-message ${safeType}`;
  window.clearTimeout(this.toastTimer);
- this.toastTimer = window.setTimeout(() => toast.classList.remove('show'), 3000);
+ const ms = Number.isFinite(duration) ? Math.max(1000, duration) : 3000;
+ this.toastTimer = window.setTimeout(() => toast.classList.remove('show'), ms);
  requestAnimationFrame(() => toast.classList.add('show'));
  return true;
  } catch (error) {
