@@ -13,6 +13,8 @@
  * 3. 更新失败（下载失败、校验失败、新版本 JS 崩溃导致没调用
  *    notifyAppReady）时，原生层会在超时后自动回退到上一个可用版本，
  *    整个过程用户数据不受影响。
+ * 4. 更新全程静默：检测到新版本后在后台自动下载并切换，不弹任何
+ *    提示条、不需要用户点击；失败只写控制台日志，下次启动自动重试。
  */
 (function () {
   'use strict';
@@ -86,8 +88,8 @@
           log('已是最新版本 ' + CURRENT_VERSION);
           return;
         }
-        log('发现新版本 ' + manifest.version + '（当前 ' + CURRENT_VERSION + '）');
-        showUpdatePrompt(manifest);
+        log('发现新版本 ' + manifest.version + '（当前 ' + CURRENT_VERSION + '），后台静默更新中');
+        applyUpdate(manifest);
       })
       .catch(function (e) {
         // 网络不好 / 服务器暂时打不开时静默失败，绝不影响本地正常使用
@@ -95,50 +97,8 @@
       });
   }
 
-  // ---- 更新提示条：用户主动点"更新"才会触发下载，不做静默强推 ----
-  function showUpdatePrompt(manifest) {
-    if (document.getElementById('madanUpdateToast')) return; // 避免重复弹出
-
-    var toast = document.createElement('div');
-    toast.id = 'madanUpdateToast';
-    toast.style.cssText = [
-      'position:fixed', 'left:12px', 'right:12px', 'bottom:calc(16px + env(safe-area-inset-bottom, 0px))',
-      'z-index:99999', 'background:#1f2937', 'color:#fff', 'padding:12px 14px',
-      'border-radius:12px', 'font-size:14px', 'line-height:1.5',
-      'box-shadow:0 6px 20px rgba(0,0,0,.28)', 'display:flex', 'align-items:center', 'gap:10px',
-      'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif'
-    ].join(';');
-
-    var text = document.createElement('span');
-    text.style.cssText = 'flex:1;min-width:0;';
-    text.textContent = '发现新版本 ' + manifest.version + '，点击更新（不会清空本地数据）';
-
-    var updateBtn = document.createElement('button');
-    updateBtn.type = 'button';
-    updateBtn.textContent = '更新';
-    updateBtn.style.cssText = 'flex:0 0 auto;background:#2563eb;color:#fff;border:0;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;';
-
-    var dismissBtn = document.createElement('button');
-    dismissBtn.type = 'button';
-    dismissBtn.setAttribute('aria-label', '关闭');
-    dismissBtn.textContent = '×';
-    dismissBtn.style.cssText = 'flex:0 0 auto;background:transparent;color:#9ca3af;border:0;font-size:20px;line-height:1;padding:0 4px;';
-
-    dismissBtn.addEventListener('click', function () { toast.remove(); });
-    updateBtn.addEventListener('click', function () {
-      text.textContent = '正在下载更新…';
-      updateBtn.remove();
-      dismissBtn.remove();
-      applyUpdate(manifest, toast, text);
-    });
-
-    toast.appendChild(text);
-    toast.appendChild(updateBtn);
-    toast.appendChild(dismissBtn);
-    document.body.appendChild(toast);
-  }
-
-  function applyUpdate(manifest, toast, textEl) {
+  // ---- 静默更新：后台自动下载并切换，全程无弹窗、无需用户交互 ----
+  function applyUpdate(manifest) {
     // 暂时不传 checksum：插件校验哈希的具体算法/格式没有把握确认，
     // 先排除这个变量，确认下载+切换这条主链路本身没问题。
     // 之后确认好格式了，可以在这里加回 { checksum: manifest.checksum }。
@@ -146,16 +106,12 @@
 
     Updater.download(downloadOpts)
       .then(function (bundle) {
-        textEl.textContent = '下载完成，正在切换到新版本…';
+        log('新版本下载完成，正在切换…');
         return Updater.set(bundle);
       })
       .catch(function (e) {
         var detail = (e && (e.message || e.errorMessage || e.code)) ? String(e.message || e.errorMessage || e.code) : JSON.stringify(e);
-        warn('更新失败', e);
-        textEl.textContent = '更新失败：' + detail;
-        setTimeout(function () {
-          if (toast && toast.parentNode) toast.remove();
-        }, 8000);
+        warn('静默更新失败（不影响当前使用，下次启动会自动重试）' + (detail ? '：' + detail : ''), e);
       });
   }
 
