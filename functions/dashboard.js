@@ -46,7 +46,7 @@ function scalar(rows, field, fallback) {
 async function fetchAllStats(env) {
   const [
     totalToday, totalYesterday, dau, wau, mau,
-    trend30Launches, trend30Uniques
+    trend30Launches, trend30Uniques, channel30
   ] = await Promise.all([
     runSql(env, `SELECT COUNT() AS c FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > toStartOfDay(NOW())`),
     runSql(env, `SELECT COUNT() AS c FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp >= toStartOfDay(NOW()) - INTERVAL '1' DAY AND timestamp < toStartOfDay(NOW())`),
@@ -57,7 +57,9 @@ async function fetchAllStats(env) {
     // 趋势：拆成"每日启动次数"和"每日独立设备数"两条查询，代码里按日期合并，
     // 避免依赖不确定是否支持的嵌套聚合写法。
     runSql(env, `SELECT toStartOfDay(timestamp) AS day, COUNT() AS launches FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > NOW() - INTERVAL '30' DAY GROUP BY day ORDER BY day`),
-    runSql(env, `SELECT day, COUNT() AS uniques FROM (SELECT toStartOfDay(timestamp) AS day, index1 FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > NOW() - INTERVAL '30' DAY GROUP BY day, index1) GROUP BY day ORDER BY day`)
+    runSql(env, `SELECT day, COUNT() AS uniques FROM (SELECT toStartOfDay(timestamp) AS day, index1 FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > NOW() - INTERVAL '30' DAY GROUP BY day, index1) GROUP BY day ORDER BY day`),
+    // 渠道分布（blob5，部署渠道识别之前的旧数据该字段为空，归入"历史"）
+    runSql(env, `SELECT blob5 AS channel, COUNT() AS c FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > NOW() - INTERVAL '30' DAY GROUP BY blob5 ORDER BY c DESC`)
   ]);
 
   const uniquesByDay = {};
@@ -74,7 +76,8 @@ async function fetchAllStats(env) {
     dau: scalar(dau, 'c', 0),
     wau: scalar(wau, 'c', 0),
     mau: scalar(mau, 'c', 0),
-    trend30
+    trend30,
+    channels30: (channel30 || []).map(r => ({ channel: r.channel || '', count: r.c }))
   };
 }
 
@@ -98,12 +101,29 @@ export async function onRequestGet(context) {
     queryError = e && e.message ? e.message : String(e);
     stats = {
       totalLaunchesAllTime: 0, totalUniqueDevicesAllTime: 0,
-      today: 0, yesterday: 0, dau: 0, wau: 0, mau: 0, trend30: []
+      today: 0, yesterday: 0, dau: 0, wau: 0, mau: 0, trend30: [], channels30: []
     };
   }
 
   const html = renderPage(stats, queryError);
   return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+}
+
+const CHANNEL_LABELS = {
+  apk: 'Android APK',
+  'web-cf': 'CF Pages 网页版',
+  'web-gh': 'GitHub Pages 网页版',
+  other: '其他'
+};
+
+function renderChannelList(channels) {
+  if (!channels || !channels.length) return '<div class="channel-empty">暂无渠道数据</div>';
+  const total = channels.reduce((sum, r) => sum + (r.count || 0), 0) || 1;
+  return channels.map(r => {
+    const label = CHANNEL_LABELS[r.channel] || '历史数据（渠道识别上线前）';
+    const pct = Math.round((r.count / total) * 100);
+    return `<div class="channel-row"><span class="channel-name">${label}</span><span class="channel-bar"><span class="channel-fill" style="width:${pct}%"></span></span><span class="channel-count">${r.count} (${pct}%)</span></div>`;
+  }).join('');
 }
 
 function renderPage(s, queryError) {
@@ -127,6 +147,12 @@ function renderPage(s, queryError) {
   .chart-box { background: #1e293b; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
   .chart-box h2 { font-size: 14px; margin: 0 0 12px; color: #cbd5e1; }
   .error { background: #7f1d1d; color: #fecaca; padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; white-space: pre-wrap; }
+  .channel-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-size: 13px; }
+  .channel-name { width: 210px; color: #cbd5e1; flex-shrink: 0; }
+  .channel-bar { flex: 1; height: 10px; background: #334155; border-radius: 5px; overflow: hidden; }
+  .channel-fill { display: block; height: 100%; background: #38bdf8; border-radius: 5px; }
+  .channel-count { color: #94a3b8; flex-shrink: 0; min-width: 90px; text-align: right; }
+  .channel-empty { color: #94a3b8; font-size: 13px; }
   canvas { max-width: 100%; }
 </style>
 </head>
@@ -141,6 +167,10 @@ ${queryError ? `<div class="error">查询出错，先看这个：\n${queryError}
   <div class="card"><div class="label">DAU</div><div class="value">${s.dau}</div></div>
   <div class="card"><div class="label">WAU</div><div class="value">${s.wau}</div></div>
   <div class="card"><div class="label">MAU</div><div class="value">${s.mau}</div></div>
+</div>
+<div class="chart-box">
+  <h2>最近 30 天启动渠道分布</h2>
+  ${renderChannelList(s.channels30)}
 </div>
 <div class="chart-box">
   <h2>最近 30 天趋势（启动次数 / 当日独立用户）</h2>

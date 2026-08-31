@@ -9,15 +9,24 @@
  *
  * 数据点结构（写入 Analytics Engine 的字段有限，按用途分配）：
  * - indexes[0]：device_id（唯一允许索引的高基数字段，用于按设备去重计数）
- * - blobs：[event_type, app_version, country, os_hint]
+ * - blobs：[event_type, app_version, country, os_hint, channel]
  * - doubles：[duration_sec]（仅 session_end 事件有意义，其余为 0）
  */
 
 const ALLOWED_ORIGINS = new Set([
   'https://localhost', // Capacitor Android 默认本地资源 origin
   'capacitor://localhost',
-  'https://madan.pages.dev'
+  'https://madan.pages.dev',
+  'https://srhovo.github.io' // GitHub Pages 网页版
 ]);
+
+// 渠道识别：跨域 POST 一定带 Origin 头，fetch 与 sendBeacon 均可靠
+function parseChannel(origin) {
+  if (origin === 'https://localhost' || origin === 'capacitor://localhost') return 'apk';
+  if (origin === 'https://madan.pages.dev') return 'web-cf';
+  if (origin === 'https://srhovo.github.io') return 'web-gh';
+  return 'other';
+}
 
 function corsHeaders(origin) {
   const allow = ALLOWED_ORIGINS.has(origin) ? origin : 'https://localhost';
@@ -99,10 +108,11 @@ export async function onRequestPost(context) {
 
   const country = request.cf && request.cf.country ? String(request.cf.country) : 'XX';
   const osHint = parseOsHint(request.headers.get('User-Agent'));
+  const channel = parseChannel(origin);
 
   env.ANALYTICS.writeDataPoint({
     indexes: [deviceId],
-    blobs: [eventType, appVersion, country, osHint],
+    blobs: [eventType, appVersion, country, osHint, channel],
     doubles: [durationSec]
   });
 
