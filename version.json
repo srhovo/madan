@@ -1,6 +1,6 @@
 {
-  "version": "8.3.12",
-  "url": "https://madan.pages.dev/madan-8.3.12.zip",
-  "checksum": "503dc1b6e5b86c787c59529431236523dc7a731c210c802023c88979ce829ce2",
-  "notes": "热更新改为全程静默：自动后台下载并应用，不再弹出更新提示条；更新到本版后，后续所有更新无感完成"
+  "version": "8.3.13",
+  "url": "https://madan.pages.dev/madan-8.3.13.zip",
+  "checksum": "4f95310887da700a0cf433e0136db413da8326f92ebad22b04123639ba6e9a3f",
+  "notes": "取消「本地数据已损坏」提示弹窗：检测与备份恢复在后台静默完成，不再有任何视觉打扰；数据安全机制不变"
 }

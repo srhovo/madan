@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.12</title>
+ <title>码单器8.3.13</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -3788,7 +3788,7 @@ h1 { margin-bottom: 4px; }
 
 
  <script>
- const APP_VERSION = '8.3.12';
+ const APP_VERSION = '8.3.13';
  const TUTORIAL_VIDEO_URL = 'https://cdn.jsdelivr.net/gh/srhovo/tutorialvideo@main/video.mp4';
  const WECHAT_OPEN_URL = 'weixin://'; // 生成订单后尝试唤起微信主界面
  // Release note: 8.2.25 统一“时长计算 / 提取名字”的按钮高度、文字字号、图标尺寸和垂直基线；保留手机、平板与桌面端原有布局及全部业务逻辑。
@@ -7273,11 +7273,10 @@ class UltimateStorageManager {
  if (value !== null && value !== undefined && value !== '') {
  const parsed = this.safeParseJSON(value);
  if (parsed !== null && parsed !== undefined) return parsed;
- // 值非空但解析损坏：标记并继续降级链（cookie 备份 → 默认值），每个 key 只告警一次
+ // 值非空但解析损坏：标记并继续降级链（cookie 备份 → 默认值），每个 key 只记录一次
  if (adapter.type === 'localStorage' && !this._corruptWarnedKeys.has(key)) {
  this._corruptWarnedKeys.add(key);
  appLogError('storage.get', new Error(`本地数据「${key}」解析损坏，已尝试从备份恢复`));
- this.notifyStorageWarning(`检测到「${key}」的本地数据已损坏，已尝试从其他备份恢复；若列表数据异常请立即导出备份。`, { level: 'info', code: `storage-corrupt:${key}` });
  }
  }
  } catch (error) {
