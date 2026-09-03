@@ -40,6 +40,13 @@ function corsHeaders(origin) {
 
 function parseOsHint(userAgent) {
   if (!userAgent) return '';
+  // iPadOS 13+ 桌面模式 UA 伪装成 Mac（不带版本号），用「Macintosh + Touch」识别
+  if (/Macintosh/.test(userAgent) && /Touch/.test(userAgent)) {
+    const m = userAgent.match(/OS (\d+[_\d]*)/);
+    return m ? 'iPadOS ' + m[1].replace(/_/g, '.') : 'iPadOS';
+  }
+  const iosMatch = userAgent.match(/(iPhone|iPad|iPod).*?OS (\d+[_\d]*)/);
+  if (iosMatch) return 'iOS ' + iosMatch[2].replace(/_/g, '.');
   const androidMatch = userAgent.match(/Android\s([\d.]+)/);
   if (androidMatch) return 'Android ' + androidMatch[1];
   return 'Unknown';
@@ -108,7 +115,12 @@ export async function onRequestPost(context) {
 
   const country = request.cf && request.cf.country ? String(request.cf.country) : 'XX';
   const osHint = parseOsHint(request.headers.get('User-Agent'));
-  const channel = parseChannel(origin);
+
+  // 客户端上报的"主屏幕网页 App"标记（iOS 添加到主屏幕 / Android 安装）
+  // 在渠道名后追加 -pwa 后缀，dashboard 按渠道展示时可区分普通网页与主屏幕 App
+  const isPwa = payload && (payload.pwa === 1 || payload.pwa === true);
+  let channel = parseChannel(origin);
+  if (isPwa && channel !== 'other') channel += '-pwa';
 
   env.ANALYTICS.writeDataPoint({
     indexes: [deviceId],

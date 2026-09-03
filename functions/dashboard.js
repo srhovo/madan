@@ -46,7 +46,7 @@ function scalar(rows, field, fallback) {
 async function fetchAllStats(env) {
   const [
     totalToday, totalYesterday, dau, wau, mau,
-    trend30Launches, trend30Uniques, channel30
+    trend30Launches, trend30Uniques, channel30, os30
   ] = await Promise.all([
     runSql(env, `SELECT COUNT() AS c FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > toStartOfDay(NOW())`),
     runSql(env, `SELECT COUNT() AS c FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp >= toStartOfDay(NOW()) - INTERVAL '1' DAY AND timestamp < toStartOfDay(NOW())`),
@@ -59,7 +59,9 @@ async function fetchAllStats(env) {
     runSql(env, `SELECT toStartOfDay(timestamp) AS day, COUNT() AS launches FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > NOW() - INTERVAL '30' DAY GROUP BY day ORDER BY day`),
     runSql(env, `SELECT day, COUNT() AS uniques FROM (SELECT toStartOfDay(timestamp) AS day, index1 FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > NOW() - INTERVAL '30' DAY GROUP BY day, index1) GROUP BY day ORDER BY day`),
     // 渠道分布（blob5，部署渠道识别之前的旧数据该字段为空，归入"历史"）
-    runSql(env, `SELECT blob5 AS channel, COUNT() AS c FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > NOW() - INTERVAL '30' DAY GROUP BY blob5 ORDER BY c DESC`)
+    runSql(env, `SELECT blob5 AS channel, COUNT() AS c FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > NOW() - INTERVAL '30' DAY GROUP BY blob5 ORDER BY c DESC`),
+    // 操作系统分布（blob4；iOS 识别上线前全部为 Unknown）
+    runSql(env, `SELECT blob4 AS os, COUNT() AS c FROM ${DATASET_NAME} WHERE blob1='launch' AND timestamp > NOW() - INTERVAL '30' DAY GROUP BY blob4 ORDER BY c DESC`)
   ]);
 
   const uniquesByDay = {};
@@ -77,7 +79,8 @@ async function fetchAllStats(env) {
     wau: scalar(wau, 'c', 0),
     mau: scalar(mau, 'c', 0),
     trend30,
-    channels30: (channel30 || []).map(r => ({ channel: r.channel || '', count: r.c }))
+    channels30: (channel30 || []).map(r => ({ channel: r.channel || '', count: r.c })),
+    os30: (os30 || []).map(r => ({ os: r.os || '', count: r.c }))
   };
 }
 
@@ -101,7 +104,7 @@ export async function onRequestGet(context) {
     queryError = e && e.message ? e.message : String(e);
     stats = {
       totalLaunchesAllTime: 0, totalUniqueDevicesAllTime: 0,
-      today: 0, yesterday: 0, dau: 0, wau: 0, mau: 0, trend30: [], channels30: []
+      today: 0, yesterday: 0, dau: 0, wau: 0, mau: 0, trend30: [], channels30: [], os30: []
     };
   }
 
@@ -112,17 +115,24 @@ export async function onRequestGet(context) {
 const CHANNEL_LABELS = {
   apk: 'Android APK',
   'web-cf': 'CF Pages 网页版',
+  'web-cf-pwa': 'CF Pages 主屏幕App（添加到主屏幕）',
   'web-gh': 'GitHub Pages 网页版',
+  'web-gh-pwa': 'GitHub Pages 主屏幕App（添加到主屏幕）',
   other: '其他'
 };
 
-function renderChannelList(channels) {
-  if (!channels || !channels.length) return '<div class="channel-empty">暂无渠道数据</div>';
-  const total = channels.reduce((sum, r) => sum + (r.count || 0), 0) || 1;
-  return channels.map(r => {
-    const label = CHANNEL_LABELS[r.channel] || '历史数据（渠道识别上线前）';
-    const pct = Math.round((r.count / total) * 100);
-    return `<div class="channel-row"><span class="channel-name">${label}</span><span class="channel-bar"><span class="channel-fill" style="width:${pct}%"></span></span><span class="channel-count">${r.count} (${pct}%)</span></div>`;
+const OS_LABELS = {
+  '': '未知（历史数据）',
+  Unknown: '未知（历史数据）'
+};
+
+// 通用横向条形分布列表（渠道 / 操作系统共用）
+function renderBarList(rows) {
+  if (!rows || !rows.length) return '<div class="channel-empty">暂无数据</div>';
+  const total = rows.reduce((sum, r) => sum + (r.count || 0), 0) || 1;
+  return rows.map(r => {
+    const pct = Math.round(((r.count || 0) / total) * 100);
+    return `<div class="channel-row"><span class="channel-name">${r.label}</span><span class="channel-bar"><span class="channel-fill" style="width:${pct}%"></span></span><span class="channel-count">${r.count} (${pct}%)</span></div>`;
   }).join('');
 }
 
@@ -130,6 +140,14 @@ function renderPage(s, queryError) {
   const trend30Labels = JSON.stringify(s.trend30.map(r => r.day));
   const trend30Launches = JSON.stringify(s.trend30.map(r => r.launches));
   const trend30Uniques = JSON.stringify(s.trend30.map(r => r.uniques));
+  const channelRows = (s.channels30 || []).map(r => ({
+    label: CHANNEL_LABELS[r.channel] || '历史数据（渠道识别上线前）',
+    count: r.count
+  }));
+  const osRows = (s.os30 || []).map(r => ({
+    label: OS_LABELS[r.os] !== undefined ? OS_LABELS[r.os] : r.os,
+    count: r.count
+  }));
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -170,7 +188,11 @@ ${queryError ? `<div class="error">查询出错，先看这个：\n${queryError}
 </div>
 <div class="chart-box">
   <h2>最近 30 天启动渠道分布</h2>
-  ${renderChannelList(s.channels30)}
+  ${renderBarList(channelRows)}
+</div>
+<div class="chart-box">
+  <h2>最近 30 天操作系统分布</h2>
+  ${renderBarList(osRows)}
 </div>
 <div class="chart-box">
   <h2>最近 30 天趋势（启动次数 / 当日独立用户）</h2>

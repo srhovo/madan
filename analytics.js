@@ -8,8 +8,21 @@
  * 4. 网络失败时静默降级，绝不阻塞或拖慢应用本身的启动与使用。
  *
  * 收集的数据：匿名设备 ID（本地随机生成）、事件类型、App 版本号、
- * 会话时长（仅在能可靠获取时上报）。国家/地区、操作系统等由服务端
- * 从请求本身解析，客户端不主动采集。
+ * 会话时长（仅在能可靠获取时上报）、是否主屏幕网页 App（iOS 添加到
+ * 主屏幕 / Android 安装的 standalone 模式）。国家/地区、操作系统等
+ * 由服务端从请求本身解析，客户端不主动采集。
+ *
+ * iOS 兼容要点（standalone 主屏幕 App 场景实测踩坑）：
+ * - 请求体 Content-Type 用 text/plain 而非 application/json：
+ *   text/plain 属于 CORS 简单请求，无需预检（iOS Safari 的跨域预检
+ *   在 standalone 模式下不稳定）；服务端 request.json() 不校验
+ *   Content-Type，解析不受影响。
+ * - fetch 加 keepalive: true：用户快速切走 App、页面被挂起时请求
+ *   仍能发出，避免启动事件丢失。
+ * - 设备 ID 读写 localStorage 失败时逐级降级 sessionStorage、内存，
+ *   绝不因存储不可用而完全停止上报。
+ * - 会话结束同时监听 visibilitychange 与 pagehide：iOS 杀掉
+ *   standalone App 时 pagehide 更可靠。
  */
 (function () {
   'use strict';
@@ -18,7 +31,12 @@
   var DEVICE_ID_KEY = 'pw_ultimate_analyticsDeviceId';
   var QUEUE_KEY = 'pw_ultimate_analyticsQueue';
   var MAX_QUEUE_LENGTH = 50;
-  var START_DELAY_MS = 1200;
+  // 缩短启动上报延迟：iOS 主屏幕 App 用户若快速切走，页面被挂起后
+  // 延迟回调不再执行，1.2s 延迟会丢启动事件；400ms + keepalive 兜底。
+  var START_DELAY_MS = 400;
+
+  // localStorage 完全不可用（iOS 隐私模式等）时的内存兜底
+  var memDeviceId = null;
 
   function safe(fn) {
     try { return fn(); } catch (e) { return undefined; }
@@ -26,8 +44,17 @@
 
   function getOrCreateDeviceId() {
     return safe(function () {
-      var existing = window.localStorage.getItem(DEVICE_ID_KEY);
+      // 逐级降级：localStorage（正常持久化）→ sessionStorage（会话内稳定）
+      // → 内存（本次会话内兜底）。iOS standalone 模式的 localStorage
+      // 与 Safari 相互独立，且在隐私模式下可能抛错，不能只依赖它。
+      var existing = null;
+      try { existing = window.localStorage.getItem(DEVICE_ID_KEY); } catch (e) {}
+      if (!existing) {
+        try { existing = window.sessionStorage.getItem(DEVICE_ID_KEY); } catch (e) {}
+      }
+      if (!existing) existing = memDeviceId;
       if (existing) return existing;
+
       var id;
       if (window.crypto && typeof window.crypto.randomUUID === 'function') {
         id = window.crypto.randomUUID();
@@ -39,9 +66,25 @@
           return v.toString(16);
         });
       }
-      window.localStorage.setItem(DEVICE_ID_KEY, id);
+      try { window.localStorage.setItem(DEVICE_ID_KEY, id); } catch (e) {}
+      try { window.sessionStorage.setItem(DEVICE_ID_KEY, id); } catch (e) {}
+      memDeviceId = id;
       return id;
     });
+  }
+
+  // 是否以"主屏幕网页 App"（standalone）模式启动：
+  // iOS「添加到主屏幕」、Android Chrome「安装应用」均为 true
+  function isStandalonePwa() {
+    return Boolean(safe(function () {
+      // iOS 专有属性（iPhone/iPad Safari 添加到主屏幕后为 true）
+      if (window.navigator && window.navigator.standalone === true) return true;
+      if (window.matchMedia) {
+        return window.matchMedia('(display-mode: standalone)').matches
+          || window.matchMedia('(display-mode: fullscreen)').matches;
+      }
+      return false;
+    }));
   }
 
   function readQueue() {
@@ -81,8 +124,12 @@
         }, 6000);
         fetch(ENDPOINT, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          // text/plain 是 CORS 简单请求，免去预检（iOS standalone 模式
+          // 下跨域预检不稳定）；服务端按 JSON 解析 body，不受影响
+          headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
           body: JSON.stringify(event),
+          // 页面被挂起/关闭后请求仍能发出（iOS 快速切走 App 的关键兜底）
+          keepalive: true,
           signal: controller ? controller.signal : undefined
         }).then(function (res) {
           clearTimeout(timer);
@@ -126,6 +173,7 @@
       device_id: deviceId,
       app_version: (typeof APP_VERSION !== 'undefined' && APP_VERSION) ? APP_VERSION : '',
       event_type: eventType,
+      pwa: isStandalonePwa() ? 1 : 0,
       client_ts: Date.now()
     };
     if (extra) {
@@ -151,10 +199,12 @@
     sessionEndSent = true;
     var event = buildBaseEvent('session_end', { duration_sec: durationSec });
     if (!event) return;
-    // 页面即将隐藏/关闭时，用 sendBeacon 优先（更可能真正发出去），fetch 兜底
+    // 页面即将隐藏/关闭时，用 sendBeacon 优先（更可能真正发出去），fetch 兜底。
+    // Blob 类型必须用 text/plain：sendBeacon 无法携带预检，application/json
+    // 会触发 CORS 预检导致 beacon 在 Safari 上直接失败。
     safe(function () {
       if (navigator.sendBeacon) {
-        var blob = new Blob([JSON.stringify(event)], { type: 'application/json' });
+        var blob = new Blob([JSON.stringify(event)], { type: 'text/plain;charset=UTF-8' });
         var ok = navigator.sendBeacon(ENDPOINT, blob);
         if (ok) return;
       }
@@ -166,6 +216,8 @@
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'hidden') trackSessionEnd();
     });
+    // iOS 杀掉主屏幕 App 时不一定触发 visibilitychange，pagehide 更可靠
+    window.addEventListener('pagehide', function () { trackSessionEnd(); });
   });
 
   setTimeout(function () { safe(trackLaunch); }, START_DELAY_MS);
