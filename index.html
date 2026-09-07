@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.14</title>
+ <title>码单器8.3.15</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -3390,7 +3390,7 @@ h1 { margin-bottom: 4px; }
  <button class="diy-layout-btn" id="diyLayoutBtn" type="button" aria-haspopup="dialog">DIY布局</button>
  </div>
  <h1>陪玩团码单器</h1>
- <p class="subtitle">定制/建议联系<button class="contact-trigger-btn" id="contactBtn" type="button" aria-haspopup="dialog" aria-label="选择联系方式"><svg class="contact-trigger-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg><span>联系</span></button></p>
+ <p class="subtitle">定制/建议👉<button class="contact-trigger-btn" id="contactBtn" type="button" aria-haspopup="dialog" aria-label="选择联系方式"><svg class="contact-trigger-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg><span>联系方式</span></button></p>
  </header>
 
  <!-- ========== 使用说明 ========== -->
@@ -3864,9 +3864,10 @@ h1 { margin-bottom: 4px; }
 
 
  <script>
- const APP_VERSION = '8.3.14';
+ const APP_VERSION = '8.3.15';
  const TUTORIAL_VIDEO_URL = 'https://cdn.jsdelivr.net/gh/srhovo/tutorialvideo@main/video.mp4';
  const WECHAT_OPEN_URL = 'weixin://'; // 生成订单后尝试唤起微信主界面
+// Release note: 8.3.15 定制/建议联系优化——联系方式弹窗内微信按钮复制微信号成功后自动唤起微信（复用订单生成后的 openWechatAfterCopy 链路，微信内置浏览器不重复跳转）；小标题改为「定制/建议👉」，按钮文案改为「联系方式」（保留原信息图标）。
  // Release note: 8.2.25 统一“时长计算 / 提取名字”的按钮高度、文字字号、图标尺寸和垂直基线；保留手机、平板与桌面端原有布局及全部业务逻辑。
  // Release note: 8.2.26 热修——修复手机宽度下“备注触发加价规则”与“礼物名称记忆”表单溢出裁切、部分字段不可见的问题；只新增一条CSS规则，不改其他UI、算法与数据结构。
  // Release note: 8.4.0-candidate 单价记忆库信息流调整——拆掉"高级规则与礼物"这层details包裹，区间价格规则/备注触发加价规则/礼物名称记忆三个子功能从"先展开外层再展开内层"改为直接可见可独立展开，减少一级不必要的点击；三者互相独立、互不影响，管理价格库/新增或编辑单价两者的互斥手风琴行为不变。仅改动这一处结构，不改其他模块。基于8.2.26（不含8.3.0候选版的配色改动）。
@@ -13368,8 +13369,12 @@ class PriceMemoryFeature {
  copyWechatContact() {
  const WECHAT_ID = 'srhovo';
  this.app.orderFlow.copyToClipboard(WECHAT_ID).then(success => {
- if (success) this.app.showInfo(`微信号 ${WECHAT_ID} 已复制，请到微信添加好友`);
- else this.app.showError(`复制失败，请手动记录微信号：${WECHAT_ID}`);
+ if (success) {
+ this.app.showInfo(`微信号 ${WECHAT_ID} 已复制，正在打开微信`);
+ this.app.orderFlow.openWechatAfterCopy(); // 复制成功后唤起微信（微信内置浏览器中不重复跳转）
+ } else {
+ this.app.showError(`复制失败，请手动记录微信号：${WECHAT_ID}`);
+ }
  });
  this.app.closeModal(this.el.contactModal);
  }

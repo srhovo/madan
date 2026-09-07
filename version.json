@@ -1,6 +1,6 @@
 {
-  "version": "8.3.14",
-  "url": "https://madan.pages.dev/madan-8.3.14.zip",
-  "checksum": "ed94850472503bd7396f03a32763570a4e422730f20102bee3aa8d9671087e26",
-  "notes": "DIY布局保存即时生效；忽略名单并入名字修复学习备份；满足生成条件时按钮高亮；订单详情实时生成；新增定制/建议联系（微信/QQ）入口"
+  "version": "8.3.15",
+  "url": "https://madan.pages.dev/madan-8.3.15.zip",
+  "checksum": "8d42e69adb240e17909c63ac0a992c1d41cdb66172bef97479f4e82bdf22f06f",
+  "notes": "定制/建议联系：微信按钮复制后自动唤起微信；小标题改为「定制/建议👉」，按钮文案改为「联系方式」"
 }
