@@ -1,6 +1,6 @@
 {
-  "version": "8.3.13",
-  "url": "https://madan.pages.dev/madan-8.3.13.zip",
-  "checksum": "4f95310887da700a0cf433e0136db413da8326f92ebad22b04123639ba6e9a3f",
-  "notes": "取消「本地数据已损坏」提示弹窗：检测与备份恢复在后台静默完成，不再有任何视觉打扰；数据安全机制不变"
+  "version": "8.3.14",
+  "url": "https://madan.pages.dev/madan-8.3.14.zip",
+  "checksum": "ed94850472503bd7396f03a32763570a4e422730f20102bee3aa8d9671087e26",
+  "notes": "DIY布局保存即时生效；忽略名单并入名字修复学习备份；满足生成条件时按钮高亮；订单详情实时生成；新增定制/建议联系（微信/QQ）入口"
 }
