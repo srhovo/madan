@@ -1,6 +1,6 @@
 {
-  "version": "8.3.15",
-  "url": "https://madan.pages.dev/madan-8.3.15.zip",
-  "checksum": "8d42e69adb240e17909c63ac0a992c1d41cdb66172bef97479f4e82bdf22f06f",
-  "notes": "定制/建议联系：微信按钮复制后自动唤起微信；小标题改为「定制/建议👉」，按钮文案改为「联系方式」"
+  "version": "8.3.16",
+  "url": "https://madan.pages.dev/madan-8.3.16.zip",
+  "checksum": "b881e8cb355869fd8fa90dcb6aee010f42de47ef392c5fd6cdb502554b19e5c2",
+  "notes": "老板记忆库新增「最近老板」页签（可编辑/删除/一键存入记忆库）+ 搜索框；同名同派单不同折数自动合并为最新折数，不再产生重复候选"
 }
