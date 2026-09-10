@@ -98,7 +98,9 @@ webView.loadUrl("file:///android_asset/index.html")
 ### 安全性
 - 不使用 `eval` 执行动态代码，懒加载 chunk 通过临时 `<script>` 标签注入
 - 所有用户输入在渲染时做 HTML 转义
-- 不上传任何数据到服务器，无埋点、无远程请求
+- **业务数据（订单、陪陪名单、老板记忆、价格库等）全部只存在本地，绝不上传**
+- 另有独立的匿名使用统计（`analytics.js`）：仅上报本地随机设备 ID、事件类型、
+  App 版本号、会话时长、是否主屏幕 App，不读取任何业务数据；失败静默降级，不影响使用
 
 ## 适用场景
 
@@ -122,22 +124,37 @@ webView.loadUrl("file:///android_asset/index.html")
 不需要。打开网页即用，也支持打包成 Android APK 离线使用。
 
 ### 数据安全吗？
-所有数据仅保存在你的本地浏览器 / WebView 中，不上传任何服务器，无埋点、无追踪。卸载应用或清除浏览器数据会清空，请定期导出备份。
+所有业务数据（订单、陪陪名单、老板记忆、价格库等）仅保存在你的本地浏览器 / WebView 中，不上传任何服务器。卸载应用或清除浏览器数据会清空，请定期导出备份。另有独立的匿名使用统计（不含任何业务数据，详见上文「安全性」）。
 
 ## 项目结构
 
 ```
 .
-├── index.html      # 完整单页应用（HTML + CSS + JS）
-├── CHANGELOG.md    # 版本更新日志
-├── README.md       # 本文件
-├── robots.txt      # 搜索引擎爬虫指引
-└── sitemap.xml     # 站点地图
+├── index.html          # 完整单页应用（HTML + CSS + JS，单文件交付）
+├── update-checker.js   # OTA 热更新检测 / 下载 / 替换（Capacitor 原生壳内生效）
+├── analytics.js        # 匿名使用统计（纯 Web API，失败静默降级）
+├── test-engine.js      # 引擎单元测试（Node 隔离运行，L3 核心回归）
+├── version.json        # OTA 更新清单（version / url / checksum）
+├── madan-<版本>.zip    # OTA 更新包，Pages 直出，不可从仓库删除
+├── CHANGELOG.md        # 版本更新日志
+├── README.md           # 本文件
+├── functions/          # Cloudflare Pages Functions（服务端）
+│   ├── api/track.js    # POST /api/track 事件收集
+│   └── dashboard.js    # GET /dashboard 统计仪表盘
+├── memex/              # Club 记忆库数据
+│   ├── index.json      # Club 清单
+│   └── <Club名>club.json
+├── BingSiteAuth.xml    # Bing 站长验证
+├── robots.txt          # 搜索引擎爬虫指引
+└── sitemap.xml         # 站点地图
 ```
+
+> `madan-<版本>.zip` 由 Cloudflare Pages 从仓库根目录直出，`version.json` 的 `url`
+> 指向该文件；删除 zip 会导致已安装设备 OTA 下载失败，请勿清理。
 
 ## 版本
 
-当前版本：`8.3.17`
+当前版本：`8.3.18`
 
 版本规则：第三位用于内部修订；第二位在整体达到预期、无已知阻断并确认可交付后晋升。
 
