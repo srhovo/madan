@@ -1,0 +1,16 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Node / build artifacts（本项目无构建，但保留以防万一）
+node_modules/
+*.log
+
+# 历史安装包不进仓库（发版时通过 Pages 分发，仓库只保留源码）
+madan-*.zip
+
+# 临时/校验 hash 文件（误提交过，见历史）
+*.sha256
+*.sha1
