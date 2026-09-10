@@ -592,6 +592,12 @@
 
  .boss-memory-list { max-height: 150px; overflow-y: auto; border: 1px solid var(--color-border-light); border-radius: var(--border-radius-md); }
 
+ /* 老板记忆库：tab 切换 + 搜索（复用 pm-tabs 体系） */
+ .boss-mem-tabs { margin-bottom: 12px; }
+ .boss-mem-search-row { display: flex; gap: 8px; margin-bottom: 10px; }
+ .boss-mem-search-row .boss-memory-input { flex: 1; min-width: 0; }
+ .recent-boss-save.is-stored { color: var(--color-primary); background: var(--color-bg-info); }
+
  .boss-suggest-list {
  position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 30;
  background: var(--color-white); border: 1px solid var(--color-border-light);
@@ -3433,14 +3439,26 @@ h1 { margin-bottom: 4px; }
  <!-- 老板记忆库面板 -->
  <div class="mem-panel" id="bossMemPanel">
  <div class="mem-panel-body">
- <div class="boss-memory-form app-form-grid app-form-grid--compact">
+ <!-- 老板记忆 / 最近老板 分类 tab -->
+ <div class="pm-tabs boss-mem-tabs" id="bossMemTabs" role="tablist" aria-label="老板记忆库分类">
+ <button class="pm-tab active" type="button" role="tab" aria-selected="true" data-tab="memory">老板记忆</button>
+ <button class="pm-tab" type="button" role="tab" aria-selected="false" data-tab="recent">最近老板</button>
+ </div>
+ <div class="boss-memory-form app-form-grid app-form-grid--compact" id="bossMemoryForm">
  <input type="text" id="bossNameInput" class="boss-memory-input" placeholder="老板昵称">
  <input type="text" id="bossPaiDanInput" class="boss-memory-input" placeholder="对应派单">
  <input type="number" id="bossDiscountInput" class="boss-memory-input" placeholder="折数，如8/80/0.8" step="0.01" min="0" max="100">
  <button class="boss-memory-btn app-btn app-btn--primary app-btn--sm" id="addBossBtn">添加</button>
+ <button class="boss-memory-btn app-btn app-btn--sm" id="bossCancelEditBtn" type="button" hidden>取消</button>
+ </div>
+ <div class="boss-mem-search-row">
+ <input type="text" id="bossMemSearchInput" class="boss-memory-input" placeholder="搜索老板或派单（支持拼音）…" autocomplete="off">
  </div>
  <div class="boss-memory-list" id="bossMemoryList" data-layout-module="bossMemoryPanel">
  <div class="boss-memory-empty app-empty-state">暂无老板记录</div>
+ </div>
+ <div class="boss-memory-list" id="recentBossList" data-layout-module="bossMemoryPanel" hidden>
+ <div class="boss-memory-empty app-empty-state">暂无最近老板</div>
  </div>
  </div>
  </div>
@@ -8019,9 +8037,10 @@ class BossDirectory extends CollectionStoreBoundary {
 
  const existingIndex = indexByKey.get(key);
  const existing = normalized[existingIndex];
+ // 同名同派单合并：内容（折数等）以最近使用的记录（timestamp 较大者）为准，次数与时间取最大
+ const newer = Number(item.timestamp) >= Number(existing.timestamp) ? item : existing;
  normalized[existingIndex] = {
- ...existing,
- ...item,
+ ...newer,
  usageCount: Math.max(Number(existing.usageCount) || 1, Number(item.usageCount) || 1),
  timestamp: Math.max(Number(existing.timestamp) || 0, Number(item.timestamp) || 0)
  };
@@ -8031,10 +8050,10 @@ class BossDirectory extends CollectionStoreBoundary {
  }
 
  buildRecentBossKey(entry) {
+ // 同名 + 同派单视为同一老板（折数不参与匹配）：码单时折数以最新一次为准，避免同一老板因折数不同产生多条记录
  return JSON.stringify([
  String(entry?.name ?? '').trim().toLowerCase(),
- String(entry?.paiDan ?? '').trim().toLowerCase(),
- entry?.discount ?? null
+ String(entry?.paiDan ?? '').trim().toLowerCase()
  ]);
  }
 
@@ -8106,6 +8125,23 @@ class BossDirectory extends CollectionStoreBoundary {
  reorderRecentBosses(recentBosses, orderedIndexes) {
  const list = this.normalizeRecentBosses(recentBosses);
  return orderedIndexes.map(index => list[index]).filter(Boolean);
+ }
+
+ // 老板记忆库/最近老板面板搜索：支持 名字/派单/拼音/首字母/折数 模糊匹配（复用联想输入的归一化逻辑）
+ searchBossRecords(list, query = '') {
+ const source = Array.isArray(list) ? list : [];
+ const normalizedQuery = this.normalizeSuggestQuery(query);
+ if (!normalizedQuery) return source.slice();
+ return source.filter(boss => {
+ const entry = this.normalizeMemoryEntry(boss) || this.normalizeRecentBossEntry(boss);
+ if (!entry) return false;
+ const name = String(entry.name ?? '');
+ const discountText = OrderEngine.getDiscountText(entry.discount);
+ const searchText = this.normalizeSuggestQuery(
+ [name, entry.paiDan, discountText, this.getPinyinKey(name, false), this.getPinyinKey(name, true)].join(' ')
+ );
+ return searchText.includes(normalizedQuery);
+ });
  }
 
  normalizeSuggestQuery(query = '') {
@@ -9361,6 +9397,9 @@ class UiRenderHelper {
  history: { className: 'history-empty', text: '暂无历史记录' },
  bossSuggest: { className: 'boss-suggest-empty app-empty-state--compact', text: '暂无匹配老板' },
  bossMemory: { className: 'boss-memory-empty', text: '暂无老板记录' },
+ bossMemorySearch: { className: 'boss-memory-empty', text: '没有找到匹配的老板记录', note: '换个关键词试试，或清空搜索查看全部' },
+ recentBosses: { className: 'boss-memory-empty', text: '暂无最近老板', note: '生成订单时会自动记录在这里' },
+ recentBossesSearch: { className: 'boss-memory-empty', text: '没有找到匹配的最近老板', note: '换个关键词试试，或清空搜索查看全部' },
  priceMemory: { className: 'pm-empty', text: '暂无单价记录', note: '生成订单时会自动写入' },
  priceMemorySearch: { className: 'pm-empty', text: '没有找到匹配的单价记录', note: '换个关键词试试，或清空搜索查看全部' },
  savedNames: { className: 'saved-names-empty app-empty-state--panel', text: '暂无已确认的名字', note: '提取名字并确认后，会记录在这里' },
@@ -10805,6 +10844,8 @@ class EventDelegationFeature {
 
  get el() { return this.app.el; }
  get bossMemory() { return this.app.bossMemory; }
+ get recentBosses() { return this.app.recentBosses; }
+ get bossDirectory() { return this.app.bossDirectory; }
  get priceMemory() { return this.app.priceMemory; }
  get priceMemoryStore() { return this.app.priceMemoryStore; }
  get priceQuickPickFeature() { return this.app.priceQuickPickFeature; }
@@ -10820,15 +10861,42 @@ class EventDelegationFeature {
 
  getPriceMemoryQuery() { return String(this.app._pmSearchQuery ?? '').trim(); }
 
+ getBossPanelSearchQuery() { return String(this.app._bossMemSearchQuery ?? '').trim(); }
+
+ handleBossPanelSearchInput() {
+ this.app._bossMemSearchQuery = this.el.bossMemSearchInput?.value ?? '';
+ this.scheduleUiTask('bossMemSearch', () => {
+ this.updateMemoryCollectionView('bossMemory');
+ this.updateMemoryCollectionView('recentBosses');
+ });
+ }
+
  handlePriceMemorySearchInput() {
  this.app._pmSearchQuery = this.el.pmSearchInput?.value ?? '';
  this.scheduleUiTask('priceMemorySearch', () => this.updateMemoryCollectionView('priceMemory'));
  }
 
+ // 记忆库/最近老板列表项统一用 data-key 定位（搜索过滤后渲染索引与原数组索引不再一致，不能再用 index 定位操作）
+ buildBossMemoryRecordKey(name) { return encodeURIComponent(String(name ?? '')); }
+ buildRecentBossRecordKey(entry) { return encodeURIComponent(JSON.stringify([String(entry?.name ?? ''), String(entry?.paiDan ?? '')])); }
+
  renderBossMemoryListItem(boss) {
  const info = this.getBossDisplayInfo(boss, { normalize: 'memory' });
  if (!info) return '';
- return `<div class="boss-memory-item app-list-item"><div class="boss-memory-info"><div class="boss-memory-name">${this.escapeHtml(info.nameText)}</div><div class="boss-memory-details app-list-note">${this.getBossMetaText(info, ['paiDan', 'discount'])}</div></div>${this.renderEditDeleteActions('boss-memory')}</div>`;
+ const recordKey = this.buildBossMemoryRecordKey(info.name);
+ return `<div class="boss-memory-item app-list-item" data-key="${this.escapeHtml(recordKey)}"><div class="boss-memory-info"><div class="boss-memory-name">${this.escapeHtml(info.nameText)}</div><div class="boss-memory-details app-list-note">${this.getBossMetaText(info, ['paiDan', 'discount'])}</div></div>${this.renderEditDeleteActions('boss-memory', { key: recordKey })}</div>`;
+ }
+
+ renderRecentBossListItem(item) {
+ const info = this.getBossDisplayInfo(item, { normalize: 'recent' });
+ if (!info) return '';
+ const recordKey = this.buildRecentBossRecordKey(info);
+ const lastUsed = this.priceMemoryStore.formatLastUsed(item.timestamp);
+ const stored = this.bossMemory.some(boss => String(boss?.name ?? '').trim() === String(info.name ?? '').trim());
+ const storeBtn = stored
+ ? `<button type="button" class="recent-boss-save is-stored danger-icon-btn danger-icon-btn--sm" data-key="${this.escapeHtml(recordKey)}" title="已在老板记忆库，点击同步最新折数">✔</button>`
+ : `<button type="button" class="recent-boss-save danger-icon-btn danger-icon-btn--sm" data-key="${this.escapeHtml(recordKey)}" title="存入老板记忆库">⭐</button>`;
+ return `<div class="boss-memory-item app-list-item" data-key="${this.escapeHtml(recordKey)}"><div class="boss-memory-info"><div class="boss-memory-name">${this.escapeHtml(info.nameText)}</div><div class="boss-memory-details app-list-note">${this.getBossMetaText(info, ['paiDan', 'discount', 'usage'])} · ${this.escapeHtml(lastUsed)}</div></div><div class="app-list-actions">${this.renderEditDeleteActions('recent-boss', { key: recordKey })}${storeBtn}</div></div>`;
  }
 
  renderPriceMemoryListItem(item) {
@@ -10848,14 +10916,23 @@ class EventDelegationFeature {
  if (name === 'bossMemory') {
  return {
  container: () => this.el.bossMemoryList,
- items: () => this.bossMemory,
- empty: () => this.renderNamedEmptyState('bossMemory'),
+ items: () => this.bossDirectory.searchBossRecords(this.bossMemory, this.getBossPanelSearchQuery()),
+ empty: () => this.renderNamedEmptyState(this.getBossPanelSearchQuery() ? 'bossMemorySearch' : 'bossMemory'),
  getKey: boss => String(boss?.name ?? '').trim(),
  renderItem: boss => this.renderBossMemoryListItem(boss),
  updateNode: (node, boss, index) => {
  const nextIndex = String(index);
  if (node.dataset.index !== nextIndex) node.dataset.index = nextIndex;
  }
+ };
+ }
+ if (name === 'recentBosses') {
+ return {
+ container: () => this.el.recentBossList,
+ items: () => this.bossDirectory.searchBossRecords(this.recentBosses, this.getBossPanelSearchQuery()),
+ empty: () => this.renderNamedEmptyState(this.getBossPanelSearchQuery() ? 'recentBossesSearch' : 'recentBosses'),
+ getKey: item => this.buildRecentBossRecordKey(item),
+ renderItem: item => this.renderRecentBossListItem(item)
  };
  }
  if (name === 'priceMemory') {
@@ -10877,7 +10954,10 @@ class EventDelegationFeature {
 
  updateBossMemoryUI({ force = false } = {}) {
  if (!force && !this.app._bossMemOpen) return false;
- return this.updateMemoryCollectionView('bossMemory');
+ // 面板打开时两个 tab 的列表都保持刷新（最近老板在码单时会后台变化）
+ const memoryResult = this.updateMemoryCollectionView('bossMemory');
+ const recentResult = this.updateMemoryCollectionView('recentBosses');
+ return Boolean(memoryResult || recentResult);
  }
 
  updatePriceMemoryUI({ force = false, forceName = false } = {}) {
@@ -15902,6 +15982,8 @@ class BossMemoryFeature {
  this._bossSuggestRenderSignature = '';
  this._bossSuggestItems = [];
  this._bossSuggestActiveIndex = -1;
+ this._bossMemTab = 'memory'; // 老板记忆库面板当前 tab：memory | recent
+ this._editingBossContext = 'memory'; // 表单编辑目标：memory | recent
  this._eventScope = new FeatureEventScope();
  }
 
@@ -15914,6 +15996,7 @@ class BossMemoryFeature {
  get bossMemory() { return this.app.bossMemory; }
  set bossMemory(value) { this.app.bossMemory = value; }
  get recentBosses() { return this.app.recentBosses; }
+ set recentBosses(value) { this.app.recentBosses = value; }
  get lockedBoss() { return this.app.lockedBoss; }
  get lockedPaiDan() { return this.app.lockedPaiDan; }
 
@@ -15944,6 +16027,14 @@ class BossMemoryFeature {
  this._eventScope.on(this.el.addBossBtn, 'click', () => this.addFromEditor());
  this._eventScope.on(this.el.bossMemTabBtn, 'click', () => this.memoryPanelFeature.toggleMemPanel('boss'));
  this._eventScope.on(this.el.bossDiscountInput, 'blur', event => this.normalizeDiscountInputField(event.target));
+ this._eventScope.on(this.el.bossCancelEditBtn, 'click', () => this.cancelBossEdit());
+ this._eventScope.on(this.el.bossMemTabs, 'click', event => {
+ const source = event.target instanceof Element ? event.target : null;
+ const tabBtn = source?.closest('.pm-tab');
+ if (!tabBtn || !this.el.bossMemTabs?.contains(tabBtn)) return;
+ this.switchBossMemTab(tabBtn.dataset.tab === 'recent' ? 'recent' : 'memory');
+ });
+ this._eventScope.on(this.el.bossMemSearchInput, 'input', () => this.memoryPanelFeature.handleBossPanelSearchInput());
  this._eventScope.on(bossInput, 'input', event => this.syncBossSuggestions(event.target.value));
  this._eventScope.on(bossInput, 'focus', event => this.syncBossSuggestions(event.target.value));
  this._eventScope.on(bossInput, 'click', event => this.syncBossSuggestions(event.target.value));
@@ -15978,8 +16069,8 @@ class BossMemoryFeature {
  const source = event.target instanceof Element ? event.target : null;
  const item = source?.closest('.boss-memory-item');
  if (!item || !this.el.bossMemoryList?.contains(item)) return;
- const index = Number.parseInt(item.dataset.index, 10);
- if (!Number.isInteger(index)) return;
+ const index = this.findMemoryIndexByKey(String(item.dataset.key ?? ''));
+ if (index < 0) return;
  if (source.closest('.boss-memory-edit')) {
  event.preventDefault();
  event.stopPropagation();
@@ -15993,6 +16084,30 @@ class BossMemoryFeature {
  return;
  }
  await this.applyBossInfoRecord(this.get(index), { showMessage: true, focusNext: true });
+ });
+ this._eventScope.on(this.el.recentBossList, 'click', async event => {
+ const source = event.target instanceof Element ? event.target : null;
+ const item = source?.closest('.boss-memory-item');
+ if (!item || !this.el.recentBossList?.contains(item)) return;
+ const recordKey = String(item.dataset.key ?? '');
+ if (source.closest('.recent-boss-edit')) {
+ event.preventDefault();
+ event.stopPropagation();
+ this.editRecentBoss(recordKey);
+ return;
+ }
+ if (source.closest('.recent-boss-delete')) {
+ event.preventDefault();
+ event.stopPropagation();
+ if (await this.showConfirm('确定要删除这条最近老板记录吗？')) this.deleteRecentBoss(recordKey);
+ return;
+ }
+ if (source.closest('.recent-boss-save')) {
+ event.preventDefault();
+ event.stopPropagation();
+ this.storeRecentBossToMemory(recordKey);
+ return;
+ }
  });
  return true;
  } catch (error) {
@@ -16033,13 +16148,140 @@ class BossMemoryFeature {
 
  resetEditor({ clear = true } = {}) {
  this.editingIndex = -1;
+ this._editingBossContext = 'memory';
  if (this.el.addBossBtn) this.el.addBossBtn.textContent = '添加';
+ if (this.el.bossCancelEditBtn) this.el.bossCancelEditBtn.hidden = true;
  if (clear) {
  if (this.el.bossNameInput) this.el.bossNameInput.value = '';
  if (this.el.bossPaiDanInput) this.el.bossPaiDanInput.value = '';
  if (this.el.bossDiscountInput) this.el.bossDiscountInput.value = '';
  }
+ this.syncBossMemoryFormVisibility();
  return true;
+ }
+
+ // ===== 老板记忆库面板：tab 切换 / 搜索 / 最近老板管理 =====
+ switchBossMemTab(tab) {
+ const nextTab = tab === 'recent' ? 'recent' : 'memory';
+ if (this._bossMemTab === nextTab) return false;
+ this._bossMemTab = nextTab;
+ this.resetEditor({ clear: true }); // 切 tab 终止进行中的编辑并同步表单显隐
+ this.syncBossMemTabUI();
+ return true;
+ }
+
+ syncBossMemTabUI() {
+ const isRecent = this._bossMemTab === 'recent';
+ Array.from(this.el.bossMemTabs?.querySelectorAll('.pm-tab') || []).forEach(btn => {
+ const active = (btn.dataset.tab === 'recent') === isRecent;
+ btn.classList.toggle('active', active);
+ btn.setAttribute('aria-selected', active ? 'true' : 'false');
+ });
+ if (this.el.bossMemoryList) this.el.bossMemoryList.hidden = isRecent;
+ if (this.el.recentBossList) this.el.recentBossList.hidden = !isRecent;
+ this.syncBossMemoryFormVisibility();
+ return true;
+ }
+
+ syncBossMemoryFormVisibility() {
+ // 老板记忆 tab：表单常显（添加/编辑）；最近老板 tab：仅编辑中显示
+ const showForm = this._bossMemTab === 'memory' || this._editingBossContext === 'recent';
+ if (this.el.bossMemoryForm) this.el.bossMemoryForm.hidden = !showForm;
+ return true;
+ }
+
+ findMemoryIndexByKey(recordKey) {
+ return this.bossMemory.findIndex(boss => this.memoryPanelFeature.buildBossMemoryRecordKey(boss?.name) === recordKey);
+ }
+
+ findRecentIndexByKey(recordKey) {
+ return (Array.isArray(this.recentBosses) ? this.recentBosses : [])
+ .findIndex(entry => this.memoryPanelFeature.buildRecentBossRecordKey(entry) === recordKey);
+ }
+
+ cancelBossEdit() {
+ this.resetEditor({ clear: true });
+ this.showInfo('已取消编辑');
+ return true;
+ }
+
+ editRecentBoss(recordKey) {
+ try {
+ const index = this.findRecentIndexByKey(recordKey);
+ const record = index >= 0 ? this.bossDirectory.normalizeRecentBossEntry(this.recentBosses[index]) : null;
+ if (!record) return false;
+ this.editingIndex = index;
+ this._editingBossContext = 'recent';
+ this.el.bossNameInput.value = record.name;
+ this.el.bossPaiDanInput.value = record.paiDan;
+ this.el.bossDiscountInput.value = record.discount ?? '';
+ if (this.el.addBossBtn) this.el.addBossBtn.textContent = '保存';
+ if (this.el.bossCancelEditBtn) this.el.bossCancelEditBtn.hidden = false;
+ this.syncBossMemoryFormVisibility();
+ this.hideBossSuggestions();
+ this.showSuccess('已加载最近老板信息进行编辑');
+ return true;
+ } catch (error) {
+ this.handleError('editRecentBoss', error, '编辑失败，请重试');
+ return false;
+ }
+ }
+
+ saveRecentBossEdit() {
+ try {
+ const name = this.el.bossNameInput.value.trim();
+ if (!name) return this.showInfo('请输入老板昵称');
+ const paiDan = this.el.bossPaiDanInput.value.trim();
+ const discountRaw = this.el.bossDiscountInput.value.trim();
+ const discount = discountRaw ? OrderEngine.normalizeDiscountInput(discountRaw) : null;
+ if (discountRaw && discount === null) return this.showInfo('请输入有效折数，如8、80或0.8');
+ const editIndex = Number.isInteger(this.editingIndex) ? this.editingIndex : -1;
+ const list = this.directory.normalizeRecentBosses(this.recentBosses);
+ if (editIndex < 0 || editIndex >= list.length) return false;
+ // 原地更新；时间戳刷新为当前，保证与其他同名同派单记录合并时以编辑结果为准
+ list[editIndex] = this.directory.normalizeRecentBossEntry({ ...list[editIndex], name, paiDan, discount, timestamp: Date.now() });
+ this.recentBosses = this.directory.normalizeRecentBosses(list);
+ this.app.saveRecentBosses();
+ this.showSuccess(`"${name}" 最近老板信息已更新`);
+ this.resetEditor({ clear: true });
+ this.refresh();
+ return true;
+ } catch (error) {
+ this.handleError('saveRecentBossEdit', error, '保存失败，请重试');
+ return false;
+ }
+ }
+
+ deleteRecentBoss(recordKey) {
+ try {
+ const index = this.findRecentIndexByKey(recordKey);
+ const next = index >= 0 ? this.directory.removeRecentBossAt(this.recentBosses, index) : null;
+ if (!next) return false;
+ this.recentBosses = next;
+ this.app.saveRecentBosses();
+ if (this._editingBossContext === 'recent') this.resetEditor({ clear: true });
+ this.refresh();
+ this.showSuccess('已删除最近老板记录');
+ return true;
+ } catch (error) {
+ this.handleError('deleteRecentBoss', error, '删除失败，请重试');
+ return false;
+ }
+ }
+
+ storeRecentBossToMemory(recordKey) {
+ try {
+ const index = this.findRecentIndexByKey(recordKey);
+ const record = index >= 0 ? this.bossDirectory.normalizeRecentBossEntry(this.recentBosses[index]) : null;
+ if (!record) return false;
+ const existed = this.bossMemory.some(boss => String(boss?.name ?? '').trim() === record.name);
+ this.upsertRecord({ name: record.name, paiDan: record.paiDan, discount: record.discount }, { save: true, refresh: true });
+ this.showSuccess(existed ? `"${record.name}" 记忆库折数已同步为最新` : `"${record.name}" 已存入老板记忆库`);
+ return true;
+ } catch (error) {
+ this.handleError('storeRecentBossToMemory', error, '存入失败，请重试');
+ return false;
+ }
  }
 
  upsertRecord(record, { save = true, refresh = true } = {}) {
@@ -16052,6 +16294,7 @@ class BossMemoryFeature {
 
  addFromEditor() {
  try {
+ if (this._editingBossContext === 'recent') return this.saveRecentBossEdit();
  const name = this.el.bossNameInput.value.trim();
  const paiDan = this.el.bossPaiDanInput.value.trim();
  if (!name) return this.showInfo('请输入老板昵称');
@@ -16087,10 +16330,13 @@ class BossMemoryFeature {
  const boss = this.get(index);
  if (!boss) return false;
  this.editingIndex = index;
+ this._editingBossContext = 'memory';
  this.el.bossNameInput.value = boss.name;
  this.el.bossPaiDanInput.value = boss.paiDan;
  this.el.bossDiscountInput.value = boss.discount;
  if (this.el.addBossBtn) this.el.addBossBtn.textContent = '保存';
+ if (this.el.bossCancelEditBtn) this.el.bossCancelEditBtn.hidden = false;
+ this.syncBossMemoryFormVisibility();
  this.hideBossSuggestions();
  this.showSuccess('已加载老板信息进行编辑');
  return true;
