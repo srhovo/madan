@@ -1,6 +1,6 @@
 {
-  "version": "8.3.16",
-  "url": "https://madan.pages.dev/madan-8.3.16.zip",
-  "checksum": "b881e8cb355869fd8fa90dcb6aee010f42de47ef392c5fd6cdb502554b19e5c2",
-  "notes": "老板记忆库新增「最近老板」页签（可编辑/删除/一键存入记忆库）+ 搜索框；同名同派单不同折数自动合并为最新折数，不再产生重复候选"
+  "version": "8.3.17",
+  "url": "https://madan.pages.dev/madan-8.3.17.zip",
+  "checksum": "eb7c2c59fa98c8f1c09554fda2332136a7d4046347d1cef13773e1d6d90f362e",
+  "notes": "主页候选单价名片快捷网格不再展示（与服务类型输入框弹出的候选重合，保留后者），底层逻辑全部保留"
 }
