@@ -134,7 +134,6 @@ webView.loadUrl("file:///android_asset/index.html")
 ├── update-checker.js   # OTA 热更新检测 / 下载 / 替换（Capacitor 原生壳内生效）
 ├── analytics.js        # 匿名使用统计（纯 Web API，失败静默降级）
 ├── test-engine.js      # 引擎单元测试（Node 隔离运行，L3 核心回归）
-├── check-structure.js  # 静态结构门禁（桥接目标/歧义/孤立方法/委托链深度）
 ├── tests/              # 全链路测试资产
 │   ├── 码单器8.3_AI可运行全链路测试脚本_8.3架构版.py   # 主入口：五段式全链路
 │   ├── _materials.json                                # 真实素材与期望名单
@@ -167,7 +166,6 @@ python3 tests/码单器8.3_AI可运行全链路测试脚本_8.3架构版.py --ht
 node tests/dom-full.js index.html ./domfull.json
 node tests/combo.js index.html ./combo.json
 node test-engine.js
-node check-structure.js
 ```
 
 全链路脚本分五段独立报告：静态架构 / JS 语法 / 计算引擎 / 真实素材提取 / DOM 链路，
@@ -176,7 +174,7 @@ node check-structure.js
 
 ## 版本
 
-当前版本：`8.3.18`
+当前版本：`8.3.21`
 
 版本规则：第三位用于内部修订；第二位在整体达到预期、无已知阻断并确认可交付后晋升。
 

@@ -8,8 +8,9 @@ Thumbs.db
 node_modules/
 *.log
 
-# 历史安装包不进仓库（发版时通过 Pages 分发，仓库只保留源码）
-madan-*.zip
+# 注意：madan-<版本>.zip 必须留在仓库
+# 更新包由 Cloudflare Pages 从仓库根目录直出，version.json 的 url 指向它；
+# 一旦漏提交，已安装设备 OTA 下载会 404。因此这里刻意不忽略 *.zip。
 
 # 临时/校验 hash 文件（误提交过，见历史）
 *.sha256

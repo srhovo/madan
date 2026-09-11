@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.20</title>
+ <title>码单器8.3.21</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -173,17 +173,66 @@
  .diy-layout-btn { background: rgba(255,255,255,.16); color: var(--color-white); border: 1px solid rgba(255,255,255,.42); border-radius: var(--border-radius-pill); padding: 7px 12px; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); cursor: pointer; }
  .diy-layout-btn:hover { background: rgba(255,255,255,.24); }
  .layout-hidden { display: none !important; }
- .layout-modal-content.app-modal__panel { max-width: 640px; height: auto; max-height: 86vh; }
- .layout-modal-body { display: flex; flex-direction: column; gap: var(--spacing-md); }
- /* 8.3.19：DIY 布局改为固定方案选择（方案一完整 / 方案二精简），模块勾选列表与模板区样式随之退役 */
- .layout-scheme-list { display: grid; gap: 10px; }
- .layout-scheme-item { border: 1px solid var(--color-border-light); border-radius: var(--border-radius-lg); background: var(--color-white); color: var(--color-text); padding: 12px 14px; text-align: left; cursor: pointer; transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast); }
- .layout-scheme-item.is-active { border-color: var(--color-primary); background: var(--color-bg-light); box-shadow: var(--shadow-primary); }
- .layout-scheme-name { display: block; font-weight: var(--font-weight-semibold); font-size: var(--font-size-md); }
- .layout-scheme-item.is-active .layout-scheme-name { color: var(--color-primary-dark); }
- .layout-scheme-desc { display: block; margin-top: 3px; font-size: var(--font-size-sm); color: var(--color-text-light); line-height: 1.4; }
- .layout-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--spacing-sm); margin-top: var(--spacing-sm); }
- @media (max-width: 480px) { .layout-controls { right: 12px; } .diy-layout-btn { padding: 6px 9px; font-size: 12px; } }
+.layout-modal-content.app-modal__panel { max-width: 604px; height: auto; max-height: 86vh; }
+/* 8.3.21：DIY 布局弹窗视觉精修 —— 统一留白节奏、强化选中反馈、补齐键盘可达性
+   仅视觉层调整，hiddenModules 存储结构、方案定义与生效逻辑均未改动 */
+.layout-modal-body { display: flex; flex-direction: column; gap: 14px; }
+.layout-modal-body .app-list-note { line-height: 1.6; margin-top: 0; }
+.layout-scheme-list { display: grid; gap: 12px; }
+.layout-scheme-item {
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ gap: 12px;
+ width: 100%;
+ padding: 15px 16px;
+ border: 1px solid var(--color-border-light);
+ border-radius: var(--border-radius-lg);
+ background: var(--color-white);
+ color: var(--color-text);
+ text-align: left;
+ font-family: inherit;
+ cursor: pointer;
+ box-shadow: inset 3px 0 0 transparent;
+ transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+@media (hover: hover) {
+ .layout-scheme-item:hover { border-color: var(--color-border); transform: translateY(-1px); }
+}
+.layout-scheme-item:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.layout-scheme-item.is-active {
+ border-color: var(--color-primary);
+ background: var(--color-bg-light);
+ box-shadow: inset 3px 0 0 var(--color-primary), var(--shadow-primary);
+}
+.layout-scheme-text { min-width: 0; flex: 1; }
+.layout-scheme-name { display: block; font-weight: var(--font-weight-semibold); font-size: var(--font-size-md); letter-spacing: 0.01em; line-height: 1.35; }
+.layout-scheme-item.is-active .layout-scheme-name { color: var(--color-primary-dark); }
+.layout-scheme-desc { display: block; margin-top: 5px; font-size: var(--font-size-sm); color: var(--color-text-light); line-height: 1.5; }
+/* 选中标记：给「已选」一个明确的正向反馈，未选中时淡出且不占视觉重心 */
+.layout-scheme-check {
+ flex-shrink: 0;
+ display: inline-flex;
+ align-items: center;
+ justify-content: center;
+ width: 22px;
+ height: 22px;
+ border-radius: 50%;
+ background: var(--color-primary);
+ color: var(--color-white);
+ opacity: 0;
+ transform: scale(0.75);
+ transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+.layout-scheme-item.is-active .layout-scheme-check { opacity: 1; transform: scale(1); }
+.layout-scheme-check-icon { width: 12px; height: 12px; display: block; }
+.layout-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--spacing-sm); margin-top: var(--spacing-sm); }
+.layout-actions .app-btn { min-height: 46px; font-size: var(--font-size-md); }
+@media (max-width: 480px) {
+ .layout-controls { right: 12px; }
+ .diy-layout-btn { padding: 6px 9px; font-size: 12px; }
+ .layout-scheme-item { padding: 13px 13px; }
+}
 
  .instructions.show, .boss-suggest-list.show { display: block; animation: fadeIn var(--animation-duration-base) ease; }
 
@@ -192,16 +241,9 @@
 
  .mode-selector {   overflow: hidden;  position: relative; }
 
- .mode-btn {
- flex: 1; padding: 14px 0; background: var(--color-border-light); border: none; font-family: inherit; font-size: var(--font-size-md);
- font-weight: var(--font-weight-semibold); color: var(--color-text); cursor: pointer; transition: all var(--transition-base);
- position: relative; display: flex; align-items: center; justify-content: center;
- white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
- }
-
  .mode-btn.active {
- /* 8.3.19：文字拆入子 span 后，渐变文字效果（transparent + background-clip:text）
- 下放到各文字 span 自身；按钮不再持有背景裁剪，图标另给实色避免被 transparent 隐形 */
+ /* 8.3.21：文字仍是子 span「名称 + 括号比例」，渐变裁剪下放到 span 自身；
+ 按钮不再持有背景裁剪，提示图标另给实色避免被 transparent 隐形 */
  color: transparent;
  }
 
@@ -2145,85 +2187,77 @@ h1 { margin-bottom: 4px; }
 .mode-btn,
 .custom-ratio-btn {
  min-height: 54px;
- padding: 0 10px;
  line-height: 1.2;
  font-size: var(--font-size-md);
 }
 
-/* 8.3.19：模式按钮内新增比例切换图标，按钮改为 flex 双段布局；文字拆两行（名称+比例）避免窄列截断 */
+/* 8.3.21：单子/礼物码单回归资料库（8.3.18）单行样式「单子码单 (5/20/75)」，
+   不再拆两行；比例切换图标仅作提示，缩到框内靠右边缘、留有呼吸感；
+   触发区域为整个按钮框（.mode-btn 本身即 button）。 */
 .mode-btn {
+ flex: 1;
+ padding: 14px 0;
+ background: var(--color-border-light);
+ border: none;
+ font-family: inherit;
+ font-size: var(--font-size-md);
+ font-weight: var(--font-weight-semibold);
+ color: var(--color-text);
+ cursor: pointer;
+ transition: all var(--transition-base);
+ position: relative;
  display: flex;
  align-items: center;
  justify-content: center;
- gap: 4px;
- position: relative;
+ white-space: nowrap;
+ overflow: hidden;
+ text-overflow: ellipsis;
 }
 
+/* 单行文字：名称 + 括号比例，整体居中；右侧留出提示图标的避让空间避免贴边 */
 .mode-btn__label {
  min-width: 0;
- display: flex;
- flex-direction: column;
- align-items: center;
- justify-content: center;
- gap: 3px;
- overflow: hidden;
-}
-
-.mode-btn__title,
-.mode-btn__ratio {
- max-width: 100%;
+ padding: 0 22px;
  overflow: hidden;
  text-overflow: ellipsis;
  white-space: nowrap;
 }
 
+.mode-btn__title { white-space: nowrap; }
+
 .mode-btn__ratio {
- font-size: var(--font-size-xs);
- line-height: 1;
- opacity: 0.72;
+ white-space: nowrap;
+ opacity: 0.82;
 }
 
+/* 纯提示图标：贴框内右侧边缘、居中垂直，弱化到几乎不参与视觉竞争，且不接收任何指针事件 */
 .mode-btn__switch {
- flex-shrink: 0;
+ position: absolute;
+ right: 9px;
+ top: 50%;
+ transform: translateY(-50%);
  display: inline-flex;
  align-items: center;
  justify-content: center;
- width: 22px;
- height: 22px;
- margin-left: 2px;
- border-radius: 50%;
+ width: 15px;
+ height: 15px;
  color: currentColor;
- opacity: 0.55;
- cursor: pointer;
- transition: opacity 0.18s ease, background-color 0.18s ease, transform 0.18s ease;
+ opacity: 0.34;
+ pointer-events: none;
+ transition: opacity 0.18s ease;
  -webkit-tap-highlight-color: transparent;
 }
 
 .mode-btn__switch-icon {
- width: 14px;
- height: 14px;
+ width: 13px;
+ height: 13px;
  display: block;
  pointer-events: none;
 }
 
-.mode-btn:hover .mode-btn__switch { opacity: 0.85; }
+/* 无其他档位可轮转时，提示图标进一步淡出（不给出误导性暗示） */
+.mode-btn__switch.is-disabled { opacity: 0.14; }
 
-.mode-btn__switch:active { transform: scale(0.9); }
-
-@media (hover: hover) {
- .mode-btn__switch:hover {
- opacity: 1;
- background-color: color-mix(in srgb, currentColor 14%, transparent);
- }
-}
-
-.mode-btn__switch.is-disabled {
- opacity: 0.2;
- cursor: not-allowed;
- pointer-events: none;
-}
-
-/* 8.3.19：单子/礼物按钮之间恢复竖条分割线（1px 与容器边框同色），配合按钮内留白形成有呼吸感的两个按钮；平板三列与手机 2×2 布局同样生效 */
 .mode-btn:first-child {
  border-radius: var(--border-radius-lg) 0 0 var(--border-radius-lg);
  border-right: 1px solid var(--color-border);
@@ -2521,8 +2555,23 @@ h1 { margin-bottom: 4px; }
  #resultSummary,
  .action-buttons.app-action-row,
  .floating-action-bar {
- grid-template-columns: 1fr;
+  grid-template-columns: 1fr;
  }
+}
+
+/* 8.3.21：小屏（≤420px）下单行「单子码单 (5/20/75)」+ 提示图标会挤在一起，
+   按比例缩小字号与图标、并收窄 label 的右侧避让，保证不重叠、不溢出 */
+@media (max-width: 420px) {
+ .mode-btn { font-size: 13.5px; }
+ .mode-btn__label { padding: 0 20px 0 8px; }
+ .mode-btn__switch { right: 6px; width: 13px; height: 13px; }
+ .mode-btn__switch-icon { width: 11px; height: 11px; }
+}
+@media (max-width: 344px) {
+ .mode-btn { font-size: 11.5px; letter-spacing: -0.02em; }
+ .mode-btn__label { padding: 0 15px 0 4px; }
+ .mode-btn__switch { right: 4px; width: 11px; height: 11px; }
+ .mode-btn__switch-icon { width: 9px; height: 9px; }
 }
 
 #primaryFieldsContainer .discount-combo-row input {
@@ -2859,7 +2908,7 @@ h1 { margin-bottom: 4px; }
  .main-content { grid-template-columns: minmax(0, 1.14fr) minmax(350px, 0.86fr); gap: 14px; padding: 18px; }
  .input-section, .result-section { padding: 18px; border-radius: 16px; }
  .mode-selector { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 118px; margin-bottom: 14px; }
- .mode-btn, .custom-ratio-btn { min-height: 50px; padding: 0 8px; font-size: 15px; }
+ .mode-btn, .custom-ratio-btn { min-height: 50px; font-size: 15px; }
  #primaryFieldsContainer {   }
  #primaryFieldsContainer .input-group > input, #primaryFieldsContainer .input-group > textarea, .duration-calc-trigger-btn { min-height: 42px; }
  #primaryFieldsContainer > .auto-price-panel { min-width: 0; }
@@ -2983,7 +3032,7 @@ h1 { margin-bottom: 4px; }
  html.android-phone .result-section { padding: 10px; border-radius: 13px; }
  html.android-phone .mode-selector { margin-bottom: 10px; border-radius: 11px; }
  html.android-phone .mode-btn,
- html.android-phone .custom-ratio-btn { min-height: 42px; padding: 0 8px; font-size: 14px; }
+ html.android-phone .custom-ratio-btn { min-height: 42px; font-size: 14px; }
  html.android-phone #primaryFieldsContainer { gap: 10px; }
  html.android-phone .input-group { margin-bottom: 12px; }
  html.android-phone .input-group label { margin-bottom: 5px; font-size: 14px; }
@@ -3499,6 +3548,7 @@ h1 { margin-bottom: 4px; }
  <symbol id="app-icon-history" viewBox="0 0 512 512"><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></symbol>
  <symbol id="app-icon-grip-vertical" viewBox="0 0 320 512"><path d="M40 352h48c22.1 0 40 17.9 40 40v48c0 22.1-17.9 40-40 40H40c-22.1 0-40-17.9-40-40v-48c0-22.1 17.9-40 40-40zm192 0h48c22.1 0 40 17.9 40 40v48c0 22.1-17.9 40-40 40h-48c-22.1 0-40-17.9-40-40v-48c0-22.1 17.9-40 40-40zM40 320c-22.1 0-40-17.9-40-40v-48c0-22.1 17.9-40 40-40h48c22.1 0 40 17.9 40 40v48c0 22.1-17.9 40-40 40H40zm192-128h48c22.1 0 40 17.9 40 40v48c0 22.1-17.9 40-40 40h-48c-22.1 0-40-17.9-40-40v-48c0-22.1 17.9-40 40-40zM40 160c-22.1 0-40-17.9-40-40V72c0-22.1 17.9-40 40-40h48c22.1 0 40 17.9 40 40v48c0 22.1-17.9 40-40 40H40zm192-128h48c22.1 0 40 17.9 40 40v48c0 22.1-17.9 40-40 40h-48c-22.1 0-40-17.9-40-40V72c0-22.1 17.9-40 40-40z"/></symbol>
  <symbol id="app-icon-ratio-switch" viewBox="0 0 512 512"><path d="M88 208h336" fill="none" stroke="currentColor" stroke-width="44" stroke-linecap="round"/><path d="M462 208l-72-72M462 208l-72 72" fill="none" stroke="currentColor" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/><path d="M424 320H88" fill="none" stroke="currentColor" stroke-width="44" stroke-linecap="round"/><path d="M50 320l72-72M50 320l72 72" fill="none" stroke="currentColor" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+ <symbol id="app-icon-check" viewBox="0 0 448 512"><path d="M438.6 105.4c12.5 12.5 12.5 32.8 0 45.3l-256 256c-12.5 12.5-32.8 12.5-45.3 0l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0L160 338.7 393.4 105.4c12.5-12.5 32.8-12.5 45.3 0z"/></symbol>
  </defs>
  </svg>
  <!-- 码单器 8.2.21：修正局数单价时长换算；单项目时长原样输出，多项目按小时/分钟或小时/余局规范汇总 -->
@@ -3533,8 +3583,8 @@ h1 { margin-bottom: 4px; }
  <div class="main-content">
  <div class="input-section">
  <div class="mode-selector" data-layout-module="modeSelector">
-<button class="mode-btn active" id="mode1Btn"><span class="mode-btn__label" id="mode1BtnLabel"><span class="mode-btn__title">单子码单</span><span class="mode-btn__ratio">5/20/75</span></span><span class="mode-btn__switch" id="mode1RatioSwitch" role="button" tabindex="-1" aria-label="切换单子分成比例" title="切换单子分成比例"><svg class="app-icon mode-btn__switch-icon" aria-hidden="true"><use href="#app-icon-ratio-switch"></use></svg></span></button>
-<button class="mode-btn" id="mode2Btn"><span class="mode-btn__label" id="mode2BtnLabel"><span class="mode-btn__title">礼物码单</span><span class="mode-btn__ratio">10/20/70</span></span><span class="mode-btn__switch" id="mode2RatioSwitch" role="button" tabindex="-1" aria-label="切换礼物分成比例" title="切换礼物分成比例"><svg class="app-icon mode-btn__switch-icon" aria-hidden="true"><use href="#app-icon-ratio-switch"></use></svg></span></button>
+<button class="mode-btn active" id="mode1Btn" type="button" aria-label="单子码单，重复点击可切换分成比例" title="重复点击可切换单子分成比例"><span class="mode-btn__label" id="mode1BtnLabel"><span class="mode-btn__title">单子码单</span> <span class="mode-btn__ratio">(5/20/75)</span></span><span class="mode-btn__switch" id="mode1RatioSwitch" aria-hidden="true"><svg class="app-icon mode-btn__switch-icon" aria-hidden="true"><use href="#app-icon-ratio-switch"></use></svg></span></button>
+<button class="mode-btn" id="mode2Btn" type="button" aria-label="礼物码单，重复点击可切换分成比例" title="重复点击可切换礼物分成比例"><span class="mode-btn__label" id="mode2BtnLabel"><span class="mode-btn__title">礼物码单</span> <span class="mode-btn__ratio">(10/20/70)</span></span><span class="mode-btn__switch" id="mode2RatioSwitch" aria-hidden="true"><svg class="app-icon mode-btn__switch-icon" aria-hidden="true"><use href="#app-icon-ratio-switch"></use></svg></span></button>
 
  <button class="custom-ratio-btn" id="customRatioBtn" data-layout-module="customRatioBtn">自定义比例</button>
  </div>
@@ -3967,10 +4017,10 @@ h1 { margin-bottom: 4px; }
  <button class="modal-exit-btn" type="button" data-modal-close="diyLayoutModal" aria-label="退出DIY布局弹窗">×</button>
  <div class="app-modal__body layout-modal-body">
  <div class="dialog-header"><h3 class="dialog-title">DIY布局</h3></div>
- <div class="app-list-note">选择一个固定方案：只隐藏视觉，不删除数据、不清空输入、不改变计算。再次打开可随时切换。</div>
- <div class="layout-scheme-list" id="layoutSchemeList"></div>
+ <div class="app-list-note">选择一个固定方案，只影响显示：不删除数据、不清空输入、不改变计算，随时可再次打开切换。</div>
+ <div class="layout-scheme-list" id="layoutSchemeList" role="radiogroup" aria-label="DIY布局方案"></div>
  <div class="layout-actions">
- <button class="app-btn app-btn--primary app-btn--sm" id="layoutSaveBtn" type="button">确定</button>
+ <button class="app-btn app-btn--primary" id="layoutSaveBtn" type="button">确定</button>
  </div>
  </div>
  </div>
@@ -3988,9 +4038,10 @@ h1 { margin-bottom: 4px; }
 
 
  <script>
- const APP_VERSION = '8.3.20';
+ const APP_VERSION = '8.3.21';
  const TUTORIAL_VIDEO_URL = 'https://cdn.jsdelivr.net/gh/srhovo/tutorialvideo@main/video.mp4';
  const WECHAT_OPEN_URL = 'weixin://'; // 生成订单后尝试唤起微信主界面
+// Release note: 8.3.21 单子/礼物码单回归资料库单行样式「单子码单 (5/20/75)」（取消 8.3.19 的两行拆分），比例切换图标缩小并贴框内右侧边缘、仅作提示，触发改为整个按钮框（点当前模式按钮轮转比例、点另一个切模式，仅一档时原地重算并提示）；加价输入框纯数字也弹出「全部项目+各项目」候选、默认选中全部、选定后数字加价只落到该项目（并修复数字加价引擎未读 targetIndex 导致的定向失效）；DIY布局弹窗视觉精修（方案卡片双重选中反馈、留白与按钮尺寸、无障碍属性）；审计修复：加价候选面板释放时复位固定定位（避免坐标过期/污染其他提供者）、隐藏时不再误收其他输入框的面板、点选自己不再取消选择；删除 ModeFlowFeature 中未使用的桥接方法与 ratioFeature getter。
 // Release note: 8.3.20 加价输入框提示改为折数同款两行内联提示（"直接输入"/"关键词/数字"，10.5px 居中，输入后隐藏）；DIY布局改为两个固定方案（完整/精简——隐藏自定义比例按钮与服务时长输入框，底层 hiddenModules 存储结构不变，旧数据兼容）；单子/礼物按钮之间恢复 1px 竖条分割线；备注提示字号对齐折数内联提示（10.5px）。
 // Release note: 8.3.15 定制/建议联系优化——联系方式弹窗内微信按钮复制微信号成功后自动唤起微信（复用订单生成后的 openWechatAfterCopy 链路，微信内置浏览器不重复跳转）；小标题改为「定制/建议👉」，按钮文案改为「联系方式」（保留原信息图标）。
  // Release note: 8.2.25 统一“时长计算 / 提取名字”的按钮高度、文字字号、图标尺寸和垂直基线；保留手机、平板与桌面端原有布局及全部业务逻辑。
@@ -6563,9 +6614,16 @@ class SurchargeRuleEngine {
  });
  });
 
- // 手动数字加价：按每个项目自身的结算单位（局/小时）应用到全部项目
- if (manualSurcharge !== null && sourceProjects.length) {
- sourceProjects.forEach((project, index) => {
+ // 手动数字加价：按每个项目自身的结算单位（局/小时）加价
+ // 8.3.21：数字输入同样受候选选择器约束 —— 未指定/显式选「全部」→ 全部项目；
+ // 指定了单个项目 → 只加到该项目（与关键词候选的定向语义保持一致）
+ let manualIndexes = sourceProjects.map((_, index) => index);
+ if (sourceProjects.length > 1 && !targetAll && targetIndex >= 0 && targetIndex < sourceProjects.length) {
+ manualIndexes = [targetIndex];
+ }
+ if (manualSurcharge !== null && manualIndexes.length) {
+ manualIndexes.forEach(index => {
+ const project = sourceProjects[index];
  const settleType = project?.quantityMode === 'hour' ? 'hour' : 'round';
  const application = {
  ruleId: 'manual_surcharge',
@@ -10305,7 +10363,7 @@ class EventDelegationFeature {
  class RatioFeature {
  constructor(app) {
  this.app = app;
- this.methodNames = ['updateModeButtonText', 'switchModeRatio', 'editModeRatio', 'deleteModeRatio', 'handleRatioPickerClick', 'openCustomRatioModal', 'closeCustomRatioModal', 'updateRatioSum', 'resetCustomRatioForm', 'saveCustomRatio', 'updateRatioCards'];
+ this.methodNames = ['updateModeButtonText', 'switchModeRatio', 'editModeRatio', 'deleteModeRatio', 'handleRatioPickerClick', 'openCustomRatioModal', 'closeCustomRatioModal', 'updateRatioSum', 'resetCustomRatioForm', 'saveCustomRatio', 'updateRatioCards', 'handleModeButtonClick'];
  this._eventScope = new FeatureEventScope();
  }
 
@@ -10347,15 +10405,8 @@ class EventDelegationFeature {
  if (!this._eventScope.begin()) return false;
  try {
  this._eventScope.on(this.el.customRatioBtn, 'click', () => this.openCustomRatioModal());
- // 8.3.19：模式按钮内的比例切换图标，单击按顺序轮转已保存的分成比例
- [this.el.mode1RatioSwitch, this.el.mode2RatioSwitch].forEach(node => {
- this._eventScope.on(node, 'click', event => {
- event.preventDefault();
- event.stopPropagation();
- const mode = node === this.el.mode2RatioSwitch ? 2 : 1;
- this.switchRatioToNext(mode);
- });
- });
+ // 8.3.21：比例切换的触发点从「按钮内小图标」上移到「整个模式按钮框」，
+ // 因此图标不再单独绑定事件，统一入口见 handleModeButtonClick（由 ModeFlowFeature 绑定）。
  this._eventScope.on(this.el.saveUseRatioBtn, 'click', () => this.saveCustomRatio(true));
  this._eventScope.on(this.el.saveRatioBtn, 'click', () => this.saveCustomRatio(false));
  this._eventScope.on(this.el.resetRatioBtn, 'click', () => this.resetCustomRatioForm());
@@ -10403,12 +10454,39 @@ class EventDelegationFeature {
  const ratioNode = label.querySelector('.mode-btn__ratio');
  if (titleNode) titleNode.textContent = baseName;
  if (ratioNode) {
- ratioNode.textContent = ratio?.id === 'default' || !ratio?.id
+ // 8.3.21：回归资料库单行样式，比例带括号显示为「(5/20/75)」
+ const text = ratio?.id === 'default' || !ratio?.id
  ? fallback
  : `${ratio.group}/${ratio.platform}/${ratio.earning}`;
+ ratioNode.textContent = `(${text})`;
  }
  if (!titleNode && !ratioNode) label.textContent = this.formatModeLabel(baseName, ratio, fallback);
  return true;
+ }
+
+ // 8.3.21：模式按钮整框触发 —— 同一个按钮框承担两种语义
+ // 「当前未选中该模式」→ 切换模式；「已处于该模式」→ 轮转该模式的分成比例。
+ // 注意：已处于该模式但只有默认比例时，仍要走一次 switchMode（幂等），
+ // 保证「点一下刷新计算」这一沿用已久的操作习惯不丢失。
+ handleModeButtonClick(mode) {
+ try {
+ // 未选中该模式 → 只切模式，不动比例
+ if (Number(this.currentMode) !== Number(mode)) {
+ this.switchMode(mode);
+ return true;
+ }
+ // 已在当前模式：有多个档位则轮转，只有默认档位则退化为「原地重算」
+ const options = this.getRatioSwitchOptions(mode);
+ if (options.length <= 1) {
+ this.switchMode(mode);
+ this.showInfo(`暂无其他${mode === 2 ? '礼物' : '单子'}分成比例可切换`);
+ return false;
+ }
+ return this.switchRatioToNext(mode);
+ } catch (error) {
+ this.handleError('handleModeButtonClick', error, '切换失败，请重试');
+ return false;
+ }
  }
 
  // 8.3.19：可选比例档位（默认 + 自定义），顺序即轮转顺序
@@ -10423,6 +10501,13 @@ class EventDelegationFeature {
  return options;
  }
 
+ // 8.3.21：轮转提示语 —— 默认档位不带「默认比例」字眼，直接说比例构成，读起来更顺
+ describeRatioOption(option) {
+ if (!option) return '';
+ const text = this.formatRatioText(option.ratio);
+ return option.id === 'default' ? `默认比例（${text}）` : `${option.label}（${text}）`;
+ }
+
  // 8.3.19：单击图标，按「默认 → 自定义1 → 自定义2 → … → 默认」单向轮转
  switchRatioToNext(mode) {
  try {
@@ -10434,7 +10519,7 @@ class EventDelegationFeature {
  const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % options.length;
  const next = options[nextIndex];
  // 提示语由 switchModeRatio 统一发出，把档位名称带过去，避免重复 toast
- this.switchModeRatio(mode, next.id, `${next.label}（${this.formatRatioText(next.ratio)}）`);
+ this.switchModeRatio(mode, next.id, this.describeRatioOption(next));
  return true;
  } catch (error) {
  this.handleError('switchRatioNext', error, '切换失败，请重试');
@@ -10448,15 +10533,20 @@ class EventDelegationFeature {
  return `${ratio.group}/${ratio.platform}/${ratio.earning}`;
  }
 
- // 8.3.19：仅有 1 个档位时图标置灰，不给出无意义的可点击暗示
+ // 8.3.21：图标已降级为纯提示（触发点在按钮框上），这里只同步「有/无其他档位」的视觉状态；
+ // 可点击语义与提示语统一挂在父按钮 .mode-btn 上，图标本身保持 aria-hidden。
  updateRatioSwitchState() {
  [1, 2].forEach(mode => {
  const el = mode === 1 ? this.el.mode1RatioSwitch : this.el.mode2RatioSwitch;
  if (!el) return;
  const enabled = this.getRatioSwitchOptions(mode).length > 1;
  el.classList.toggle('is-disabled', !enabled);
- el.setAttribute('aria-disabled', enabled ? 'false' : 'true');
- el.title = enabled ? `切换${mode === 1 ? '单子' : '礼物'}分成比例` : '暂无其他分成比例可切换';
+ const btn = mode === 1 ? this.el.mode1Btn : this.el.mode2Btn;
+ if (btn) {
+ btn.title = enabled
+ ? `重复点击可切换${mode === 1 ? '单子' : '礼物'}分成比例`
+ : `${mode === 1 ? '单子' : '礼物'}暂无其他分成比例`;
+ }
  });
  }
 
@@ -10868,9 +10958,13 @@ class EventDelegationFeature {
  this.setRenderedHtml(this.el.layoutSchemeList, this.getLayoutSchemes().map(scheme => {
  const schemeKey = [...this.normalizeHiddenModules(scheme.hiddenModules)].sort().join(',');
  const active = draftKey === schemeKey;
- return `<button type="button" class="layout-scheme-item ${active ? 'is-active' : ''}" data-layout-scheme="${scheme.id}">
+ // 8.3.21：方案卡片补充选中标记与文本容器，配合 CSS 形成「左侧竖条 + 右侧对勾」的双重选中反馈
+ return `<button type="button" class="layout-scheme-item ${active ? 'is-active' : ''}" data-layout-scheme="${scheme.id}" aria-pressed="${active ? 'true' : 'false'}">
+ <span class="layout-scheme-text">
  <span class="layout-scheme-name">${this.escapeHtml(scheme.name)}</span>
  <span class="layout-scheme-desc">${this.escapeHtml(scheme.desc)}</span>
+ </span>
+ <span class="layout-scheme-check" aria-hidden="true"><svg class="app-icon layout-scheme-check-icon"><use href="#app-icon-check"></use></svg></span>
  </button>`;
  }).join(''));
  }
@@ -12841,16 +12935,13 @@ class SurchargeFeature {
  }
 
  // 8.3.19：加价框输入统一入口 —— 先刷新候选面板，再走订单预览（预览会读 targetIndex）
+ // 8.3.21：数字与关键词共用同一条路径，renderSurchargeCandidates 内部对「无候选」自动收起面板
  handleSurchargeInput() {
  if (this._surchargeComposing) return false;
  const text = String(this.el.inputs?.surcharge?.value || '').trim();
- if (!text || SurchargeRuleEngine.parseManualSurcharge(text) !== null) {
  this._surchargeSuggestSignature = '';
- this.hideSharedSuggestions();
- } else {
- this._surchargeSuggestSignature = '';
- this.renderSurchargeCandidates();
- }
+ if (!text) this.hideSharedSuggestions();
+ else this.renderSurchargeCandidates();
  this.app.scheduleUiTask('surchargeOrderPreview', () => this.refreshOrderPreview());
  return true;
  }
@@ -13032,6 +13123,10 @@ class SurchargeFeature {
  this._surchargeSuggestActiveIndex = -1;
  this._surchargeSuggestSignature = '';
  this._surchargeSuggestSourceKey = '';
+ // 8.3.21：释放面板时同步复位固定定位。否则面板被其他提供者接管（position/left/top 被改回静态或他人坐标）
+ // 之后，加价框再次唤起候选时会沿用上一次的坐标；严重时面板还残留内联 position:fixed 却被隐藏，
+ // 下次 show 会直接以过期坐标出现在错误位置。
+ this.resetSurchargeCandidatePosition();
  }
  claimSuggestionSurface(sourceKey = 'surcharge') {
  const list = this.el.typeSuggestList;
@@ -13043,11 +13138,12 @@ class SurchargeFeature {
  this._surchargeSuggestSourceKey = sourceKey;
  return true;
  }
- hideSharedSuggestions({ force = false } = {}) {
+ hideSharedSuggestions() {
  const list = this.el.typeSuggestList;
  const owned = this.ownsSuggestionSurface();
  this.releaseSuggestionSurfaceState();
- if (!list || (!force && !owned)) return false;
+ // 8.3.21：所有权已释放也不再需要收起面板；否则在别的输入框打字时，加价框会残留显示旧内容
+ if (!list || !owned) return false;
  this.serviceSuggestionFeature?.releaseSuggestionSurfaceState?.();
  this.priceQuickPickFeature?.releaseSuggestionSurfaceState?.();
  list.classList.remove('show', 'compact-grid');
@@ -13075,13 +13171,17 @@ class SurchargeFeature {
  .find(rule => (rule.keywords || []).some(keyword => key.includes(SurchargeRuleEngine.normalizeText(keyword)))) || null;
  }
 
- // 生成候选：全部项目 + 各项目名。纯数字 / 单项目 / 礼物模式 / 未命中规则 → 返回空（不弹面板）
+ // 生成候选：全部项目 + 各项目名。
+ // 8.3.21：纯数字（手动加价）也进入候选 —— 数字不再是「静默作用于全部项目」的唯一路径，
+ // 用户可以像关键词那样显式挑选加价范围；默认仍高亮「全部项目」，不操作即等价于旧行为。
+ // 关键词未命中规则 / 礼物模式 / 项目数 ≤1 → 返回空（不弹面板）
  buildSurchargeCandidates() {
  if (Number(this.app.currentMode) !== 1) return [];
  const text = String(this.el.inputs?.surcharge?.value || '').trim();
  if (!text) return [];
- if (SurchargeRuleEngine.parseManualSurcharge(text) !== null) return [];
- if (!this.matchSurchargeRule(text)) return [];
+ // 数字：无需命中规则即可提供范围候选
+ const isManual = SurchargeRuleEngine.parseManualSurcharge(text) !== null;
+ if (!isManual && !this.matchSurchargeRule(text)) return [];
  const projects = Array.isArray(this.app.orderProjects) ? this.app.orderProjects : [];
  if (projects.length <= 1) return [];
  return [
@@ -13142,24 +13242,39 @@ class SurchargeFeature {
  const rect = anchor.getBoundingClientRect();
  const gap = 4;
  const viewportW = window.innerWidth || document.documentElement.clientWidth || 0;
+ const viewportH = window.innerHeight || document.documentElement.clientHeight || 0;
  const panelW = list.offsetWidth || 0;
+ const panelH = list.offsetHeight || 0;
  // 优先右对齐加价框；若会溢出视口左侧，则改为左对齐
  let left = rect.right - panelW;
  if (left < 8) left = Math.max(8, rect.left);
  if (viewportW && left + panelW > viewportW - 8) left = Math.max(8, viewportW - 8 - panelW);
+ // 8.3.21：纵向翻转 —— 框下方放不下时改为贴框上方，避免小屏/键盘顶起视口时面板被推到视口外不可见
+ // （加价框本身在视口外时不再强行定位，交由滚动跟随逻辑在框进入视口后重算）
+ let top = rect.bottom + gap;
+ if (viewportH && panelH && top + panelH > viewportH - 8) {
+ const above = rect.top - gap - panelH;
+ top = above >= 8 ? above : Math.max(8, viewportH - 8 - panelH);
+ }
  list.style.position = 'fixed';
- list.style.top = `${Math.round(rect.bottom + gap)}px`;
+ list.style.top = `${Math.round(top)}px`;
  list.style.left = `${Math.round(left)}px`;
  list.style.right = 'auto';
  return true;
  }
 
- // 点击候选：同项再点 = 取消选择；不同项 = 切换选择
+ // 点击候选：不同项 = 切换选择；同项再点 = 保持当前选择（只重算，不取消）
+ // 8.3.21：取消选择会让面板立即收起、加价范围静默回落到「全部项目」，
+ // 对「纯数字加价」这种默认就要作用于全部项目的场景属于误操作陷阱，因此不再提供「点一下自己取消」。
  pickSurchargeCandidate(item) {
  if (!this.ownsSuggestionElement(item)) return false;
  const key = item?.dataset?.surchargeKey || '';
  if (!key) return false;
- this._surchargeTargetKey = this._surchargeTargetKey === key ? '' : key;
+ if (key === this._surchargeTargetKey) {
+ this.refreshOrderPreview();
+ return true;
+ }
+ this._surchargeTargetKey = key;
  this._surchargeSuggestSignature = '';
  this.refreshOrderPreview();
  this.renderSurchargeCandidates();
@@ -13199,7 +13314,9 @@ class SurchargeFeature {
  const text = String(this.el.inputs?.surcharge?.value || '').trim();
  if (!text) return false;
  const candidates = this.buildSurchargeCandidates();
- // 多项目 + 关键词命中了规则但尚未选择范围 → 提示用户指定（纯数字不会进入候选，因此不会误提示）
+ // 多项目 + 已产生候选但尚未选定范围 → 提示用户指定
+ // 8.3.21：数字输入同样会进入候选，因此这里也可能提示「请选择加价范围」；
+ // 默认选中「全部项目」，用户不主动取消就不会触发该提示
  if (candidates.length && !this.hasSurchargeTarget()) {
  status.textContent = '请选择加价范围';
  status.classList.add('show');
@@ -14586,11 +14703,13 @@ class PriceMemoryFeature {
  get autoPriceFeature() { return this.app.autoPriceFeature; }
  get uiRender() { return this.app.uiRender; }
 
+ // 8.3.21：模式按钮整框触发 —— 统一委托到 app.handleModeButtonClick
+ // （实现在 RatioFeature，由 bindToApp 挂到 app 上，避免两处维护同一份分支逻辑）
  bindEvents() {
  if (!this._eventScope.begin()) return false;
  try {
- this._eventScope.on(this.el.mode1Btn, 'click', () => this.switchMode(1));
- this._eventScope.on(this.el.mode2Btn, 'click', () => this.switchMode(2));
+ this._eventScope.on(this.el.mode1Btn, 'click', () => this.app.handleModeButtonClick(1));
+ this._eventScope.on(this.el.mode2Btn, 'click', () => this.app.handleModeButtonClick(2));
  return true;
  } catch (error) {
  this._eventScope.clear();
