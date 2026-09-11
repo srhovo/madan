@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.19</title>
+ <title>码单器8.3.20</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -173,25 +173,17 @@
  .diy-layout-btn { background: rgba(255,255,255,.16); color: var(--color-white); border: 1px solid rgba(255,255,255,.42); border-radius: var(--border-radius-pill); padding: 7px 12px; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); cursor: pointer; }
  .diy-layout-btn:hover { background: rgba(255,255,255,.24); }
  .layout-hidden { display: none !important; }
- .layout-modal-content { max-width: 640px; height: auto; max-height: 86vh; }
+ .layout-modal-content.app-modal__panel { max-width: 640px; height: auto; max-height: 86vh; }
  .layout-modal-body { display: flex; flex-direction: column; gap: var(--spacing-md); }
- .layout-module-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; max-height: 52vh; overflow-y: auto; padding: 2px; }
- .layout-module-item { border: 1px solid var(--color-border-light); border-radius: var(--border-radius-lg); background: var(--color-white); color: var(--color-text); padding: 10px 12px; text-align: left; cursor: pointer; transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast); }
- .layout-module-item.is-hidden { background: var(--color-bg-danger); color: var(--color-danger-end); border-color: var(--color-danger-start); }
- .layout-module-item.is-visible { background: var(--color-bg-light); }
- .layout-module-name { display: block; font-weight: var(--font-weight-semibold); }
- .layout-module-state { display: block; margin-top: 3px; font-size: var(--font-size-xs); color: var(--color-text-light); }
- .layout-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--spacing-sm); margin-top: var(--spacing-sm); }
-.layout-template-section { border: 1px solid var(--color-border-light); border-radius: var(--border-radius-lg); padding: 10px; background: var(--color-bg-light); }
-.layout-template-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; font-weight: var(--font-weight-semibold); }
-.layout-template-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-bottom: 8px; }
-.layout-template-input { width: 100%; border: 1px solid var(--color-border); border-radius: var(--border-radius-md); padding: 8px 10px; font-size: var(--font-size-sm); }
-.layout-template-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; max-height: 120px; overflow-y: auto; }
-.layout-template-item { display: grid; grid-template-columns: minmax(0, 1fr) 28px; align-items: center; gap: 4px; border: 1px solid var(--color-border-light); border-radius: var(--border-radius-md); background: var(--color-white); padding: 7px 8px; }
-.layout-template-apply { border: 0; background: transparent; color: var(--color-primary-dark); font-weight: var(--font-weight-semibold); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-.layout-template-delete { width: 28px; height: 28px; border: 0; border-radius: 50%; background: var(--color-bg-danger); color: var(--color-danger-end); font-weight: var(--font-weight-bold); cursor: pointer; }
-.layout-template-empty { grid-column: 1 / -1; color: var(--color-text-light); font-size: var(--font-size-sm); padding: 6px 2px; }
- @media (max-width: 480px) { .layout-controls { right: 12px; } .diy-layout-btn { padding: 6px 9px; font-size: 12px; } .layout-module-list, .layout-template-list { grid-template-columns: 1fr; } .layout-actions, .layout-template-form { grid-template-columns: 1fr; } }
+ /* 8.3.19：DIY 布局改为固定方案选择（方案一完整 / 方案二精简），模块勾选列表与模板区样式随之退役 */
+ .layout-scheme-list { display: grid; gap: 10px; }
+ .layout-scheme-item { border: 1px solid var(--color-border-light); border-radius: var(--border-radius-lg); background: var(--color-white); color: var(--color-text); padding: 12px 14px; text-align: left; cursor: pointer; transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast); }
+ .layout-scheme-item.is-active { border-color: var(--color-primary); background: var(--color-bg-light); box-shadow: var(--shadow-primary); }
+ .layout-scheme-name { display: block; font-weight: var(--font-weight-semibold); font-size: var(--font-size-md); }
+ .layout-scheme-item.is-active .layout-scheme-name { color: var(--color-primary-dark); }
+ .layout-scheme-desc { display: block; margin-top: 3px; font-size: var(--font-size-sm); color: var(--color-text-light); line-height: 1.4; }
+ .layout-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--spacing-sm); margin-top: var(--spacing-sm); }
+ @media (max-width: 480px) { .layout-controls { right: 12px; } .diy-layout-btn { padding: 6px 9px; font-size: 12px; } }
 
  .instructions.show, .boss-suggest-list.show { display: block; animation: fadeIn var(--animation-duration-base) ease; }
 
@@ -500,7 +492,14 @@
  /* 备注与加价框横向并排：备注压成单行高度（44px）与加价框对齐；清除按钮回归默认中心线 */
  /* font-size 不参与过渡（基础样式 transition:all 会动画化自适应缩放，导致测量读到中间值）；边框/阴影过渡保留 */
  .input-group.field-note textarea { height: 44px; min-height: 44px; padding-top: 11px; padding-bottom: 11px; line-height: 1.3; overflow-y: auto; transition: border-color var(--transition-base), box-shadow var(--transition-base); }
- .input-group.field-note textarea::placeholder { font-size: var(--font-size-xs); line-height: 1.2; }
+ /* 8.3.19：备注提示字号对齐折数内联提示（10.5px），手机/平板、安卓/iOS 显示一致；textarea 提示超宽自动换行为浏览器原生行为 */
+ .input-group.field-note textarea::placeholder { font-size: 10.5px; line-height: 1.2; }
+ /* 8.3.20：加价框改用折数同款两行内联提示（"直接输入"/"关键词/数字"），input placeholder 退为透明占位；输入后隐藏、清空后恢复 */
+ /* 与折数框不同：hint 挂在含 label 的 .input-group 内，inset:0 会连 label 一起覆盖，故显式下移到贴底 44px（加价 input 固定高）只覆盖输入区；error 仅在非空校验失败时占位，彼时 hint 必已隐藏，时序不冲突 */
+ #primaryFieldsContainer .field-surcharge .discount-inline-hint { top: auto; bottom: 0; height: 44px; }
+ #primaryFieldsContainer .field-surcharge > input:not(:placeholder-shown) ~ .discount-inline-hint { display: none; }
+ #primaryFieldsContainer .field-surcharge > input::placeholder,
+ #primaryFieldsContainer .field-surcharge > input::-webkit-input-placeholder { color: transparent; }
 
  .clear-btn {
  position: absolute; right: var(--spacing-sm); top: var(--field-action-center-y, 42px); background: var(--color-danger-start); color: var(--color-white);
@@ -2224,7 +2223,11 @@ h1 { margin-bottom: 4px; }
  pointer-events: none;
 }
 
-.mode-btn:first-child { border-radius: var(--border-radius-lg) 0 0 var(--border-radius-lg); }
+/* 8.3.19：单子/礼物按钮之间恢复竖条分割线（1px 与容器边框同色），配合按钮内留白形成有呼吸感的两个按钮；平板三列与手机 2×2 布局同样生效 */
+.mode-btn:first-child {
+ border-radius: var(--border-radius-lg) 0 0 var(--border-radius-lg);
+ border-right: 1px solid var(--color-border);
+}
 .custom-ratio-btn { border-radius: 0 var(--border-radius-lg) var(--border-radius-lg) 0; }
 
 #primaryFieldsContainer {
@@ -3964,18 +3967,9 @@ h1 { margin-bottom: 4px; }
  <button class="modal-exit-btn" type="button" data-modal-close="diyLayoutModal" aria-label="退出DIY布局弹窗">×</button>
  <div class="app-modal__body layout-modal-body">
  <div class="dialog-header"><h3 class="dialog-title">DIY布局</h3></div>
- <div class="app-list-note">只隐藏视觉，不删除数据、不清空输入、不改变计算。再次打开可恢复显示。</div>
- <div class="layout-template-section">
- <div class="layout-template-head"><span>DIY布局模板</span><span class="app-list-note">点击模板可快速切换</span></div>
- <div class="layout-template-form">
- <input class="layout-template-input" id="layoutTemplateName" type="text" placeholder="模板名称，例如：极简录单">
- <button class="app-btn app-btn--secondary app-btn--sm" id="layoutTemplateSaveBtn" type="button">保存当前选择为模板</button>
- </div>
- <div class="layout-template-list" id="layoutTemplateList"></div>
- </div>
- <div class="layout-module-list" id="layoutModuleList"></div>
+ <div class="app-list-note">选择一个固定方案：只隐藏视觉，不删除数据、不清空输入、不改变计算。再次打开可随时切换。</div>
+ <div class="layout-scheme-list" id="layoutSchemeList"></div>
  <div class="layout-actions">
- <button class="app-btn app-btn--secondary app-btn--sm" id="layoutShowAllBtn" type="button">全部显示</button>
  <button class="app-btn app-btn--primary app-btn--sm" id="layoutSaveBtn" type="button">确定</button>
  </div>
  </div>
@@ -3994,9 +3988,10 @@ h1 { margin-bottom: 4px; }
 
 
  <script>
- const APP_VERSION = '8.3.19';
+ const APP_VERSION = '8.3.20';
  const TUTORIAL_VIDEO_URL = 'https://cdn.jsdelivr.net/gh/srhovo/tutorialvideo@main/video.mp4';
  const WECHAT_OPEN_URL = 'weixin://'; // 生成订单后尝试唤起微信主界面
+// Release note: 8.3.20 加价输入框提示改为折数同款两行内联提示（"直接输入"/"关键词/数字"，10.5px 居中，输入后隐藏）；DIY布局改为两个固定方案（完整/精简——隐藏自定义比例按钮与服务时长输入框，底层 hiddenModules 存储结构不变，旧数据兼容）；单子/礼物按钮之间恢复 1px 竖条分割线；备注提示字号对齐折数内联提示（10.5px）。
 // Release note: 8.3.15 定制/建议联系优化——联系方式弹窗内微信按钮复制微信号成功后自动唤起微信（复用订单生成后的 openWechatAfterCopy 链路，微信内置浏览器不重复跳转）；小标题改为「定制/建议👉」，按钮文案改为「联系方式」（保留原信息图标）。
  // Release note: 8.2.25 统一“时长计算 / 提取名字”的按钮高度、文字字号、图标尺寸和垂直基线；保留手机、平板与桌面端原有布局及全部业务逻辑。
  // Release note: 8.2.26 热修——修复手机宽度下“备注触发加价规则”与“礼物名称记忆”表单溢出裁切、部分字段不可见的问题；只新增一条CSS规则，不改其他UI、算法与数据结构。
@@ -9762,7 +9757,9 @@ class AppShellRenderer {
  label: '加价（可选）',
  type: 'input',
  inputType: 'text',
- placeholder: '数字直接加价，或输入加价关键词'
+ /* 8.3.20：placeholder 退为透明占位（供 :placeholder-shown 判定），实际提示由两行内联提示承载，形式与折数输入框一致 */
+ placeholder: ' ',
+ inlineHint: ['直接输入', '关键词/数字']
  }
  ];
  }
@@ -9801,6 +9798,10 @@ class AppShellRenderer {
  .map(button => this.renderButtonMarkup({ type: 'button', ...button }))
  .join('');
  const auxBlocks = (config.auxBlocks || []).join('');
+ /* 8.3.20：两行内联提示（折数同款）：绝对定位覆盖空输入框，输入后由 CSS :placeholder-shown 规则隐藏 */
+ const inlineHintHtml = (config.inlineHint && config.inlineHint.length)
+ ? `<span class="discount-inline-hint" aria-hidden="true">${config.inlineHint.map(text => `<span>${this.escapeHtml(text)}</span>`).join('')}</span>`
+ : '';
  const lockInfo = config.lockId
  ? `<div class="lock-info" id="${config.lockInfoId}">${this.escapeHtml(config.lockLabel)}<span id="${config.lockedNameId}"></span><button class="unlock-btn" id="${config.unlockId}" title="解锁">🔓</button></div>`
  : '';
@@ -9809,6 +9810,7 @@ class AppShellRenderer {
  <div class="${wrapperClass}" data-layout-module="${this.escapeHtml(config.id)}">
  <label for="${config.id}">${this.escapeHtml(config.label)}</label>
  ${this.renderFieldControl(config)}
+ ${inlineHintHtml}
  ${errorHtml}
  ${clearHtml}
  ${lockHtml}
@@ -10757,30 +10759,11 @@ class EventDelegationFeature {
  try {
  this._eventScope.on(this.el.diyLayoutBtn, 'click', () => this.openDiyLayoutModal());
  this._eventScope.on(this.el.layoutSaveBtn, 'click', () => this.saveDiyLayout());
- this._eventScope.on(this.el.layoutShowAllBtn, 'click', () => this.showAllLayoutModules());
- this._eventScope.on(this.el.layoutTemplateSaveBtn, 'click', () => this.saveCurrentLayoutTemplate());
- this._eventScope.on(this.el.layoutModuleList, 'click', event => {
+ this._eventScope.on(this.el.layoutSchemeList, 'click', event => {
  const source = event.target instanceof Element ? event.target : null;
- const item = source?.closest('[data-layout-toggle]');
- if (!item || !this.el.layoutModuleList?.contains(item)) return;
- this.toggleDiyLayoutDraft(item.dataset.layoutToggle);
- });
- this._eventScope.on(this.el.layoutTemplateList, 'click', event => {
- const source = event.target instanceof Element ? event.target : null;
- const item = source?.closest('[data-layout-template-id]');
- if (!item || !this.el.layoutTemplateList?.contains(item)) return;
- const id = item.dataset.layoutTemplateId;
- if (source.closest('.layout-template-delete')) {
- event.preventDefault();
- event.stopPropagation();
- this.deleteLayoutTemplate(id);
- return;
- }
- if (source.closest('.layout-template-apply')) {
- event.preventDefault();
- event.stopPropagation();
- this.applyLayoutTemplate(id);
- }
+ const item = source?.closest('[data-layout-scheme]');
+ if (!item || !this.el.layoutSchemeList?.contains(item)) return;
+ this.selectLayoutScheme(item.dataset.layoutScheme);
  });
  return true;
  } catch (error) {
@@ -10869,50 +10852,34 @@ class EventDelegationFeature {
 
  saveLayoutTemplates() { return this.saveStateKey('layoutTemplates'); }
 
- renderLayoutTemplateList() {
- const list = this.normalizeLayoutTemplates(this.layoutTemplates);
- this.layoutTemplates = list;
- if (!this.el.layoutTemplateList) return;
- if (!list.length) {
- this.setRenderedHtml(this.el.layoutTemplateList, '<div class="layout-template-empty">暂无模板。先勾选模块，再保存为模板。</div>');
- return;
- }
- this.setRenderedHtml(this.el.layoutTemplateList, list.map(item => `
- <div class="layout-template-item" data-layout-template-id="${this.escapeHtml(item.id)}">
- <button class="layout-template-apply" type="button" title="${this.escapeHtml(item.name)}">${this.escapeHtml(item.name)}</button>
- <button class="layout-template-delete" type="button" aria-label="删除${this.escapeHtml(item.name)}">×</button>
- </div>`).join(''));
+ // ===== 8.3.19：DIY 布局固定方案选项（替代自由勾选列表与模板区） =====
+ // 底层仍复用 hiddenModules 存储结构（key 与格式不变，旧数据继续可读）；
+ // 方案一 = 空 hiddenModules（全部显示），方案二 = 仅隐藏自定义比例按钮 + 服务时长输入框。
+ getLayoutSchemes() {
+ return [
+ { id: 'full', name: '方案一 · 完整布局', desc: '显示全部内容', hiddenModules: [] },
+ { id: 'simple', name: '方案二 · 精简布局', desc: '隐藏「自定义比例按钮」和「服务时长输入框」', hiddenModules: ['customRatioBtn', 'duration'] }
+ ];
  }
 
- saveCurrentLayoutTemplate() {
- const input = this.el.layoutTemplateName;
- const name = String(input?.value || '').trim() || `布局${this.normalizeLayoutTemplates(this.layoutTemplates).length + 1}`;
- const hiddenModules = this.normalizeHiddenModules(this._layoutDraftHidden || this.hiddenModules);
- const item = { id: `layout_tpl_${Date.now()}`, name, hiddenModules, updatedAt: Date.now() };
- this.layoutTemplates = this.normalizeLayoutTemplates([item, ...(this.layoutTemplates || [])]);
- this.saveLayoutTemplates();
- if (input) input.value = '';
- this.renderLayoutTemplateList();
- this.showSuccess('DIY布局模板已保存');
+ renderDiyLayoutSchemes() {
+ if (!this.el.layoutSchemeList) return;
+ const draftKey = [...this.normalizeHiddenModules(this._layoutDraftHidden ?? this.hiddenModules)].sort().join(',');
+ this.setRenderedHtml(this.el.layoutSchemeList, this.getLayoutSchemes().map(scheme => {
+ const schemeKey = [...this.normalizeHiddenModules(scheme.hiddenModules)].sort().join(',');
+ const active = draftKey === schemeKey;
+ return `<button type="button" class="layout-scheme-item ${active ? 'is-active' : ''}" data-layout-scheme="${scheme.id}">
+ <span class="layout-scheme-name">${this.escapeHtml(scheme.name)}</span>
+ <span class="layout-scheme-desc">${this.escapeHtml(scheme.desc)}</span>
+ </button>`;
+ }).join(''));
  }
 
- applyLayoutTemplate(id) {
- const item = this.normalizeLayoutTemplates(this.layoutTemplates).find(tpl => tpl.id === id);
- if (!item) return;
- this.hiddenModules = this.normalizeHiddenModules(item.hiddenModules);
- this._layoutDraftHidden = [...this.hiddenModules];
- this.saveLayoutPrefs();
- this.applyLayoutVisibility();
- this.renderDiyLayoutList();
- this.renderLayoutTemplateList();
- this.showSuccess(`已切换到：${item.name}`);
- }
-
- deleteLayoutTemplate(id) {
- this.layoutTemplates = this.normalizeLayoutTemplates(this.layoutTemplates).filter(item => item.id !== id);
- this.saveLayoutTemplates();
- this.renderLayoutTemplateList();
- this.showSuccess('已删除DIY布局模板');
+ selectLayoutScheme(id) {
+ const scheme = this.getLayoutSchemes().find(item => item.id === id);
+ if (!scheme) return;
+ this._layoutDraftHidden = this.normalizeHiddenModules(scheme.hiddenModules);
+ this.renderDiyLayoutSchemes();
  }
 
  applyLayoutVisibility() {
@@ -10956,31 +10923,10 @@ class EventDelegationFeature {
  setHidden('[data-layout-module="memoryEntryRow"]', ['bossMemoryEntry', 'priceMemoryEntry', 'dataPortabilityEntry'].every(id => hidden.has(id)));
  }
 
- renderDiyLayoutList() {
- const hidden = new Set(this.normalizeHiddenModules(this._layoutDraftHidden || this.hiddenModules));
- this.setRenderedHtml(this.el.layoutModuleList, this.getLayoutModuleConfigs().map(config => {
- const isHidden = hidden.has(config.id);
- return `<button type="button" class="layout-module-item ${isHidden ? 'is-hidden' : 'is-visible'}" data-layout-toggle="${this.escapeHtml(config.id)}">
- <span class="layout-module-name">${this.escapeHtml(config.label)}</span>
- <span class="layout-module-state">${isHidden ? '当前：隐藏' : '当前：显示'}</span>
- </button>`;
- }).join(''));
- }
-
  openDiyLayoutModal() {
  this._layoutDraftHidden = this.normalizeHiddenModules(this.hiddenModules);
- this.renderDiyLayoutList();
- this.renderLayoutTemplateList();
+ this.renderDiyLayoutSchemes();
  this.openModal(this.el.diyLayoutModal);
- }
-
- toggleDiyLayoutDraft(id) {
- const valid = new Set(this.getLayoutModuleConfigs().map(item => item.id));
- if (!valid.has(id)) return;
- const next = new Set(this.normalizeHiddenModules(this._layoutDraftHidden || this.hiddenModules));
- next.has(id) ? next.delete(id) : next.add(id);
- this._layoutDraftHidden = [...next];
- this.renderDiyLayoutList();
  }
 
  saveDiyLayout() {
@@ -10989,12 +10935,6 @@ class EventDelegationFeature {
  this.applyLayoutVisibility();
  this.closeDiyLayoutModal();
  this.showSuccess('DIY布局已保存');
- this.renderLayoutTemplateList();
- }
-
- showAllLayoutModules() {
- this._layoutDraftHidden = [];
- this.renderDiyLayoutList();
  }
 
  }
@@ -17416,7 +17356,7 @@ this.scheduleLazyFeatureLoad();
  cacheElements() {
  this.el = {};
  const ids = [
- 'helpIcon', 'instructions', 'diyLayoutBtn', 'diyLayoutModal', 'layoutModuleList', 'layoutTemplateName', 'layoutTemplateSaveBtn', 'layoutTemplateList', 'layoutShowAllBtn', 'layoutSaveBtn', 'tutorialVideoBtn', 'tutorialVideoModal', 'tutorialVideoPlayer', 'successMessage', 'mode1Btn', 'mode2Btn', 'mode1BtnLabel', 'mode2BtnLabel', 'mode1RatioSwitch', 'mode2RatioSwitch', 'customRatioBtn', 'totalPrice', 'autoUnitPrice',
+ 'helpIcon', 'instructions', 'diyLayoutBtn', 'diyLayoutModal', 'layoutSchemeList', 'layoutSaveBtn', 'tutorialVideoBtn', 'tutorialVideoModal', 'tutorialVideoPlayer', 'successMessage', 'mode1Btn', 'mode2Btn', 'mode1BtnLabel', 'mode2BtnLabel', 'mode1RatioSwitch', 'mode2RatioSwitch', 'customRatioBtn', 'totalPrice', 'autoUnitPrice',
  'discount', 'discountOverlay', 'totalPriceError', 'discountError', 'discountOverlayError', 'paiDan', 'peiPei', 'boss', 'type', 'duration', 'note', 'surcharge', 'apModeRound', 'apModeHour',
  'lockPeiPeiBtn', 'unlockPeiPeiBtn', 'peiPeiLockInfo', 'lockedPeiPeiName',
  'lockPaiDanBtn', 'unlockPaiDanBtn', 'paiDanLockInfo', 'lockedPaiDanName', 'peiPeiCount',
