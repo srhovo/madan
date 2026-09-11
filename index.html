@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.21</title>
+ <title>码单器8.3.22</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -2193,7 +2193,12 @@ h1 { margin-bottom: 4px; }
 
 /* 8.3.21：单子/礼物码单回归资料库（8.3.18）单行样式「单子码单 (5/20/75)」，
    不再拆两行；比例切换图标仅作提示，缩到框内靠右边缘、留有呼吸感；
-   触发区域为整个按钮框（.mode-btn 本身即 button）。 */
+   触发区域为整个按钮框（.mode-btn 本身即 button）。
+   8.3.22：Android WebView 出现比例尾部省略号「…」——原因是 label 用
+   text-overflow:ellipsis 裁剪「名称 + 空格 + 比例」三段拼接文本，各厂商
+   WebView 字体度量/断行算法差异会让它误判溢出。这里彻底移除裁剪：
+   label 改为不可收缩的 flex 行，文字永不截断；宽度不足时由外层按
+   媒体查询降级字号，而不是把文字吃掉。 */
 .mode-btn {
  flex: 1;
  padding: 14px 0;
@@ -2211,22 +2216,26 @@ h1 { margin-bottom: 4px; }
  justify-content: center;
  white-space: nowrap;
  overflow: hidden;
- text-overflow: ellipsis;
 }
 
-/* 单行文字：名称 + 括号比例，整体居中；右侧留出提示图标的避让空间避免贴边 */
+/* 单行文字：名称 + 括号比例，整体居中；右侧留出提示图标的避让空间避免贴边。
+   8.3.22：移除 overflow/text-overflow/white-space 裁剪三件套 ——
+   改为 flex 行且每段 nowrap，文字永不出现省略号；标签本身不再收缩
+   （flex: 0 1 auto + min-width: 0 仅用于极端窄屏时让出空间，由字号降级兜底）。 */
 .mode-btn__label {
  min-width: 0;
  padding: 0 22px;
- overflow: hidden;
- text-overflow: ellipsis;
- white-space: nowrap;
+ display: inline-flex;
+ align-items: center;
+ justify-content: center;
+ gap: 4px;
 }
 
-.mode-btn__title { white-space: nowrap; }
+.mode-btn__title { white-space: nowrap; flex: 0 0 auto; }
 
 .mode-btn__ratio {
  white-space: nowrap;
+ flex: 0 0 auto;
  opacity: 0.82;
 }
 
@@ -2560,7 +2569,9 @@ h1 { margin-bottom: 4px; }
 }
 
 /* 8.3.21：小屏（≤420px）下单行「单子码单 (5/20/75)」+ 提示图标会挤在一起，
-   按比例缩小字号与图标、并收窄 label 的右侧避让，保证不重叠、不溢出 */
+   按比例缩小字号与图标、并收窄 label 的右侧避让，保证不重叠、不溢出。
+   8.3.22：安卓对应的同档降级统一放在 android-phone 区块内（更靠后、优先级更高），
+   否则 html.android-phone .mode-btn 的 14px 会压掉这里的 13.5px。 */
 @media (max-width: 420px) {
  .mode-btn { font-size: 13.5px; }
  .mode-btn__label { padding: 0 20px 0 8px; }
@@ -3033,6 +3044,21 @@ h1 { margin-bottom: 4px; }
  html.android-phone .mode-selector { margin-bottom: 10px; border-radius: 11px; }
  html.android-phone .mode-btn,
  html.android-phone .custom-ratio-btn { min-height: 42px; font-size: 14px; }
+ /* 8.3.22：上面这条 14px 的权重高于全局 @media(max-width:420px)/(max-width:344px)
+    的同名规则，会吃掉安卓的小屏字号降级，导致窄屏下文字仍偏大。
+    这里跟随 android-phone 区块（位置更靠后、权重相同即胜出）补齐同档降级。 */
+ @media (max-width: 420px) {
+  html.android-phone .mode-btn { font-size: 13.5px; }
+  html.android-phone .mode-btn__label { padding: 0 20px 0 8px; }
+  html.android-phone .mode-btn__switch { right: 6px; width: 13px; height: 13px; }
+  html.android-phone .mode-btn__switch-icon { width: 11px; height: 11px; }
+ }
+ @media (max-width: 344px) {
+  html.android-phone .mode-btn { font-size: 11.5px; letter-spacing: -0.02em; }
+  html.android-phone .mode-btn__label { padding: 0 15px 0 4px; }
+  html.android-phone .mode-btn__switch { right: 4px; width: 11px; height: 11px; }
+  html.android-phone .mode-btn__switch-icon { width: 9px; height: 9px; }
+ }
  html.android-phone #primaryFieldsContainer { gap: 10px; }
  html.android-phone .input-group { margin-bottom: 12px; }
  html.android-phone .input-group label { margin-bottom: 5px; font-size: 14px; }
@@ -4038,9 +4064,10 @@ h1 { margin-bottom: 4px; }
 
 
  <script>
- const APP_VERSION = '8.3.21';
+ const APP_VERSION = '8.3.22';
  const TUTORIAL_VIDEO_URL = 'https://cdn.jsdelivr.net/gh/srhovo/tutorialvideo@main/video.mp4';
  const WECHAT_OPEN_URL = 'weixin://'; // 生成订单后尝试唤起微信主界面
+// Release note: 8.3.22 修复安卓「礼物码单/单子码单」比例尾部出现省略号「…」——根因是 .mode-btn__label 用 text-overflow:ellipsis 裁剪「名称 + 空格 + 比例」三段拼接文本，各厂商 WebView 的字体度量与断行算法差异会误判为溢出；现已彻底移除裁剪三件套，label 改为 inline-flex 行、名称与比例各自 nowrap，文字永不截断。同时修复 html.android-phone .mode-btn 的 14px 因权重更高而压掉 @media(max-width:420px/344px) 小屏降级的问题——安卓降级规则已挪入 android-phone 区块，安卓与 iOS 字号从此完全一致（≤344px 11.5px / ≤420px 13.5px）。纯样式修复，业务逻辑与存储结构未改动。
 // Release note: 8.3.21 单子/礼物码单回归资料库单行样式「单子码单 (5/20/75)」（取消 8.3.19 的两行拆分），比例切换图标缩小并贴框内右侧边缘、仅作提示，触发改为整个按钮框（点当前模式按钮轮转比例、点另一个切模式，仅一档时原地重算并提示）；加价输入框纯数字也弹出「全部项目+各项目」候选、默认选中全部、选定后数字加价只落到该项目（并修复数字加价引擎未读 targetIndex 导致的定向失效）；DIY布局弹窗视觉精修（方案卡片双重选中反馈、留白与按钮尺寸、无障碍属性）；审计修复：加价候选面板释放时复位固定定位（避免坐标过期/污染其他提供者）、隐藏时不再误收其他输入框的面板、点选自己不再取消选择；删除 ModeFlowFeature 中未使用的桥接方法与 ratioFeature getter。
 // Release note: 8.3.20 加价输入框提示改为折数同款两行内联提示（"直接输入"/"关键词/数字"，10.5px 居中，输入后隐藏）；DIY布局改为两个固定方案（完整/精简——隐藏自定义比例按钮与服务时长输入框，底层 hiddenModules 存储结构不变，旧数据兼容）；单子/礼物按钮之间恢复 1px 竖条分割线；备注提示字号对齐折数内联提示（10.5px）。
 // Release note: 8.3.15 定制/建议联系优化——联系方式弹窗内微信按钮复制微信号成功后自动唤起微信（复用订单生成后的 openWechatAfterCopy 链路，微信内置浏览器不重复跳转）；小标题改为「定制/建议👉」，按钮文案改为「联系方式」（保留原信息图标）。
