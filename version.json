@@ -1,6 +1,6 @@
 {
-  "version": "8.3.18",
-  "url": "https://madan.pages.dev/madan-8.3.18.zip",
-  "checksum": "1677aa19e0bd2c75e6c5bfa3f768af50e6cebedbccdb47edf667946cdf8b1a00",
-  "notes": "工程整理版本，无任何功能变化：修复启动时延迟注入元素被误报为缺失的诊断噪声；清理无引用的旧快照目录；文档与忽略规则对齐实际情况"
+  "version": "8.3.19",
+  "url": "https://madan.pages.dev/madan-8.3.19.zip",
+  "checksum": "b356e75d71556a9882267f6ab1ade5abe07da5cb2dee1c51cee12079bc93b9dc",
+  "notes": "新增：模式按钮内一键轮转分成比例；加价框输入即预览、多项目点选目标。优化：备注回归纯备注，加价统一到加价输入框（数字/关键词/@语法全支持）；模式按钮两行布局修复截断。"
 }
