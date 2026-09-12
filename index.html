@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.23</title>
+ <title>码单器8.3.24</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -4013,9 +4013,10 @@ h1 { margin-bottom: 4px; }
 
 
  <script>
- const APP_VERSION = '8.3.23';
+ const APP_VERSION = '8.3.24';
  const TUTORIAL_VIDEO_URL = 'https://cdn.jsdelivr.net/gh/srhovo/tutorialvideo@main/video.mp4';
  const WECHAT_OPEN_URL = 'weixin://'; // 生成订单后尝试唤起微信主界面
+// Release note: 8.3.24 服务类型输入框的示例提示更新为「例如：1h+2局星耀包c+1h23min鹅鸭杀」，更贴合实际录单时的混合写法（时长 + 局数 + 段位/包c 备注 + 服务项目）。本版同时修正上一版发布时的版本号错位：此前 version.json 被单独改为 8.3.24、而更新包内 APP_VERSION 仍为 8.3.23，导致安卓端每次启动都判定「有新版本」并反复下载同一个包（无限更新循环）；现已将代码版本与更新清单统一升至 8.3.24 并重新打包，二者严格对齐，循环终止。业务逻辑、计算引擎与存储结构零改动。
 // Release note: 8.3.23 头部「DIY布局」按钮改造为「图标 + 布局」的直接切换键——图标随当前方案切换（4 宫格＝完整布局 / 3 横线＝精简布局），点击即在完整与精简之间来回切换并给出顶部浮层提示，原先的 DIY 布局弹窗（方案卡片列表 + 确定按钮）整体下线，省去「点按钮→选方案→再确定」的多余动作。同时从「导入导出」的模块清单中移除「DIY布局」与「DIY布局模板」两项，并清理其连带的版本表、导出装配、导入计数与导入应用分支；布局模板无导入入口后 mergeLayoutTemplates 成为死代码一并删除。底层存储零改动：hiddenModules / layoutTemplates 两个 key 与格式完全保留，saveLayoutPrefs / saveLayoutTemplates / applyLayoutVisibility 等持久化链路原样生效，老用户已有布局状态继续有效。按钮触控高度提升到 38px（≤480px 为 36px）以匹配其升级后的高频直接操作定位。
 // Release note: 8.3.22 修复安卓「礼物码单/单子码单」比例尾部出现省略号「…」——根因是 .mode-btn__label 用 text-overflow:ellipsis 裁剪「名称 + 空格 + 比例」三段拼接文本，各厂商 WebView 的字体度量与断行算法差异会误判为溢出；现已彻底移除裁剪三件套，label 改为 inline-flex 行、名称与比例各自 nowrap，文字永不截断。同时修复 html.android-phone .mode-btn 的 14px 因权重更高而压掉 @media(max-width:420px/344px) 小屏降级的问题——安卓降级规则已挪入 android-phone 区块，安卓与 iOS 字号从此完全一致（≤344px 11.5px / ≤420px 13.5px）。纯样式修复，业务逻辑与存储结构未改动。
 // Release note: 8.3.21 单子/礼物码单回归资料库单行样式「单子码单 (5/20/75)」（取消 8.3.19 的两行拆分），比例切换图标缩小并贴框内右侧边缘、仅作提示，触发改为整个按钮框（点当前模式按钮轮转比例、点另一个切模式，仅一档时原地重算并提示）；加价输入框纯数字也弹出「全部项目+各项目」候选、默认选中全部、选定后数字加价只落到该项目（并修复数字加价引擎未读 targetIndex 导致的定向失效）；DIY布局弹窗视觉精修（方案卡片双重选中反馈、留白与按钮尺寸、无障碍属性）；审计修复：加价候选面板释放时复位固定定位（避免坐标过期/污染其他提供者）、隐藏时不再误收其他输入框的面板、点选自己不再取消选择；删除 ModeFlowFeature 中未使用的桥接方法与 ratioFeature getter。
