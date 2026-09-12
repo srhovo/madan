@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.24</title>
+ <title>码单器8.3.25</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -4013,9 +4013,10 @@ h1 { margin-bottom: 4px; }
 
 
  <script>
- const APP_VERSION = '8.3.24';
- const TUTORIAL_VIDEO_URL = 'https://cdn.jsdelivr.net/gh/srhovo/tutorialvideo@main/video.mp4';
- const WECHAT_OPEN_URL = 'weixin://'; // 生成订单后尝试唤起微信主界面
+const APP_VERSION = '8.3.25';
+const TUTORIAL_VIDEO_URL = 'https://cdn.jsdelivr.net/gh/srhovo/tutorialvideo@main/video.mp4';
+const WECHAT_OPEN_URL = 'weixin://'; // 生成订单后尝试唤起微信主界面
+// Release note: 8.3.25 支持「服务类型里写未保存的项目 + 自定义单价」自动算总价并沉淀记忆库。此前整串表达式（如「1h神秘项目+2局新项目」）只会去正式价格库逐项匹配，任一项目不在库里就整串否决、总价为空；现在自定义单价输入框的价会按项目序号「静默自动归位」——你在服务类型框每写完一项，随后填的单价就归到那一项，多项各填各的价，手输价优先覆盖库价、未填项继续走库价兜底，混着写也能算出总价。点「生成并复制订单」时，这些手输单价会写入单价记忆库（只进记忆库、不进正式价格库），下次输入同名项目即可直接带价复用。原有交互零改动：已保存项目的联动、库价匹配、礼物模式、折数/加价等逻辑全部保持原样，服务类型框清空即自动作废本轮逐项定价，不会串到下一单。
 // Release note: 8.3.24 服务类型输入框的示例提示更新为「例如：1h+2局星耀包c+1h23min鹅鸭杀」，更贴合实际录单时的混合写法（时长 + 局数 + 段位/包c 备注 + 服务项目）。本版同时修正上一版发布时的版本号错位：此前 version.json 被单独改为 8.3.24、而更新包内 APP_VERSION 仍为 8.3.23，导致安卓端每次启动都判定「有新版本」并反复下载同一个包（无限更新循环）；现已将代码版本与更新清单统一升至 8.3.24 并重新打包，二者严格对齐，循环终止。业务逻辑、计算引擎与存储结构零改动。
 // Release note: 8.3.23 头部「DIY布局」按钮改造为「图标 + 布局」的直接切换键——图标随当前方案切换（4 宫格＝完整布局 / 3 横线＝精简布局），点击即在完整与精简之间来回切换并给出顶部浮层提示，原先的 DIY 布局弹窗（方案卡片列表 + 确定按钮）整体下线，省去「点按钮→选方案→再确定」的多余动作。同时从「导入导出」的模块清单中移除「DIY布局」与「DIY布局模板」两项，并清理其连带的版本表、导出装配、导入计数与导入应用分支；布局模板无导入入口后 mergeLayoutTemplates 成为死代码一并删除。底层存储零改动：hiddenModules / layoutTemplates 两个 key 与格式完全保留，saveLayoutPrefs / saveLayoutTemplates / applyLayoutVisibility 等持久化链路原样生效，老用户已有布局状态继续有效。按钮触控高度提升到 38px（≤480px 为 36px）以匹配其升级后的高频直接操作定位。
 // Release note: 8.3.22 修复安卓「礼物码单/单子码单」比例尾部出现省略号「…」——根因是 .mode-btn__label 用 text-overflow:ellipsis 裁剪「名称 + 空格 + 比例」三段拼接文本，各厂商 WebView 的字体度量与断行算法差异会误判为溢出；现已彻底移除裁剪三件套，label 改为 inline-flex 行、名称与比例各自 nowrap，文字永不截断。同时修复 html.android-phone .mode-btn 的 14px 因权重更高而压掉 @media(max-width:420px/344px) 小屏降级的问题——安卓降级规则已挪入 android-phone 区块，安卓与 iOS 字号从此完全一致（≤344px 11.5px / ≤420px 13.5px）。纯样式修复，业务逻辑与存储结构未改动。
@@ -6876,19 +6877,38 @@ class ProjectExpressionEngine {
  };
  }
 
- static resolve(priceLibraryData, value) {
+ // 8.3.25：手输单价锚定工具。
+ // manualPrices 是「按项目序号索引」的单价数组（第 0 项对应表达式第 1 个项目），
+ // 由 PriceMemoryFeature 依据「单价框最后编辑时归属的项目序号」实时维护。
+ // 与 resolveCurrentDraft 的 `enteredPrice !== null ? enteredPrice : matchedPrice`
+ // 保持同一优先级：手输优先、库价兜底 —— 只是这里把「单个手输价」扩展成「逐项手输价」。
+ static normalizeManualPrices(manualPrices) {
+ if (!Array.isArray(manualPrices)) return [];
+ return manualPrices.map(value => (value === null || value === undefined || value === '')
+ ? null
+ : PriceRuleEngine.normalizePositivePrice(value));
+ }
+
+ static resolve(priceLibraryData, value, options = {}) {
  const parsed = this.parse(value);
  if (!parsed.ok) return { ...parsed, projects: [], aggregate: ProjectSettlementEngine.aggregateProjects([]) };
+ const manualPrices = this.normalizeManualPrices(options?.manualPrices);
  const projects = [];
+ const manualOverrideIndexes = [];
  for (let index = 0; index < parsed.items.length; index += 1) {
  const item = parsed.items[index];
  const selected = this.matchByAvailablePrice(priceLibraryData, item);
  const match = selected.match;
- if (!selected.ok || !match.ok) {
+ const manualPrice = manualPrices[index] ?? null;
+ const libraryOk = selected.ok && match.ok;
+ // 8.3.25：手输单价优先覆盖库价（与 resolveCurrentDraft 同优先级），
+ // 未命中价格库时也允许凭手输单价建立项目 —— 这是「未保存项目也能自动算总价」的关键。
+ const useManual = manualPrice !== null;
+ if (!libraryOk && !useManual) {
  return {
  ok: false,
  code: match.code || 'price_match_failed',
- message: `第${index + 1}项“${item.serviceRaw}”${match.message || '无法匹配当前价格库'}`,
+ message: `第${index + 1}项“${item.serviceRaw}”${match.message || '无法匹配当前价格库'}（可填写自定义单价以结算）`,
  source: parsed.source,
  items: parsed.items,
  failedIndex: index,
@@ -6898,17 +6918,19 @@ class ProjectExpressionEngine {
  aggregate: ProjectSettlementEngine.aggregateProjects([])
  };
  }
+ const unitPrice = useManual ? manualPrice : match.unitPrice;
  const created = ProjectSettlementEngine.createProject({
  quantityRaw: item.quantityRaw,
- quantityMode: selected.mode,
+ quantityMode: libraryOk ? selected.mode : (selected.mode || 'round'),
  serviceRaw: item.serviceRaw,
- serviceDisplay: match.serviceDisplay,
- matchedRuleId: match.matchedRuleId,
- matchedRuleLabel: match.matchedRuleLabel,
- matchedVariant: match.matchedVariant,
- unitPrice: match.unitPrice,
- priceSource: 'library',
- libraryId: match.libraryId,
+ // 未命中时 serviceDisplay 退化为输入的原始项目名，保证账单上仍显示用户写的名字
+ serviceDisplay: libraryOk ? match.serviceDisplay : ProjectSettlementEngine.normalizeServiceDisplay(item.serviceRaw),
+ matchedRuleId: libraryOk && !useManual ? match.matchedRuleId : '',
+ matchedRuleLabel: libraryOk && !useManual ? match.matchedRuleLabel : '',
+ matchedVariant: libraryOk && !useManual ? match.matchedVariant : '',
+ unitPrice,
+ priceSource: useManual ? 'manualOverride' : 'library',
+ libraryId: libraryOk ? match.libraryId : '',
  entrySource: 'combinedExpression',
  sourceExpression: parsed.source,
  createdAt: Date.now() + index
@@ -6926,6 +6948,7 @@ class ProjectExpressionEngine {
  aggregate: ProjectSettlementEngine.aggregateProjects([])
  };
  }
+ if (useManual) manualOverrideIndexes.push(index);
  projects.push(created.project);
  }
  return {
@@ -6935,6 +6958,7 @@ class ProjectExpressionEngine {
  source: parsed.source,
  items: parsed.items,
  projects,
+ manualOverrideIndexes,
  aggregate: ProjectSettlementEngine.aggregateProjects(projects)
  };
  }
@@ -13569,6 +13593,169 @@ class PriceMemoryFeature {
  this._servicePriceLinking = false;
  this._servicePriceReplacementKey = '';
  this._servicePriceState = { lastTypeKey: '', manualOverrideKey: '', manualPriceActive: false, appliedKey: '', appliedSignature: '', appliedPrice: null, appliedSettleType: '' };
+ // 8.3.25：表达式逐项手输单价锚定表 —— { 序号: 单价 }。
+ // 「序号」= 该项目在整串表达式里的位置（从 0 开始），由 PriceMemoryFeature 在
+ // 用户编辑单价框时按「单价归属最靠后的、尚未定价的项目」自动登记，
+ // 从而让「1h王者荣耀+2局未知服务」这类混合串也能逐项定价、自动求和。
+ this._expressionManualPrices = new Map();
+ // 8.3.25：与上面一一对应的「项目名快照」，用于在服务类型串变化时判断
+ // 旧的逐项单价是否仍然适用（前缀一致 = 用户在追加，可保留；否则丢弃）。
+ this._expressionManualNames = new Map();
+ this._expressionManualCursor = 0;
+ }
+
+ // 8.3.25：读取当前表达式的手输单价数组（供 ProjectExpressionEngine.resolve 使用）
+ getExpressionManualPrices(sourceValue = '') {
+ try {
+ if (!(this._expressionManualPrices instanceof Map) || this._expressionManualPrices.size === 0) return [];
+ const parsed = ProjectExpressionEngine.parse(String(sourceValue ?? ''));
+ const count = Array.isArray(parsed?.items) ? parsed.items.length : 0;
+ if (!count) return [];
+ const out = [];
+ for (let index = 0; index < count; index += 1) out.push(this._expressionManualPrices.get(index) ?? null);
+ return out;
+ } catch (error) {
+ appLogSilent(error);
+ return [];
+ }
+ }
+
+ // 8.3.25：登记一个手输单价。index 缺省时按锚定游标自动归位到「下一个待定价项目」，
+ // 实现「静默自动归位」——用户不需要手动指定这个价属于哪个项目。
+ setExpressionManualPrice(index, price) {
+ try {
+ if (!(this._expressionManualPrices instanceof Map)) this._expressionManualPrices = new Map();
+ if (!(this._expressionManualNames instanceof Map)) this._expressionManualNames = new Map();
+ const normalized = PriceRuleEngine.normalizePositivePrice(price);
+ const key = Math.max(0, Number(index) || 0);
+ if (normalized === null) {
+ this._expressionManualPrices.delete(key);
+ this._expressionManualNames.delete(key);
+ return false;
+ }
+ this._expressionManualPrices.set(key, normalized);
+ // 同步记录该序号对应的项目名（用于判断后续服务类型串是否前缀兼容）。
+ // 注意用 normalizeManualNameKey 归一化后再存：此处拿到的 serviceRaw 可能仍带尾部 `+`
+ // （用户刚敲下分隔符、还没写下一项时），归一化能让快照在后续比较中稳定命中。
+ const parsed = ProjectExpressionEngine.parse(String(this.getElement('type')?.value ?? ''));
+ const item = Array.isArray(parsed?.items) ? parsed.items[key] : null;
+ if (item) this._expressionManualNames.set(key, this.normalizeManualNameKey(item.serviceRaw));
+ return true;
+ } catch (error) {
+ appLogSilent(error);
+ return false;
+ }
+ }
+
+ // 8.3.25：服务类型框每次输入时，把「当前正在编辑的项目序号」记进游标。
+ // 供随后填写自定义单价时锚定使用（见 resolveExpressionManualIndex）。
+ noteExpressionCursorFromInput() {
+ try {
+ const input = this.getElement('type');
+ const value = String(input?.value ?? '');
+ const parsed = ProjectExpressionEngine.parse(value);
+ const count = Array.isArray(parsed?.items) ? parsed.items.length : 0;
+ if (!count) { this._expressionManualCursor = 0; return 0; }
+ const caret = Number.isInteger(input?.selectionStart) ? input.selectionStart : null;
+ let index = null;
+ if (caret !== null) {
+ const segments = ProjectExpressionEngine.getExpressionSegments(value);
+ const hit = segments.find(segment => caret >= segment.serviceStart && caret <= segment.serviceEnd);
+ if (hit && Number.isInteger(hit.index)) index = hit.index;
+ }
+ if (index === null) index = count - 1;
+ this._expressionManualCursor = index;
+ return index;
+ } catch (error) {
+ appLogSilent(error);
+ return 0;
+ }
+ }
+
+ // 8.3.25：推定这次手输单价该归到第几个项目（静默自动归位）。
+ // 取值优先级：
+ //  ① 服务类型框输入时缓存的游标（最可靠 —— 那是用户刚编辑完的位置）；
+ //  ② 服务类型框当前光标所在片段（若此刻焦点仍在意料之外地落在类型框内）；
+ //  ③ 第一个还没有手输价的项目；
+ //  ④ 兜底末项。
+ resolveExpressionManualIndex() {
+ try {
+ const input = this.getElement('type');
+ const value = String(input?.value ?? '');
+ const parsed = ProjectExpressionEngine.parse(value);
+ const count = Array.isArray(parsed?.items) ? parsed.items.length : 0;
+ if (!count) return 0;
+ if (count === 1) return 0;
+ const cached = Number.isInteger(this._expressionManualCursor) ? this._expressionManualCursor : null;
+ if (cached !== null && cached >= 0 && cached < count) return cached;
+ const caret = Number.isInteger(input?.selectionStart) ? input.selectionStart : null;
+ if (caret !== null) {
+ const segments = ProjectExpressionEngine.getExpressionSegments(value);
+ const hit = segments.find(segment => caret >= segment.serviceStart && caret <= segment.serviceEnd);
+ if (hit && Number.isInteger(hit.index)) return hit.index;
+ }
+ for (let index = 0; index < count; index += 1) if (!this._expressionManualPrices.has(index)) return index;
+ return count - 1;
+ } catch (error) {
+ appLogSilent(error);
+ return 0;
+ }
+ }
+
+ clearExpressionManualPrices() {
+ if (this._expressionManualPrices instanceof Map) this._expressionManualPrices.clear();
+ if (this._expressionManualNames instanceof Map) this._expressionManualNames.clear();
+ this._expressionManualCursor = 0;
+ return true;
+ }
+
+ // 8.3.25：比较两个「项目名」是否指同一项。
+ // 关键：表达式解析器对**打字中间态**有固有行为 —— 末尾挂着的 `+` 后面还没写完时长时，
+ // 无法构成项目边界，于是被并入前一项的服务名。实测三种中间态：
+ //   `1h甲服务+`    → serviceRaw 为 `甲服务+`
+ //   `1h甲服务+2`   → serviceRaw 为 `甲服务+2`   （数字已敲、单位未敲）
+ //   `1h甲服务+2局` → 正常切成两项
+ // 若直接严格比较，用户每追加一项都会判定「不兼容」而丢掉已填的逐项单价。
+ // 因此比较前先剥掉首尾的 `+`/`＋` 与空白，再剥掉结尾「分隔符 + 纯数字」的未成形时长片段。
+ normalizeManualNameKey(value) {
+ return String(value ?? '')
+  .replace(/^[\s+＋]+/, '')
+  .replace(/[\s+＋]+$/, '')
+  .replace(/[\s+＋]+\d+(?:\.\d+)?$/, '')
+  .trim();
+ }
+
+ // 8.3.25：判断已有的逐项手输单价是否仍然适用于「新的服务类型串」。
+ // 规则：把锚定表按序号还原成项目名快照（`_expressionManualNames`），
+ // 若新串的前 N 项项目名与快照逐一对得上，说明用户是在原串后面追加，
+ // 旧单价依然有效；否则视为整体改写，应丢弃锚定。
+ isExpressionManualPricesCompatible(nextValue = '') {
+ try {
+ if (!(this._expressionManualPrices instanceof Map) || this._expressionManualPrices.size === 0) return false;
+ const source = String(nextValue ?? '');
+ const names = this._expressionManualNames;
+ if (!(names instanceof Map) || names.size === 0) return true;
+ // 8.3.25：服务类型框被清空 = 这一单已结束 / 用户开始录新单，
+ // 此时锚定表必须一并清空，绝不能因为「空串解析不出项目」而被当成兼容保留下来，
+ // 否则旧单的逐项单价会串到下一单去。
+ if (!source.replace(/[\s+＋]/g, '')) return false;
+ const parsed = ProjectExpressionEngine.parse(source);
+ const items = Array.isArray(parsed?.items) ? parsed.items : [];
+ // 打字中间态（如刚敲下 `+` 还没写下一项时长）常导致 parse 拿不全项目，
+ // 此时无法判断，按「兼容」处理以保住用户已填的逐项单价。
+ if (!items.length) return true;
+ // 逐个核对已锚定项：只要其对应序号的「新项目名」与快照一致，就说明是前缀追加。
+ // 中间态下后续项目可能暂时缺失（items[index] 为空），那属于「还没写完」，同样保留。
+ for (const [index, name] of names.entries()) {
+ const next = items[index];
+ if (!next) return true;
+ if (this.normalizeManualNameKey(next.serviceRaw) !== this.normalizeManualNameKey(name)) return false;
+ }
+ return true;
+ } catch (error) {
+ appLogSilent(error);
+ return false;
+ }
  }
 
  // PriceMemoryFeature 依赖清单：显式声明共享状态、协作模块与应用能力。
@@ -13753,7 +13940,10 @@ class PriceMemoryFeature {
  handleAutoPriceManualChange() {
  if (this._servicePriceLinking || this.currentMode === 2 || !this.priceLibraries) return false;
  const serviceKey = this.getCurrentServiceTypeKey();
- const value = this.priceMemoryStore.normalizePrice(this.app.el.autoUnitPrice?.value);
+ // 8.3.25：必须走 getElement 实时取值 —— 自定义单价面板是懒挂载的，
+ // app.el.autoUnitPrice 在初始化时抓不到元素会缓存为 null，直接读 el 会永远拿到空值。
+ const priceEl = this.getElement('autoUnitPrice');
+ const value = this.priceMemoryStore.normalizePrice(priceEl?.value);
  const provenance = this.fieldProvenance?.get?.('autoUnitPrice');
  const protectedSource = !provenance || provenance.source !== 'priceRule';
  this.cancelServicePriceMatch();
@@ -13763,8 +13953,29 @@ class PriceMemoryFeature {
  this._servicePriceState.appliedSignature = '';
  this._servicePriceState.appliedPrice = null;
  this._servicePriceState.appliedSettleType = '';
+ // 8.3.25：整串表达式场景下，把这次手输单价按「项目序号」登记下来，
+ // 让未保存的项目也能凭该单价参与结算（静默自动归位，不打断输入节奏）。
+ if (protectedSource && this.isExpressionServiceInput()) {
+ const index = this.resolveExpressionManualIndex();
+ if (value === null) this._expressionManualPrices.delete(index);
+ else this.setExpressionManualPrice(index, value);
+ this.app.autoPriceFeature?.scheduleCombinedExpressionSync?.();
+ }
  if (value === null && serviceKey) this.scheduleServicePriceMatch();
  return value !== null;
+ }
+
+ // 8.3.25：当前服务类型框里是否是一整串「时长+项目+…」表达式（表达式才有逐项定价需求）
+ isExpressionServiceInput() {
+ try {
+ const raw = String(this.getElement('type')?.value ?? '');
+ if (!raw || !ProjectExpressionEngine.looksLikeExpression(raw)) return false;
+ const parsed = ProjectExpressionEngine.parse(raw);
+ return Array.isArray(parsed?.items) && parsed.items.length > 0;
+ } catch (error) {
+ appLogSilent(error);
+ return false;
+ }
  }
 
  refreshServicePriceMatchAfterLibraryChange() {
@@ -13821,17 +14032,22 @@ class PriceMemoryFeature {
  changed = true;
  return;
  }
- // 多项目、整串表达式和区间/别名命中只累计已有正式项目，绝不自动创建新项目。
- if (existingOnly || project.matchedRuleId || !this.isAutoPriceEligibleService(candidateName)) return;
- next = this.priceMemoryStore.upsert(next, { unitPrice, settleType, serviceType: candidateName });
+ // 8.3.25：手输单价（manualOverride）代表用户明确指定了这个项目的价格，
+ // 即使它属于多项目/整串表达式，也应记入记忆库，以便下次输入同名项目时直接带价。
+ // 这是「未保存项目 + 手输单价」能沉淀下来的关键 —— 原先这些场景被 existingOnly 一并挡掉。
+ const manualPriced = project.priceSource === 'manualOverride';
+ if (!manualPriced && (existingOnly || project.matchedRuleId || !this.isAutoPriceEligibleService(candidateName))) return;
+ if (!this.isAutoPriceEligibleService(candidateName)) return;
+ next = this.priceMemoryStore.upsert(next, { unitPrice, settleType, serviceType: candidateName || existing?.serviceType || '' });
  changed = true;
  });
- } else if (!existingOnly && this.isAutoPriceEligibleService(serviceType)) {
+ } else if (this.isAutoPriceEligibleService(serviceType) && (!existingOnly || this._servicePriceState.manualPriceActive)) {
  const unitPrice = this.priceMemoryStore.normalizePrice(this.app.el.autoUnitPrice?.value);
  const settleType = this.getCurrentAutoPriceSettleType();
  if (unitPrice !== null) {
  const existing = this.app.priceLibraries ? this.priceLibraryStore.findActiveItemByService(this.app.priceLibraries, serviceType, settleType) : null;
- if (!existing || existing.unitPrice === unitPrice) {
+ // 8.3.25：手输单价时即使与库价不同也要记下用户这次的选择；未手输则维持原有「不覆盖已有库价」的保守行为。
+ if (!existing || existing.unitPrice === unitPrice || this._servicePriceState.manualPriceActive) {
  next = this.priceMemoryStore.upsert(next, { unitPrice, settleType, serviceType });
  changed = true;
  }
@@ -15648,7 +15864,7 @@ class AutoPriceFeature {
  }
  }
 
- clearExpressionState({ clearProjects = false, clearAutoFields = false, convertProjects = false } = {}) {
+ clearExpressionState({ clearProjects = false, clearAutoFields = false, convertProjects = false, keepManualPrices = false } = {}) {
  this.cancelExpressionSync();
  const owned = this.isExpressionOwned();
  if (convertProjects && owned) {
@@ -15672,6 +15888,10 @@ class AutoPriceFeature {
  this._expressionSource = '';
  this._expressionDurationValue = '';
  this._expressionTotalValue = '';
+ // 8.3.25：表达式状态归零时，一并清掉逐项手输单价锚定表（换单/清空后不应残留旧价）。
+ // keepManualPrices=true 用于「打字中间态」（如刚敲下 + 还没写完下一项），
+ // 此时表达式解析会暂时失败，但用户已填的逐项单价必须留到串打完。
+ if (!keepManualPrices) this.priceMemoryFeature?.clearExpressionManualPrices?.();
  this.invalidateDraftSnapshot('expression-state-cleared');
  return owned;
  }
@@ -15688,8 +15908,17 @@ class AutoPriceFeature {
  scheduleCombinedExpressionSync() {
  const raw = String(this.getElement('type')?.value || '').trim();
  const candidate = ProjectExpressionEngine.looksLikeExpression(raw);
+ // 8.3.25：服务类型框被清空 = 这一单结束，逐项手输单价锚定表必须立即作废。
+ // 注意这里要单独处理：清空后 candidate 为 false，若当前又不在表达式态，
+ // 下面的流程会直接 return false，根本走不到 clearExpressionState，
+ // 于是旧单的锚定就残留下来、串到下一单去。
+ if (!raw) this.priceMemoryFeature?.clearExpressionManualPrices?.();
  if (this._expressionActive && this.normalizeExpressionSource(raw) !== this._expressionSource) {
- this.clearExpressionState({ clearProjects: true, clearAutoFields: true });
+ // 8.3.25：服务类型串发生变化时重建表达式状态。若新串只是「在旧串后面继续追加」
+ // （前缀兼容），则保留已登记的逐项手输单价 —— 否则用户追加第二项会把第一项的价抹掉；
+ // 若是整体改写，锚定序号已失去意义，交回 clearExpressionState 正常清理。
+ const keepManualPrices = this.priceMemoryFeature?.isExpressionManualPricesCompatible?.(raw) ?? false;
+ this.clearExpressionState({ clearProjects: true, clearAutoFields: true, keepManualPrices });
  this.currentDraft = null;
  this.setNote('');
  this.setDurationNote('');
@@ -15707,8 +15936,10 @@ class AutoPriceFeature {
  const raw = String(rawValue || '').trim();
  if (!this._expressionActive && this.isExpressionSuppressed(raw)) return false;
  if (!ProjectExpressionEngine.looksLikeExpression(raw)) {
+ // 8.3.25：服务类型被清空/删到不成表达式时，才算真正离开表达式场景，此时可以清锚定表；
+ // 若只是暂时不匹配（打字中间态），raw 非空则保留用户已填的逐项单价。
  if (this._expressionActive) {
- this.clearExpressionState({ clearProjects: true, clearAutoFields: true });
+ this.clearExpressionState({ clearProjects: true, clearAutoFields: true, keepManualPrices: Boolean(raw) });
  this.currentDraft = null;
  this.setNote('');
  this.setDurationNote('');
@@ -15720,9 +15951,15 @@ class AutoPriceFeature {
  this.setDurationNote('');
  return false;
  }
- const resolved = ProjectExpressionEngine.resolve(this.app.priceLibraries, raw);
+ // 8.3.25：把「按项目序号锚定的手输单价」交给表达式引擎，
+ // 使未保存项目也能凭手输单价参与整串结算（手输优先、库价兜底）。
+ const resolved = ProjectExpressionEngine.resolve(this.app.priceLibraries, raw, {
+ manualPrices: this.priceMemoryFeature?.getExpressionManualPrices?.(raw) || []
+ });
  if (!resolved.ok) {
- if (this._expressionActive) this.clearExpressionState({ clearProjects: true, clearAutoFields: true });
+ // 8.3.25：解析失败多为「还在打字」的中间态（缺时长、项目还没写完），
+ // 也可能是真的缺价。两种情况都要保留已填的逐项单价，等用户补完输入。
+ if (this._expressionActive) this.clearExpressionState({ clearProjects: true, clearAutoFields: true, keepManualPrices: true });
  this.currentDraft = null;
  this.setNote(`⚠ ${resolved.message || '整串表达式暂时无法完整结算'}`);
  this.setDurationNote('');
@@ -15733,6 +15970,10 @@ class AutoPriceFeature {
  this.currentDraft = null;
  this._expressionActive = true;
  this._expressionSource = resolved.source;
+ // 8.3.25 注意：这里**不能**清空 _expressionManualPrices。
+ // 每次输入服务类型或单价都会重新解析表达式，若解析成功就清表，
+ // 用户刚填的逐项单价会立刻丢失（追加第二项时第一项的价被抹掉）。
+ // 该锚定表的生命周期由「服务类型被清空」和「生成订单后」负责重置。
  this.clearExpressionSuppression();
  this.invalidateDraftSnapshot('combined-expression-resolved');
  return this.syncUI();
@@ -16147,6 +16388,11 @@ class AutoPriceFeature {
  }
  return;
  }
+ // 8.3.25：记下「用户此刻正在编辑的是第几个项目」作为逐项手输单价的锚定游标。
+ // 这是「静默自动归位」的关键信号：用户刚打完 `+2局新项目`、光标停在末尾时，
+ // getActiveServiceFragment 会给出 itemIndex=1，随后填的单价就该归到第 2 项。
+ // 不能等到填单价时再读光标 —— 那时焦点已经跑到单价框，服务类型框的 selectionStart 已失效。
+ this.priceMemoryFeature?.noteExpressionCursorFromInput?.();
  if (this.scheduleCombinedExpressionSync()) return;
  this.syncUI();
  });
