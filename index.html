@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.27</title>
+ <title>码单器8.3.28</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -4015,9 +4015,10 @@ h1 { margin-bottom: 4px; }
 
 
  <script>
-const APP_VERSION = '8.3.27';
+const APP_VERSION = '8.3.28';
 const TUTORIAL_VIDEO_URL = 'https://cdn.jsdelivr.net/gh/srhovo/tutorialvideo@main/video.mp4';
 const WECHAT_OPEN_URL = 'weixin://'; // 生成订单后尝试唤起微信主界面
+// Release note: 8.3.28 修复加价候选渲染里一处会「静默失效」的转义隐患，并清理三处与代码对不上的旧注释。此前 SurchargeFeature 渲染加价候选时写作 `this.app.escapeHtml?.bind(this.app) || (value => String(value ?? ''))`——那个兜底分支不做任何转义，而它转义的正是加价规则名称与触发关键词（都是用户自己输入的文本）。只要 `this.app.escapeHtml` 因任何原因被移除或改名，转义就会悄悄退化成「原样拼字符串」，让带引号或尖括号的规则名直接进入 title 与 DOM。现在改为直接引用确定存在的 `AppTextUtils.escapeHtml`（顶层冻结对象、纯函数），去掉可选链与静默兜底：万一将来真出问题会显式报错，而不是无声放行。注释方面：OrderEngine 处的说明原先误挂为「提取修正弹窗」（复制残留），现补上它「纯静态工具类」的真实职责并标明与 OrderCalculator 的区别；DialogManager 上方三组已失效的旧模块边界注释一并清理；OrderCalculator 补充架构地位说明。本次零功能改动：计价、提取、折扣、加价、记忆库、布局等全部逻辑与存储结构原样生效。
 // Release note: 8.3.27 修复「改完时长总价不刷新、非得切一次『局数/小时』」的摩擦。此前填好「1h技术 + 每局25」后，只要改时长的过程经过一次服务类型框清空（全选重打、退格删空都会），自定义单价会连同总价一起被丢掉，界面只留一句「当前价格库中没有匹配规则」，必须点一下「局数/小时」才能把总价救回来。根因是清空被视为「本单结束」、定价随即作废，而切按钮恰好会触发一次重算。现在把「清空」拆成两种语义：① 清空后重新输入的是同一个项目、只是改了时长（如 1h技术 → 3h技术），视为在改这一单，单价自动套回，总价随新时长立即刷新；② 清空后输入的是别的项目名，视为开新单，旧单价一律不套用，避免上一单的价串到下一单。同时清空瞬间会把总价与时长当场归零，不再残留旧数字。清空后若就此停手，单价同样立即失效。另：原地改名（不经过清空）不受影响，单价照常保留。原有交互零改动：库价匹配、记忆库复用、混用单位提示、礼物模式、折数/加价等逻辑全部保持原样。
 // Release note: 8.3.26 修复「未保存项目 + 自定义单价」在局数模式下总价算错、且切「局数/小时」按钮总价纹丝不动的两个 bug。此前整串表达式（如「1h新项目」）的结算单位完全由价格库推导，从不理会用户在按钮上的选择——库匹配失败时兜底取到「小时」，于是「1h + 每局25」算成 1×25=25，而正确结果是 3×25=75（1小时＝3局）；同时切换按钮只重绘界面、从不触发表达式重算，看上去像是按钮失灵。现在规则明确为：**手输单价的项目按你选的单位结算，已存价格库的项目仍按库里自带单位结算**（库价本身带结算单位语义，不受按钮影响）。切换「局数/小时」后整串会立即按新单位重算；同一串里若库价项与手输项采用了不同单位，项目小计下方会多一行说明（例如「王者荣耀按小时结算 · 神秘服务按局数结算」），让你一眼看清各按什么算；单位一致的串不显示任何提示，不产生噪音。另修复两处会误删逐项定价的隐患：切按钮或复用记忆库价时系统清空单价框，不再被误判为「用户撤销定价」；服务类型框清空时才真正作废本轮定价。原有交互零改动：库价匹配、记忆库复用、礼物模式、折数/加价等逻辑全部保持原样。
 // Release note: 8.3.25 支持「服务类型里写未保存的项目 + 自定义单价」自动算总价并沉淀记忆库。此前整串表达式（如「1h神秘项目+2局新项目」）只会去正式价格库逐项匹配，任一项目不在库里就整串否决、总价为空；现在自定义单价输入框的价会按项目序号「静默自动归位」——你在服务类型框每写完一项，随后填的单价就归到那一项，多项各填各的价，手输价优先覆盖库价、未填项继续走库价兜底，混着写也能算出总价。点「生成并复制订单」时，这些手输单价会写入单价记忆库（只进记忆库、不进正式价格库），下次输入同名项目即可直接带价复用。原有交互零改动：已保存项目的联动、库价匹配、礼物模式、折数/加价等逻辑全部保持原样，服务类型框清空即自动作废本轮逐项定价，不会串到下一单。
@@ -5421,7 +5422,12 @@ class InlineChunkLoader {
 
 
  // ============================================
- // 提取修正弹窗 - 只负责弹窗结构/事件/确认结果
+ // 订单引擎（OrderEngine）· 纯静态工具类
+ // 职责：折扣输入解析、折数文案、订单备注/文本构建、历史条目构建
+ // 注意：与「OrderCalculator」是两个完全不同的东西 ——
+ //   OrderEngine     = 无状态静态工具，只做折扣与文案的纯计算
+ //   OrderCalculator = 应用编排层（主控制器），持有 state 与全部 Feature
+ // 本类 12 个方法全部为 static，不持有实例状态。
  // ============================================
 
  class OrderEngine {
@@ -8562,13 +8568,9 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  const dataSchema = new LocalDataSchemaManager(storage);
 
  // ============================================
- // 增强名字提取器类 - 使用修复后的存储（智能弹窗优化版）
- // ============================================
- // ============================================
- // 提取服务 - 模型提取链路/修正合并边界
- // ============================================
- // ============================================
- // 提取修正弹窗 - 只负责弹窗结构/事件/确认结果
+ // 弹窗管理（DialogManager）· 统一弹窗注册与焦点陷阱
+ // （原「增强名字提取器」「提取服务」「提取修正弹窗」等旧模块边界注释
+ //   已随模块拆分移除，此处仅保留与实际代码对应的说明。）
  // ============================================
  class DialogManager {
  constructor() { this.registry = []; this.bound = new WeakSet(); this.focusTrapHandler = null; this._lockScrollY = 0; }
@@ -13264,7 +13266,12 @@ class SurchargeFeature {
  this.claimSuggestionSurface('surcharge');
  this._surchargeSuggestSignature = signature;
  this._surchargeSuggestActiveIndex = candidates.findIndex(item => item.key === this._surchargeTargetKey);
- const escaped = this.app.escapeHtml?.bind(this.app) || (value => String(value ?? ''));
+ // 直接引用确定存在的 AppTextUtils.escapeHtml。
+ // 原先写作 this.app.escapeHtml?.bind(this.app) || (value => String(value ?? ''))，
+ // 那个兜底分支不做任何转义：一旦 this.app.escapeHtml 被移除或改名，
+ // 加价规则名称/触发关键词（均为用户输入）会以未转义形式插入 title 与 DOM。
+ // 这里去掉可选链与静默兜底，让转义失败变成显式错误，而不是悄悄降级。
+ const escaped = AppTextUtils.escapeHtml;
  this.app.setRenderedHtml(this.el.typeSuggestList, candidates.map((item, index) => `<div class="type-suggest-item service-rule${item.key === this._surchargeTargetKey ? ' active' : ''}" data-suggestion-owner="surcharge" data-surcharge-key="${escaped(item.key)}" data-suggest-index="${index}" title="${escaped(item.label)}"><span class="type-suggest-name">${escaped(item.label)}</span><span class="type-suggest-meta">${escaped(item.hint)}</span></div>`).join(''));
  this.el.typeSuggestList.classList.add('show', 'compact-grid');
  this.ensureSurchargePositionTracking();
@@ -17556,6 +17563,14 @@ class BossMemoryFeature {
  }
  }
 
+// ============================================
+// 应用编排层（OrderCalculator）· 唯一主控制器
+// 职责：持有 this.state（业务状态唯一来源）、注册全部 Feature、
+//       提供统一门面（getElement / setRenderedHtml / openModal 等）。
+// 注意：与「OrderEngine」是两回事 ——
+//   OrderCalculator = 有状态的主控制器（本类）
+//   OrderEngine     = 无状态静态工具，只做折扣解析与订单文案
+// ============================================
 class OrderCalculator {
  constructor() {
  // 单文件状态管理：所有业务状态统一收敛到 this.state
