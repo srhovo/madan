@@ -21,6 +21,9 @@
        本脚本主动 await app.ensureLazyFeature(name)，并改为「存在即可」判定。
   [A5] Feature 数量：上游硬编码 23；懒加载完成后实际为 25。改为「核心全在 +
        总数 >= 23」的语义化判定，避免版本演进而脆断。
+  [A6] 必需 DOM id：移除 'diyLayoutModal'。8.3.23 起 DIY 布局弹窗整体下线
+       （CHANGELOG §8.3.23），该 id 在 index.html 中出现 0 次，仅存
+       diyLayoutBtn / diyLayoutIconUse。属「脚本滞后于架构」，非产品缺陷。
 '''
 from __future__ import annotations
 import argparse, json, os, re, shutil, subprocess, tempfile
@@ -76,11 +79,16 @@ REQUIRED_STORAGE_KEYS = [
     'lockedPeiPei', 'lockedPaiDan', 'lockedBoss',
 ]
 # [A3] dataPortabilityModal → dataPortabilityPanel
+# [A6] 移除 'diyLayoutModal'：8.3.23 起 DIY 布局弹窗整体下线（见 CHANGELOG §8.3.23
+#      「原先的 DIY 布局弹窗（方案卡片列表 + 确定按钮）整体下线」），
+#      index.html 中该 id 出现次数为 0（仅存 diyLayoutBtn / diyLayoutIconUse）。
+#      布局已退化为纯本地即时切换开关，不再有弹窗，故不应作为必需 DOM 断言。
+#      同属「脚本滞后于架构」，非产品缺陷。
 REQUIRED_DOM_IDS = [
     'totalPrice', 'discount', 'discountOverlay', 'paiDan', 'peiPei', 'boss', 'duration', 'type',
     'note', 'calculateBtn', 'clearAllBtn', 'orderOutput', 'historyList', 'mode1Btn', 'mode2Btn',
     'autoUnitPrice', 'apModeRound', 'apModeHour', 'priceMemPanel', 'pmRangeManager',
-    'dataPortabilityPanel', 'extractModal', 'durationCalcModal', 'diyLayoutModal',
+    'dataPortabilityPanel', 'extractModal', 'durationCalcModal',
 ]
 # 懒加载面板生成后才存在的 DOM（[A4] 允许在初始化阶段缺席，但必须能按需产出）
 DEFERRED_DOM_IDS = ['autoUnitPrice', 'apModeRound', 'apModeHour']

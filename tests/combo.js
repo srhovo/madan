@@ -125,10 +125,37 @@ function t(name, ok, actual) { checks[name] = { ok: !!ok, actual }; }
 
   // ══════════════════════════════════════════════════════════
   // 场景②：加价规则 + 折扣 + 比例（计算链路串联）
+  //
+  // ⚠ 本场景的断言口径（2026-09-14 加固，勿简化回去）
+  //   原版只断言 `okCalc === true`，等于什么都没测：8.3.19 决策是
+  //   「备注框回归纯备注，不再触发加价」，而这里恰好往备注写了关键词
+  //   `甜蜜单`。若该缺陷回归（备注重新参与加价），原版断言**依然全绿**。
+  //
+  //   实测（注入「备注重新参与加价」变异）：
+  //     原始：okCalc=true，discountedPrice=180，surchargeStatus=""
+  //     变异：okCalc=false，discountedPrice="-"，surchargeStatus="⚠ 加价关键词命中了…"
+  //   可见变异是**可观测**的，只是原版没有断言这些信号。现已补齐。
   // ══════════════════════════════════════════════════════════
   {
     app.switchMode(1);
     app.clearAll();
+    await wait(150);
+    // 注入一条启用规则，否则关键词链路完全不经过，本场景依旧测不出东西
+    const _sf = app.surchargeFeature;
+    let _seeded = false;
+    try {
+      const _store = _sf && _sf.priceLibraryStore;
+      if (_store && typeof _store.saveActiveSurcharges === 'function') {
+        const _r = _store.saveActiveSurcharges(app.priceLibraries, [
+          { id: 'combo2_sweet', name: '甜蜜暗恋单', keywords: ['甜蜜单'], prices: { round: 10, hour: 20 }, enabled: true },
+        ]);
+        if (_r && _r.ok && _r.data) app.priceLibraries = _r.data;
+        await wait(150);
+        _seeded = (_sf.getRules() || []).length > 0;
+      }
+    } catch (e) { errors.push('combo2_seed:' + e.message); }
+    t('combo2_rules_seeded', _seeded, _sf && _sf.getRules ? _sf.getRules().length : null);
+
     set('totalPrice', '200');
     set('discount', '9');
     set('paiDan', '甲');
@@ -136,17 +163,33 @@ function t(name, ok, actual) { checks[name] = { ok: !!ok, actual }; }
     set('boss', '丙');
     set('type', '');
     set('duration', '');
-    set('note', '甜蜜单');
+    set('note', '甜蜜单');          // 8.3.19：备注写关键词**不得**触发加价
+    await wait(200);
     const okCalc = app.orderFlow.calculate({ showSuccess: false });
     t('combo2_calc_with_surcharge_note', okCalc === true, okCalc);
     const dp200 = txt('discountedPrice');
     t('combo2_discount_200_9', dp200 === '180', dp200);
+    // 核心断言：备注里的关键词不得产生任何加价反应
+    t('combo2_note_keyword_no_surcharge_status', txt('surchargeStatus') === '', txt('surchargeStatus'));
+    {
+      const _res = _sf.resolveProjects(app.orderProjects || [], { render: false });
+      t('combo2_note_keyword_not_triggered', _res.triggered === false, { triggered: _res.triggered, codes: (_res.errors || []).map(e => e.code) });
+    }
     // 加价栏
     const sur = app.surchargeFeature;
     t('combo2_surcharge_feature_present', !!sur, typeof sur);
     // 比例
     const rt = txt('groupPercent');
     t('combo2_ratio_percent_rendered', typeof rt === 'string' && rt.length > 0, rt);
+    // 收尾：清掉本场景注入的规则，避免影响后续场景
+    try {
+      const _store = _sf && _sf.priceLibraryStore;
+      if (_store && typeof _store.saveActiveSurcharges === 'function') {
+        const _c = _store.saveActiveSurcharges(app.priceLibraries, []);
+        if (_c && _c.ok && _c.data) app.priceLibraries = _c.data;
+        await wait(150);
+      }
+    } catch (e) { errors.push('combo2_clear:' + e.message); }
   }
 
   // ══════════════════════════════════════════════════════════

@@ -4,11 +4,13 @@
 
 | 文件 | 来源 | 用途 |
 | --- | --- | --- |
-| `码单器8.3_AI可运行全链路测试脚本_8.3架构版.py` | **本次更新（推荐使用）** | 五段式全链路：静态架构 / JS 语法 / 计算引擎 / 真实素材提取 / DOM 链路，另加边界诊断探针 |
+| `码单器8.3_AI可运行全链路测试脚本_8.3架构版.py` | 本地资产 | 五段式全链路：静态架构 / JS 语法 / 计算引擎 / 真实素材提取 / DOM 链路，另加边界诊断探针 |
 | `_materials.json` | 从上游脚本原样导出 | 真实素材与期望名单（40KB 聊天记录），供上面的脚本读取 |
-| `上游-码单器8.3_AI可运行全链路测试脚本.py` | 用户提供（基于 8.2.22） | 上游原版，**已归档保留，不再维护**（见下方「为什么退休」） |
-| `dom-full.js` | 新增 | 适配懒加载 chunk 的 DOM 全链路联动（26 项） |
-| `combo.js` | 新增 | 跨模块组合联动（6 大场景 / 24 项） |
+| `dom-full.js` | 上游一致 | 适配懒加载 chunk 的 DOM 全链路联动（26 项） |
+| `combo.js` | **已加固** | 跨模块组合联动（6 大场景 / 27 项，含 8.3.19 回归看护） |
+| `project-chain.js` | **新增** | **喂入链路**（界面输入 → 解析 → 结算 → 渲染）真机回归，122 项 |
+| `mutate-chain.py` | **新增** | 对 `project-chain.js` 做变异测试，9 条链路级缺陷 + combo.js 交叉验证 |
+| `run-all.sh` | **新增** | 统一测试入口，一次跑完 6 套防线并给出汇总退出码 |
 
 ## 依赖
 
@@ -19,22 +21,139 @@ npm install jsdom     # 所有 JS 侧测试需要
 
 ## 运行
 
+### 推荐：统一入口
+
 ```bash
-# 推荐入口：8.3 架构版全链路（五段式 + 边界诊断）
-python3 码单器8.3_AI可运行全链路测试脚本_8.3架构版.py --html ../index.html --report-dir ./report
-
-# 增强版 DOM 全链路
-node dom-full.js ../index.html ./domfull.json
-
-# 组合联动
-node combo.js ../index.html ./combo.json
+bash tests/run-all.sh              # 全量（含约 4 分钟变异测试）
+bash tests/run-all.sh --fast       # 跳过变异测试（日常提交用）
+bash tests/run-all.sh --only=chain # 只跑某一套
+# --only 可选: engine | chain | dom | combo | fullchain | mutate
 ```
 
-退出码：`0` 全通过 / `1` 存在硬失败，可直接挂 CI。
+退出码 `0` 全通过 / `1` 有套件失败。可直接挂 CI。
+
+### 单独运行
+
+```bash
+python3 tests/码单器8.3_AI可运行全链路测试脚本_8.3架构版.py --html index.html --report-dir ./report
+node tests/dom-full.js index.html ./domfull.json
+node tests/combo.js index.html ./combo.json
+node tests/project-chain.js index.html ./project-chain.json
+node test-engine.js index.html                # 版本号自动提取，勿手写
+
+# 变异测试：验证断言不是「假的绿」
+python3 tests/mutate-chain.py
+```
+
+> ⚠ `test-engine.js` 的第二个参数是**期望版本号**，省略时自动从 `APP_VERSION` 提取。
+> **不要手写**：写错版本会得到一条与代码质量无关的假失败。实测：
+> `node test-engine.js index.html 8.3.28` 在 8.3.27 的文件上会输出
+> `FAIL: version mismatch, actual=8.3.27 expected=8.3.28`。
+> 只有需要显式锁定版本时（CI 断言发版号）才手写。
+
+单套退出码：`project-chain.js` / `dom-full.js` / `combo.js` 为 `0` 全通过 / `2` 断言失败；
+`码单器8.3_AI可运行全链路测试脚本_8.3架构版.py` 为 `0` 全通过 / `1` 硬错误。
 
 ---
 
-## 相对上游脚本的 5 处适配
+## 各套件的职责边界（不要重叠）
+
+四个 JS 套件各管一段，**故意不互相重复**：
+
+| 套件 | 职责 | 典型病 |
+| --- | --- | --- |
+| `test-engine.js` | 引擎被喂**正确入参**时算得对不对 | 算法错 |
+| `project-chain.js` | 界面输入有没有被**正确喂进去**（单链路力学） | 8.3.25 / 26 / 27 |
+| `combo.js` | **跨模块协同**是否断裂 | 集成错 |
+| `dom-full.js` | DOM 全链路在懒加载架构下是否可用 | 架构漂移 |
+
+> 判据：若一条变异属于「单条加价链路的力学」（如多项目定位、缓存失效），
+> 归 `project-chain.js`；只有当它**同时**牵动两个以上模块时，才进 `combo.js`。
+> 把单路径力学塞进组合测试会造成职责重叠、维护成本翻倍。
+
+---
+
+## project-chain.js：为什么还需要一个「喂入链路」测试
+
+`test-engine.js` 把引擎类抠出来在 `vm` 里跑，测的是**「引擎被喂了正确入参时算得对不对」**。
+它测不到**「界面上的输入有没有被正确喂进去」**。
+
+而 8.3.25 / 8.3.26 / 8.3.27 是**三连 bug**，全部出在喂入链路上，当时**零自动化覆盖**：
+
+| 版本 | 缺陷 | 归属 |
+| --- | --- | --- |
+| 8.3.25 | 未保存项目 + 自定义单价算不出总价（手输价没锚到正确项目） | 喂入链路 |
+| 8.3.26 | 局数模式总价算错、切「局数/小时」按钮不触发重算 | 喂入链路 |
+| 8.3.27 | 清空重打（改时长）时单价被当作「撤销定价」丢弃，总价不刷新 | 喂入链路 |
+
+`project-chain.js` 用**真实 App 实例**（真实 DOM + 真实事件）跑这些场景，不 mock 业务逻辑。
+
+### 两个必须知道的数据源区别（踩过的坑）
+
+| 字段 | 内容 | 加价是否影响 |
+| --- | --- | --- |
+| `app.orderProjects` | **基础价项目** | ❌ 不受影响，`unitPrice`/`subtotal` 恒为基础值 |
+| `pricedAggregate.projects` | **加价后的结算项目** | ✅ 含 `baseUnitPrice` / `surchargeUnitPrice` / `effectiveUnitPrice` / `subtotal` |
+
+界面上 `priceSubtotalNote` 渲染的是 **`pricedAggregate.projects`**。
+**断言加价落位必须读 `pricedAggregate`，读 `orderProjects` 会永远读到未加价的值。**
+
+### 加价规则必须先注入
+
+默认 `getRules()` 返回 `[]`。此时加价框只走「纯数字加价」一条路，
+**关键词命中、目标歧义、缺价目等分支根本不会被走到**。
+
+实测证据：不注入规则时，把 `combinedNote` 改回 `note + 加价框`（即回归 8.3.19 已修掉的缺陷）
+**不会让任何断言变红**。因此脚本用 App 自己的持久化入口 `priceLibraryStore.saveActiveSurcharges()`
+注入规则，保证走的是与真人操作一致的存储链路。
+
+---
+
+## mutate-chain.py：证明断言不是「假的绿」
+
+**变异测试**：向 `index.html` 注入已知缺陷，看 `project-chain.js` 能否抓住。
+每条变异都对应 CHANGELOG 记录过的真实 bug。抓不住 = 该防线是假的绿。
+
+### 这个过程实际抓到的问题（保留记录，勿重蹈）
+
+| 阶段 | 捕捉率 | 暴露的问题 |
+| --- | --- | --- |
+| 初版 | **1/9** | 断言函数签名写成 `t(name, ok, actual)`，而调用处全按 `(name, actual, expected)` 写 → 大量断言**永远为真** |
+| 修断言语义后 | 6/9 | 锚点缩进不符（`index.html` 主脚本是 **1 空格缩进**）、C3 变异本身是空操作 |
+| 补关键词规则注入 + 渲染层断言 | 8/9 | C9 仍是盲区：所有用例都走会显式 invalidate 的路径 |
+| 补快照失效契约（`cache_contract_*`） | **9/9** | — |
+
+**结论**：只跑一次「全绿」毫无意义。上面 1/9 那次，套件是 114/114 全绿的。
+
+### 两条「变异本身是空操作」的记录（勿重蹈）
+
+| 变异 | 为什么它测不出东西 |
+| --- | --- |
+| C3（原版）「加价写回 `orderProjects`」 | `resolveProjects` 返回的项目在 `render:false` 且无 targetIndex 时与入参同构；且渲染读的是 `pricedAggregate` 而非 `orderProjects` → 写不写回**观察不到差异**。已换成「加价并入基础单价」 |
+| C9（原版）「服务类型框清空后不清理项目」 | 该清理**有两处**：`applyCombinedExpression` 与 `priceMemoryFeature.handleServiceTypeInputChange()`。删掉任一处，另一处仍生效 → 实测渲染输出**逐字节相同**。已换成「快照不随加价框失效」 |
+
+> 教训：**变异改动必须实测确认它真的改变了行为**，否则会把「测不出来」误判成「测试盲区」。
+
+### 交叉验证：combo.js 曾经的真盲区
+
+`combo.js` 的 `combo2` 场景往备注写了关键词 `甜蜜单`，却只断言 `okCalc === true`。
+注入「备注重新参与加价」（8.3.19 已修的缺陷）后，`combo.js` **仍然 exit 0**。
+
+实测对照（同一变异）：
+
+| 信号 | 原始 | 变异 |
+| --- | --- | --- |
+| `okCalc` | `true` | **`false`** |
+| `discountedPrice` | `180` | **`-`** |
+| `surchargeStatus` | `""` | **`⚠ 加价关键词命中了…`** |
+
+变异是**可观测的**，只是原版没断言这些信号。**2026-09-14 已加固**：
+`combo2` 现注入启用规则并断言 4 项，注入该变异后报 4 条失败、exit 2。
+`mutate-chain.py` 把它固化为长期交叉验证项。
+
+---
+
+## 相对上游脚本的适配
 
 全部属于「**脚本滞后于架构**」，不是产品缺陷。每一条都做了「改前 / 改后」对照验证。
 
@@ -45,6 +164,7 @@ node combo.js ../index.html ./combo.json
 | **A3** | DOM id 写错 | `关键DOM ID完整` 报 `dataPortabilityModal` 缺失 | 实际 id 为 `dataPortabilityPanel`，已纠正 |
 | **A4** | 未等懒加载 | `完整页面DOM链路` 崩溃于 `buildBackup` 未定义 | 主动 `await app.ensureLazyFeature(name)` 后再断言 |
 | **A5** | Feature 数硬编码 | 硬编码 23，架构演进即脆断 | 改为「核心全在 + 总数 ≥ 23」的语义判定 |
+| **A6** | 期望 DOM id 已被产品下线 | `关键DOM ID完整` 报 `diyLayoutModal` 缺失 | 8.3.23 起 DIY 布局弹窗**整体下线**（CHANGELOG §8.3.23），该 id 在 `index.html` 中出现 **0 次**，仅存 `diyLayoutBtn` / `diyLayoutIconUse`。已从期望清单移除 |
 
 ### A1 的实现坑（勿改）
 

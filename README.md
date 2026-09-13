@@ -133,13 +133,15 @@ webView.loadUrl("file:///android_asset/index.html")
 ├── index.html          # 完整单页应用（HTML + CSS + JS，单文件交付）
 ├── update-checker.js   # OTA 热更新检测 / 下载 / 替换（Capacitor 原生壳内生效）
 ├── analytics.js        # 匿名使用统计（纯 Web API，失败静默降级）
-├── test-engine.js      # 引擎单元测试（Node 隔离运行，L3 核心回归）
+├── test-engine.js      # 引擎单元测试（Node 隔离运行，L3 核心回归，126 项）
 ├── tests/              # 全链路测试资产
-│   ├── 码单器8.3_AI可运行全链路测试脚本_8.3架构版.py   # 主入口：五段式全链路
+│   ├── 码单器8.3_AI可运行全链路测试脚本_8.3架构版.py                                   # 主入口：五段式全链路
 │   ├── _materials.json                                # 真实素材与期望名单
 │   ├── dom-full.js                                    # DOM 全链路（懒加载感知，26 项）
-│   ├── combo.js                                       # 跨模块组合联动（6 场景，24 项）
-│   └── 上游-码单器8.3_AI可运行全链路测试脚本.py          # 上游原版（已归档）
+│   ├── combo.js                                       # 跨模块组合联动（6 场景，27 项）
+│   ├── project-chain.js                               # 喂入链路真机回归（122 项）
+│   ├── mutate-chain.py                                # 变异测试（9 条）＋ combo.js 交叉验证
+│   └── run-all.sh                                     # 统一测试入口（6 套防线一次跑完）
 ├── version.json        # OTA 更新清单（version / url / checksum）
 ├── madan-<版本>.zip    # OTA 更新包，Pages 直出，不可从仓库删除
 ├── CHANGELOG.md        # 版本更新日志
@@ -162,15 +164,56 @@ webView.loadUrl("file:///android_asset/index.html")
 
 ```bash
 npm install jsdom                  # JS 侧测试需要
+
+# 推荐：统一入口，一次跑完全部 6 套防线
+bash tests/run-all.sh              # 全量（含约 4 分钟变异测试）
+bash tests/run-all.sh --fast       # 日常提交：跳过变异测试
+
+# 也可单独运行
 python3 tests/码单器8.3_AI可运行全链路测试脚本_8.3架构版.py --html index.html --report-dir ./report
 node tests/dom-full.js index.html ./domfull.json
 node tests/combo.js index.html ./combo.json
-node test-engine.js
+node tests/project-chain.js index.html ./project-chain.json
+node test-engine.js index.html                # 版本号自动从 APP_VERSION 提取
+python3 tests/mutate-chain.py      # 变异测试：验证断言不是「假的绿」
 ```
 
+> **关于 `test-engine.js` 的版本参数**：它的第二个参数是**期望版本号**，省略时会
+> 自动从 `index.html` 的 `APP_VERSION` 提取。
+>
+> **不要手写这个参数**。它的设计意图是防止「测试通过，但测的是旧版本」，
+> 一旦手写的版本与文件实际版本不符，就会产生一条**与代码质量无关的假失败**。
+> 实测踩坑记录：
+>
+> ```console
+> $ node test-engine.js index.html 8.3.28      # 而文件实际是 8.3.27
+> APP_VERSION: 8.3.27 (expected 8.3.28)
+> FAIL: version mismatch, actual=8.3.27 expected=8.3.28
+> ```
+>
+> 只有在需要**显式锁定**某个版本（例如 CI 里断言「发的就是这个版本」）时，
+> 才手写该参数，并确保与 `index.html` 同步。`run-all.sh` 内部已自动提取，无需关心。
+>
+> 另：若某次改版**有意变更**了引擎行为（如 8.3.19 的「备注不再触发加价」），
+> 需同步更新 `test-engine.js` 中对应的期望值，否则 CI 会持续报红、失去门禁意义。
+
 全链路脚本分五段独立报告：静态架构 / JS 语法 / 计算引擎 / 真实素材提取 / DOM 链路，
-另有提取边界哨兵。退出码 `0` 全通过 / `1` 存在硬失败，可挂 CI。
+另有提取边界哨兵。退出码 `0` 全通过 / `1` 硬错误 / `2` 断言失败，可挂 CI。
 详见 [tests/README.md](./tests/README.md)。
+
+### 四层测试的分工
+
+| 层 | 文件 | 测什么 | 覆盖的病 |
+| --- | --- | --- | --- |
+| **引擎** | `test-engine.js` | 引擎被喂**正确入参**时算得对不对 | 算法错 |
+| **喂入链路** | `tests/project-chain.js` | 界面输入有没有被**正确喂进去** | 8.3.25 / 26 / 27 三连 bug |
+| **DOM / 组合** | `tests/dom-full.js`、`tests/combo.js` | 模块间联动是否断裂 | 集成错 |
+| **全链路** | `tests/码单器8.3_AI可运行全链路测试脚本_8.3架构版.py` | 静态结构 / 语法 / 素材提取 / 边界行为 | 架构漂移 |
+
+> `tests/mutate-chain.py` 不测产品，它测**测试本身**：向 `index.html` 注入 9 条真实历史缺陷，
+> 验证 `project-chain.js` 能逐条抓住，并交叉确认 `combo.js` 不再是加价链路的盲区。
+> **抓不住的断言就是「假的绿」**。
+> 初版曾出现 114/114 全绿、捕捉率却只有 1/9 的情况——大量断言因函数签名写错而恒真。
 
 ## 版本
 
