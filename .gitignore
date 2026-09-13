@@ -19,3 +19,6 @@ node_modules/
 # 测试运行产物：每跑一次 tests/run-all.sh 就会重新生成，无版本价值
 .test-out/
 report/
+
+# 本地验证用的临时解包目录
+_verify_pkg/

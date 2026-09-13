@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.29</title>
+ <title>码单器8.3.30</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -4013,7 +4013,8 @@ h1 { margin-bottom: 4px; }
 
 
  <script>
-const APP_VERSION = '8.3.29';
+const APP_VERSION = '8.3.30';
+// Release note: 8.3.30 修复安卓端「每隔一小会儿就自动重新加载」的循环重载。根因不在业务代码，而在发布产物：从 8.3.26 起，OTA 更新包只打包了 index.html 一个文件，但 index.html 里仍以 <script src> 引用 update-checker.js 与 analytics.js —— 这两个文件没有进包。缺了 update-checker.js，资源包切换后 Updater.notifyAppReady() 永远不会被调用，原生层等满 appReadyTimeout 就认定这一版包「不健康」并自动回退到旧包；回退后本机 APP_VERSION 仍是旧值，下次启动又判定「有新版本」，于是 下载 → 切换 → 回退 → 再判定 无限循环，用户看到的就是 App 反复重新加载。修复分两层：① 把 update-checker.js 与 analytics.js 的内容内联进 index.html，单文件彻底自包含，今后无论怎么打包都不会再漏文件；② 给更新逻辑加「同一版本只尝试一次」的持久化闸门，即使将来还有别的因素导致切换不生效，也最多尝试一次就安静停在当前版本，不会无限重载。另修正一处危险兜底：原先读不到本机版本号时会退化成 '0.0.0'（最小版本），导致任何云端版本都被判为「更新」；现在读不到就放弃本次检查，不发车。业务逻辑、计算引擎、存储结构零改动。
 const TUTORIAL_VIDEO_URL = 'https://cdn.jsdelivr.net/gh/srhovo/tutorialvideo@main/video.mp4';
 const WECHAT_OPEN_URL = 'weixin://'; // 生成订单后尝试唤起微信主界面
 // Release note: 8.3.29 纯内部重构，零功能改动。把 EnhancedNameExtractor 里 12 个无状态纯函数
@@ -18660,13 +18661,443 @@ AppLifecycle.onDomReady(() => {
  });</script>
 
 <!-- ============================================
-     OTA 热更新检查（仅在 Capacitor 原生壳内生效）
+     OTA 热更新检查 + 匿名统计（仅在 Capacitor 原生壳内生效）
+     ------------------------------------------------------------
+     8.3.30 起改为**内联**在 index.html 内，不再依赖外部 .js 文件。
+     原因：此前的 OTA 更新包只打包了 index.html 一个文件，包内缺少
+     update-checker.js 与 analytics.js，导致资源包切换后
+     Updater.notifyAppReady() 永远不被调用，原生层判定该包「不健康」
+     并自动回退；回退后本地版本号不变，下次启动又判「有新版本」，
+     形成 下载 → 切换 → 回退 → 再判定 的无限循环，表现为 App 每隔
+     一小会儿就重新加载一次。内联后单文件自包含，从根上消除此隐患。
+     ------------------------------------------------------------
+     update-checker.js 的行为：
      - 不修改上面任何业务代码
      - 只读取 APP_VERSION 常量做版本比较
-     - 从不触碰 localStorage
+     - 同一版本最多尝试一次更新（防无限重载闸门），会读写
+       localStorage 的一个版本标记 key；除此之外不触碰任何用户数据
      ============================================ -->
-<script src="update-checker.js"></script>
-<script src="analytics.js"></script>
+<script>
+/**
+ * 码单器 OTA 热更新检查脚本
+ * ------------------------------------------------------------
+ * ⚠️ 8.3.30 起：本文件的内容已**内联**进 index.html（在文件尾部的
+ *    <script> 块里），index.html 不再通过 <script src> 引用本文件。
+ *    原因见下方「循环保险」注释与 CHANGELOG 的 8.3.30 条目：
+ *    8.3.26~8.3.29 的 OTA 包只打包了 index.html，缺了本文件，
+ *    导致 notifyAppReady() 不被调用 → 原生层判定包不健康 → 自动回退
+ *    → 版本号不变 → 再次判定有新版本 → 无限重载。
+ *
+ *    **修改本文件后必须同步更新 index.html 里的内联副本**，
+ *    否则打包出去的 index.html 仍是旧逻辑。
+ *    可执行 `node tests/inline-integrity.js` 校验内联副本是否与
+ *    本文件、analytics.js 保持一致。
+ *
+ * 本文件保留在仓库中作为「源文件 / 唯一事实来源」，便于阅读与 diff。
+ * ------------------------------------------------------------
+ * 只在 Capacitor 原生壳（Android APK）里运行；在普通浏览器标签页打开
+ * index.html 时会自动跳过，不影响你平时直接用浏览器调试。
+ *
+ * 数据安全承诺（请勿修改破坏这几点）：
+ * 1. 本脚本从不调用 localStorage.clear() / removeItem()，
+ *    更新流程只替换 index.html / CSS / JS 静态资源。
+ * 2. localStorage 是按"域"持久化的原生存储，不随 CapacitorUpdater.set()
+ *    切换资源包而改变，陪玩名单/老板记忆库/单价记忆库/历史记录等
+ *    数据会原样保留。
+ * 3. 更新失败（下载失败、校验失败、新版本 JS 崩溃导致没调用
+ *    notifyAppReady）时，原生层会在超时后自动回退到上一个可用版本，
+ *    整个过程用户数据不受影响。
+ * 4. 更新全程静默：检测到新版本后在后台自动下载并切换，不弹任何
+ *    提示条、不需要用户点击；失败只写控制台日志。
+ * 5. （8.3.30 新增）同一版本最多尝试一次更新，用 localStorage 的
+ *    'pw_ultimate_updateAttemptedVersion' 记录；这是防无限重载的闸门。
+ *    除该标记外，本脚本不写入任何其他 localStorage key。
+ */
+(function () {
+  'use strict';
+
+  // ---- 可按需修改的配置 ----
+  // 部署到 Cloudflare Pages 后，把下面这个域名换成你自己的。
+  var UPDATE_MANIFEST_URL = 'https://madan.pages.dev/version.json';
+  // 每次启动检查一次；如果想降低频率，可以改成按小时节流（下面有注释示例）。
+  var CHECK_DELAY_MS = 2500; // 启动后延迟多久再检查，避免抢占首屏渲染
+  // ---------------------------
+
+  function log(msg, extra) {
+    if (extra !== undefined) console.log('[码单器更新] ' + msg, extra);
+    else console.log('[码单器更新] ' + msg);
+  }
+  function warn(msg, extra) {
+    if (extra !== undefined) console.warn('[码单器更新] ' + msg, extra);
+    else console.warn('[码单器更新] ' + msg);
+  }
+
+  // 只在 Capacitor 原生环境里跑；普通浏览器直接退出，不报错、不影响使用
+  if (!window.Capacitor || typeof window.Capacitor.isNativePlatform !== 'function' || !window.Capacitor.isNativePlatform()) {
+    log('当前不在 Capacitor 原生壳内运行，跳过热更新检查');
+    return;
+  }
+
+  var Updater = window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorUpdater;
+  if (!Updater) {
+    warn('未找到 CapacitorUpdater 插件（请确认已执行 npm install @capgo/capacitor-updater && npx cap sync）');
+    return;
+  }
+
+  // 读取当前运行包的版本号。
+  // 注意（8.3.30 修复）：这里刻意**不再**把读不到版本号时兜底成 '0.0.0'。
+  // '0.0.0' 是最小版本，任何云端版本都比它大，一旦读不到就会永远判定
+  // 「有新版本」→ 反复下载 → 表现为无限重载。正确做法是：读不到就放弃
+  // 本次更新检查（宁可停在当前版本，也不进死循环）。
+  function readCurrentVersion() {
+    try {
+      if (typeof APP_VERSION !== 'undefined' && APP_VERSION) return String(APP_VERSION);
+    } catch (e) { /* TDZ 等异常一律按「读不到」处理 */ }
+    return '';
+  }
+
+  var CURRENT_VERSION = readCurrentVersion();
+
+  // ---- 第一步：告诉原生层"这次启动是健康的" ----
+  // 必须尽早调用。如果上一次更新导致白屏/崩溃，这行代码根本不会被执行到，
+  // 原生层等待 appReadyTimeout（默认 10 秒）后就会自动把资源包换回上一个
+  // 能正常跑起来的版本——这就是"更新失败自动回退"的核心机制。
+  Updater.notifyAppReady().then(function () {
+    log('已通知原生层：当前版本 ' + CURRENT_VERSION + ' 启动正常');
+  }).catch(function (e) {
+    warn('notifyAppReady 调用失败（首次安装的内置版本会走到这里，属正常现象）', e);
+  });
+
+  // ---- 版本号比较：支持 8.3.6 这种三段式 semver ----
+  function compareVersions(a, b) {
+    var pa = String(a).split('.').map(function (n) { return parseInt(n, 10) || 0; });
+    var pb = String(b).split('.').map(function (n) { return parseInt(n, 10) || 0; });
+    var len = Math.max(pa.length, pb.length);
+    for (var i = 0; i < len; i++) {
+      var na = pa[i] || 0, nb = pb[i] || 0;
+      if (na > nb) return 1;
+      if (na < nb) return -1;
+    }
+    return 0;
+  }
+
+  function checkForUpdate() {
+    // 读不到本机版本号时直接放弃本次检查：宁可停在当前版本，
+    // 也不能因版本号未知而反复判定「有新版本」造成重载。
+    if (!CURRENT_VERSION) {
+      warn('未能读取本机版本号（APP_VERSION），本次跳过更新检查以免误判');
+      return;
+    }
+    var url = UPDATE_MANIFEST_URL + (UPDATE_MANIFEST_URL.indexOf('?') === -1 ? '?' : '&') + 't=' + Date.now();
+    fetch(url, { cache: 'no-store' })
+      .then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      })
+      .then(function (manifest) {
+        if (!manifest || !manifest.version || !manifest.url) {
+          warn('version.json 格式不完整，跳过本次检查');
+          return;
+        }
+        if (compareVersions(manifest.version, CURRENT_VERSION) <= 0) {
+          log('已是最新版本 ' + CURRENT_VERSION);
+          return;
+        }
+        log('发现新版本 ' + manifest.version + '（当前 ' + CURRENT_VERSION + '），后台静默更新中');
+        applyUpdate(manifest);
+      })
+      .catch(function (e) {
+        // 网络不好 / 服务器暂时打不开时静默失败，绝不影响本地正常使用
+        warn('检查更新失败（不影响当前使用）', e);
+      });
+  }
+
+  // ---- 循环保险：同一个版本号只尝试「下载 + 切换」一次 ----
+  // 背景（8.3.30 修复的安卓无限重载）：
+  //   若某个版本的资源包切换后无法正常启动，原生层会自动回退到旧包；
+  //   回退后本地 APP_VERSION 仍是旧值，下次启动又会判定「有新版本」，
+  //   于是下载 → 切换 → 回退 → 再判定，无线循环，用户看到的就是
+  //   App 每隔一小会儿就重新加载一次。
+  //   这里用 localStorage 记住「本机已经尝试过的最高版本号」：同一版本
+  //   成功切换过一次后就不再重复尝试；即便切换失败（回退发生），也只会
+  //   尝试这一次，不会无限重载。存储不可用时静默降级为不记忆。
+  var ATTEMPT_KEY = 'pw_ultimate_updateAttemptedVersion';
+
+  function readAttemptedVersion() {
+    try { return window.localStorage.getItem(ATTEMPT_KEY) || ''; } catch (e) { return ''; }
+  }
+  function rememberAttemptedVersion(v) {
+    try { window.localStorage.setItem(ATTEMPT_KEY, String(v)); } catch (e) {}
+  }
+
+  // ---- 静默更新：后台自动下载并切换，全程无弹窗、无需用户交互 ----
+  function applyUpdate(manifest) {
+    var attempted = readAttemptedVersion();
+    // 已经尝试过这个（或更高的）版本 → 不再重复下载，直接安静停在当前版本。
+    // 这正是防「无限重载」的闸门：哪怕切换后又被原生层回退，也只发生一次。
+    if (attempted && compareVersions(attempted, manifest.version) >= 0) {
+      log('版本 ' + manifest.version + ' 本机已尝试过（记录 ' + attempted + '），本次不再重复更新');
+      return;
+    }
+
+    // 先落记录再下载：确保即便下载/切换过程中断，也不会在下次启动重复尝试。
+    rememberAttemptedVersion(manifest.version);
+
+    // 暂时不传 checksum：插件校验哈希的具体算法/格式没有把握确认，
+    // 先排除这个变量，确认下载+切换这条主链路本身没问题。
+    // 之后确认好格式了，可以在这里加回 { checksum: manifest.checksum }。
+    var downloadOpts = { version: manifest.version, url: manifest.url };
+
+    Updater.download(downloadOpts)
+      .then(function (bundle) {
+        log('新版本下载完成，正在切换…');
+        return Updater.set(bundle);
+      })
+      .catch(function (e) {
+        var detail = (e && (e.message || e.errorMessage || e.code)) ? String(e.message || e.errorMessage || e.code) : JSON.stringify(e);
+        // 注意措辞：这里不再承诺「下次启动自动重试」——为避免无限重载，
+        // 同一版本的自动重试已被上面的闸门挡掉。
+        warn('静默更新失败（不影响当前使用）' + (detail ? '：' + detail : ''), e);
+      });
+  }
+
+  setTimeout(checkForUpdate, CHECK_DELAY_MS);
+
+  // 如果想改成"每小时最多检查一次"而不是每次启动都检查，把上面这行替换成：
+  //
+  // var last = Number(window.localStorage.getItem('pw_ultimate_lastUpdateCheck') || 0);
+  // if (Date.now() - last > 60 * 60 * 1000) {
+  //   window.localStorage.setItem('pw_ultimate_lastUpdateCheck', String(Date.now()));
+  //   setTimeout(checkForUpdate, CHECK_DELAY_MS);
+  // }
+})();
+</script>
+<script>
+/**
+ * 码单器 匿名使用统计（独立模块）
+ * ------------------------------------------------------------
+ * 设计原则（不允许被后续修改破坏）：
+ * 1. 任何环节出错都必须被吞掉，绝不能抛出未捕获异常影响主应用。
+ * 2. 不读取、不上报任何业务数据（陪玩名单/老板记忆库/订单内容等）。
+ * 3. 不使用任何需要原生权限的 API，纯标准 Web API，可随 OTA 更新推送。
+ * 4. 网络失败时静默降级，绝不阻塞或拖慢应用本身的启动与使用。
+ *
+ * 收集的数据：匿名设备 ID（本地随机生成）、事件类型、App 版本号、
+ * 会话时长（仅在能可靠获取时上报）、是否主屏幕网页 App（iOS 添加到
+ * 主屏幕 / Android 安装的 standalone 模式）。国家/地区、操作系统等
+ * 由服务端从请求本身解析，客户端不主动采集。
+ *
+ * iOS 兼容要点（standalone 主屏幕 App 场景实测踩坑）：
+ * - 请求体 Content-Type 用 text/plain 而非 application/json：
+ *   text/plain 属于 CORS 简单请求，无需预检（iOS Safari 的跨域预检
+ *   在 standalone 模式下不稳定）；服务端 request.json() 不校验
+ *   Content-Type，解析不受影响。
+ * - fetch 加 keepalive: true：用户快速切走 App、页面被挂起时请求
+ *   仍能发出，避免启动事件丢失。
+ * - 设备 ID 读写 localStorage 失败时逐级降级 sessionStorage、内存，
+ *   绝不因存储不可用而完全停止上报。
+ * - 会话结束同时监听 visibilitychange 与 pagehide：iOS 杀掉
+ *   standalone App 时 pagehide 更可靠。
+ */
+(function () {
+  'use strict';
+
+  var ENDPOINT = 'https://madan.pages.dev/api/track';
+  var DEVICE_ID_KEY = 'pw_ultimate_analyticsDeviceId';
+  var QUEUE_KEY = 'pw_ultimate_analyticsQueue';
+  var MAX_QUEUE_LENGTH = 50;
+  // 缩短启动上报延迟：iOS 主屏幕 App 用户若快速切走，页面被挂起后
+  // 延迟回调不再执行，1.2s 延迟会丢启动事件；400ms + keepalive 兜底。
+  var START_DELAY_MS = 400;
+
+  // localStorage 完全不可用（iOS 隐私模式等）时的内存兜底
+  var memDeviceId = null;
+
+  function safe(fn) {
+    try { return fn(); } catch (e) { return undefined; }
+  }
+
+  function getOrCreateDeviceId() {
+    return safe(function () {
+      // 逐级降级：localStorage（正常持久化）→ sessionStorage（会话内稳定）
+      // → 内存（本次会话内兜底）。iOS standalone 模式的 localStorage
+      // 与 Safari 相互独立，且在隐私模式下可能抛错，不能只依赖它。
+      var existing = null;
+      try { existing = window.localStorage.getItem(DEVICE_ID_KEY); } catch (e) {}
+      if (!existing) {
+        try { existing = window.sessionStorage.getItem(DEVICE_ID_KEY); } catch (e) {}
+      }
+      if (!existing) existing = memDeviceId;
+      if (existing) return existing;
+
+      var id;
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        id = window.crypto.randomUUID();
+      } else {
+        // 兼容极少数不支持 randomUUID 的旧 WebView
+        id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+          var r = (Math.random() * 16) | 0;
+          var v = c === 'x' ? r : (r & 0x3) | 0x8;
+          return v.toString(16);
+        });
+      }
+      try { window.localStorage.setItem(DEVICE_ID_KEY, id); } catch (e) {}
+      try { window.sessionStorage.setItem(DEVICE_ID_KEY, id); } catch (e) {}
+      memDeviceId = id;
+      return id;
+    });
+  }
+
+  // 是否以"主屏幕网页 App"（standalone）模式启动：
+  // iOS「添加到主屏幕」、Android Chrome「安装应用」均为 true
+  function isStandalonePwa() {
+    return Boolean(safe(function () {
+      // iOS 专有属性（iPhone/iPad Safari 添加到主屏幕后为 true）
+      if (window.navigator && window.navigator.standalone === true) return true;
+      if (window.matchMedia) {
+        return window.matchMedia('(display-mode: standalone)').matches
+          || window.matchMedia('(display-mode: fullscreen)').matches;
+      }
+      return false;
+    }));
+  }
+
+  function readQueue() {
+    return safe(function () {
+      var raw = window.localStorage.getItem(QUEUE_KEY);
+      var list = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) ? list : [];
+    }) || [];
+  }
+
+  function writeQueue(list) {
+    safe(function () {
+      var capped = list.slice(-MAX_QUEUE_LENGTH);
+      window.localStorage.setItem(QUEUE_KEY, JSON.stringify(capped));
+    });
+  }
+
+  function enqueue(event) {
+    var list = readQueue();
+    list.push(event);
+    writeQueue(list);
+  }
+
+  function sendOne(event) {
+    // 用 AbortController 兜底超时，避免弱网环境下请求长时间挂起
+    return new Promise(function (resolve) {
+      var settled = false;
+      var finish = function (ok) {
+        if (settled) return;
+        settled = true;
+        resolve(ok);
+      };
+      try {
+        var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        var timer = setTimeout(function () {
+          if (controller) controller.abort();
+        }, 6000);
+        fetch(ENDPOINT, {
+          method: 'POST',
+          // text/plain 是 CORS 简单请求，免去预检（iOS standalone 模式
+          // 下跨域预检不稳定）；服务端按 JSON 解析 body，不受影响
+          headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+          body: JSON.stringify(event),
+          // 页面被挂起/关闭后请求仍能发出（iOS 快速切走 App 的关键兜底）
+          keepalive: true,
+          signal: controller ? controller.signal : undefined
+        }).then(function (res) {
+          clearTimeout(timer);
+          finish(Boolean(res && res.ok));
+        }).catch(function () {
+          clearTimeout(timer);
+          finish(false);
+        });
+      } catch (e) {
+        finish(false);
+      }
+    });
+  }
+
+  function flushQueueThenSend(currentEvent) {
+    var pending = readQueue();
+    writeQueue([]); // 先清空，发送失败的会在下面重新入队，避免和"当前这次"重复攒积
+
+    var all = pending.concat([currentEvent]);
+    var failed = [];
+    var i = 0;
+
+    function next() {
+      if (i >= all.length) {
+        if (failed.length) writeQueue(failed);
+        return;
+      }
+      var ev = all[i++];
+      sendOne(ev).then(function (ok) {
+        if (!ok) failed.push(ev);
+        next();
+      });
+    }
+    next();
+  }
+
+  function buildBaseEvent(eventType, extra) {
+    var deviceId = getOrCreateDeviceId();
+    if (!deviceId) return null;
+    var event = {
+      device_id: deviceId,
+      app_version: (typeof APP_VERSION !== 'undefined' && APP_VERSION) ? APP_VERSION : '',
+      event_type: eventType,
+      pwa: isStandalonePwa() ? 1 : 0,
+      client_ts: Date.now()
+    };
+    if (extra) {
+      for (var k in extra) { if (Object.prototype.hasOwnProperty.call(extra, k)) event[k] = extra[k]; }
+    }
+    return event;
+  }
+
+  function trackLaunch() {
+    var event = buildBaseEvent('launch');
+    if (!event) return;
+    flushQueueThenSend(event);
+  }
+
+  // ---- 会话时长（尽力而为，不保证 100% 触发，属于移动端统计的普遍限制）----
+  var sessionStart = Date.now();
+  var sessionEndSent = false;
+
+  function trackSessionEnd() {
+    if (sessionEndSent) return;
+    var durationSec = Math.round((Date.now() - sessionStart) / 1000);
+    if (durationSec < 1 || durationSec > 24 * 3600) return; // 明显异常值不上报
+    sessionEndSent = true;
+    var event = buildBaseEvent('session_end', { duration_sec: durationSec });
+    if (!event) return;
+    // 页面即将隐藏/关闭时，用 sendBeacon 优先（更可能真正发出去），fetch 兜底。
+    // Blob 类型必须用 text/plain：sendBeacon 无法携带预检，application/json
+    // 会触发 CORS 预检导致 beacon 在 Safari 上直接失败。
+    safe(function () {
+      if (navigator.sendBeacon) {
+        var blob = new Blob([JSON.stringify(event)], { type: 'text/plain;charset=UTF-8' });
+        var ok = navigator.sendBeacon(ENDPOINT, blob);
+        if (ok) return;
+      }
+      sendOne(event);
+    });
+  }
+
+  safe(function () {
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') trackSessionEnd();
+    });
+    // iOS 杀掉主屏幕 App 时不一定触发 visibilitychange，pagehide 更可靠
+    window.addEventListener('pagehide', function () { trackSessionEnd(); });
+  });
+
+  setTimeout(function () { safe(trackLaunch); }, START_DELAY_MS);
+})();
+</script>
 </div>
 </body>
 </html>

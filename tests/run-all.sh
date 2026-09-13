@@ -8,7 +8,7 @@
 #   bash tests/run-all.sh --fast           # 跳过变异测试（日常提交用）
 #   bash tests/run-all.sh --only=engine    # 只跑某一套
 #
-# 可用 --only 值: engine | chain | dom | combo | fullchain | mutate
+# 可用 --only 值: engine | chain | dom | combo | fullchain | mutate | package
 #
 # 退出码: 0 全通过 / 1 有套件失败
 set -u
@@ -67,7 +67,7 @@ run_suite() {
 # ── 1. 引擎单元测试 ────────────────────────────────────────────────
 if ! should_skip engine; then
   echo
-  echo "── [1/6] 引擎单元测试 test-engine.js ─────────────────────────"
+  echo "── [1/7] 引擎单元测试 test-engine.js ─────────────────────────"
   if [ -z "$VERSION" ]; then
     echo "  ✗ 无法从 index.html 解析 APP_VERSION"
     run_suite engine "引擎单元测试" 1 "无法解析版本号"
@@ -83,7 +83,7 @@ fi
 # ── 2. 喂入链路 ────────────────────────────────────────────────────
 if ! should_skip chain; then
   echo
-  echo "── [2/6] 喂入链路 project-chain.js ───────────────────────────"
+  echo "── [2/7] 喂入链路 project-chain.js ───────────────────────────"
   out=$(node tests/project-chain.js "$HTML" "$OUT/project-chain.json" 2>&1)
   rc=$?
   echo "$out" | tail -4
@@ -94,7 +94,7 @@ fi
 # ── 3. DOM 全链路 ──────────────────────────────────────────────────
 if ! should_skip dom; then
   echo
-  echo "── [3/6] DOM 全链路 dom-full.js ──────────────────────────────"
+  echo "── [3/7] DOM 全链路 dom-full.js ──────────────────────────────"
   out=$(node tests/dom-full.js "$HTML" "$OUT/domfull.json" 2>&1)
   rc=$?
   echo "$out" | tail -3
@@ -104,7 +104,7 @@ fi
 # ── 4. 组合联动 ────────────────────────────────────────────────────
 if ! should_skip combo; then
   echo
-  echo "── [4/6] 组合联动 combo.js ───────────────────────────────────"
+  echo "── [4/7] 组合联动 combo.js ───────────────────────────────────"
   out=$(node tests/combo.js "$HTML" "$OUT/combo.json" 2>&1)
   rc=$?
   echo "$out" | tail -3
@@ -117,7 +117,7 @@ fi
 FULLCHAIN="tests/码单器8.3_AI可运行全链路测试脚本_8.3架构版.py"
 if ! should_skip fullchain; then
   echo
-  echo "── [5/6] 五段式全链路 $(basename "$FULLCHAIN") ──────────"
+  echo "── [5/7] 五段式全链路 $(basename "$FULLCHAIN") ──────────"
   if [ ! -f "$FULLCHAIN" ]; then
     run_suite fullchain "五段式全链路" 1 "脚本不存在: $FULLCHAIN"
   else
@@ -132,15 +132,40 @@ fi
 if ! should_skip mutate; then
   if [ $FAST -eq 1 ]; then
     echo
-    echo "── [6/6] 变异测试 mutate-chain.py  （--fast 已跳过）────────────"
+    echo "── [6/7] 变异测试 mutate-chain.py  （--fast 已跳过）────────────"
   else
     echo
-    echo "── [6/6] 变异测试 mutate-chain.py  （约 4 分钟）──────────────"
+    echo "── [6/7] 变异测试 mutate-chain.py  （约 4 分钟）──────────────"
     out=$(python3 tests/mutate-chain.py 2>&1)
     rc=$?
     echo "$out" | tail -25
     line=$(echo "$out" | grep -oE "变异捕捉率: [0-9]+/[0-9]+" | tail -1)
     run_suite mutate "变异测试" $rc "${line:-无输出}"
+  fi
+fi
+
+# ── 7. OTA 包自包含性（8.3.30 新增）────────────────────────────────
+# 背景：8.3.26~8.3.29 的包只打了 index.html，而 index.html 仍引用
+# update-checker.js / analytics.js，包内却没有 → 安卓端无限重载。
+# 这道防线专门盯「包内 index.html 是否引用了包外不存在的资源」。
+if ! should_skip package; then
+  echo
+  echo "── [7/7] OTA 包自包含性 check-package-selfcontained.py ──────"
+  # 找当前版本对应的 zip；找不到就跳过（例如只改代码、尚未打包）
+  ZIP=""
+  for f in "$ROOT"/madan-*.zip; do
+    [ -e "$f" ] || continue
+    case "$(basename "$f")" in
+      "madan-${VERSION}.zip") ZIP="$f" ;;
+    esac
+  done
+  if [ -z "$ZIP" ]; then
+    echo "  （未找到 madan-${VERSION}.zip，跳过——仅改代码未打包时属正常）"
+  else
+    out=$(python3 tests/check-package-selfcontained.py "$ZIP" 2>&1)
+    rc=$?
+    echo "$out" | tail -6
+    run_suite package "OTA 包自包含性" $rc "$(basename "$ZIP")"
   fi
 fi
 

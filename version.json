@@ -1,6 +1,6 @@
 {
-  "version": "8.3.29",
-  "url": "https://madan.pages.dev/madan-8.3.29.zip",
-  "checksum": "1190969aacefcab424b7621fae6b2b461dbaad768c522a91326c06408603b715",
-  "notes": "纯内部重构，零功能改动。把 EnhancedNameExtractor 里 12 个无状态纯函数（名字规范化/清洗/合法性判定）抽到新类 NameTextUtils，原类保留 12 个同名转发方法，对外接口与返回值完全不变——该类行数由 1038 降至 961。同时删掉一个只含注释、没有任何可执行语句的空 <script> 标签。行为等价性用真实聊天记录素材逐字比对过：pat1/pat2/at/chain 四组提取结果 66/65/56/31 项与重构前完全一致。顺带修掉测试脚本一处隐性耦合（原先写死按 class 名切片，产品做类拆分后会漏掉新类、导致假回归）。"
+  "version": "8.3.30",
+  "url": "https://madan.pages.dev/madan-8.3.30.zip",
+  "checksum": "82a05b865f05fa95064d0819aef306276ecb08d0366dd2766234dba480d1aa33",
+  "notes": "修复安卓端「每隔一小会儿就自动重新加载」的循环重载。根因在发布产物而非业务代码：从 8.3.26 起，OTA 更新包只打包了 index.html 一个文件，但 index.html 里仍以 <script src> 引用 update-checker.js 与 analytics.js——这两个文件没有进包。缺了 update-checker.js，资源包切换后 Updater.notifyAppReady() 永远不会被调用，原生层等满 appReadyTimeout 就判定这一版包不健康并自动回退到旧包；回退后本机 APP_VERSION 仍是旧值，下次启动又判定有新版本，于是 下载→切换→回退→再判定 无限循环，用户看到的就是 App 反复重新加载。修复分两层：① 把 update-checker.js 与 analytics.js 的内容内联进 index.html，单文件彻底自包含，今后无论怎么打包都不会再漏文件；② 给更新逻辑加「同一版本只尝试一次」的持久化闸门，即使将来还有别的因素导致切换不生效，也最多尝试一次就安静停在当前版本，不会无限重载。另修正一处危险兜底：原先读不到本机版本号时会退化成 '0.0.0'（最小版本），导致任何云端版本都被判为更新；现在读不到就放弃本次检查。业务逻辑、计算引擎、存储结构零改动。"
 }
