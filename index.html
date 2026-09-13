@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.26</title>
+ <title>码单器8.3.27</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -4015,9 +4015,10 @@ h1 { margin-bottom: 4px; }
 
 
  <script>
-const APP_VERSION = '8.3.26';
+const APP_VERSION = '8.3.27';
 const TUTORIAL_VIDEO_URL = 'https://cdn.jsdelivr.net/gh/srhovo/tutorialvideo@main/video.mp4';
 const WECHAT_OPEN_URL = 'weixin://'; // 生成订单后尝试唤起微信主界面
+// Release note: 8.3.27 修复「改完时长总价不刷新、非得切一次『局数/小时』」的摩擦。此前填好「1h技术 + 每局25」后，只要改时长的过程经过一次服务类型框清空（全选重打、退格删空都会），自定义单价会连同总价一起被丢掉，界面只留一句「当前价格库中没有匹配规则」，必须点一下「局数/小时」才能把总价救回来。根因是清空被视为「本单结束」、定价随即作废，而切按钮恰好会触发一次重算。现在把「清空」拆成两种语义：① 清空后重新输入的是同一个项目、只是改了时长（如 1h技术 → 3h技术），视为在改这一单，单价自动套回，总价随新时长立即刷新；② 清空后输入的是别的项目名，视为开新单，旧单价一律不套用，避免上一单的价串到下一单。同时清空瞬间会把总价与时长当场归零，不再残留旧数字。清空后若就此停手，单价同样立即失效。另：原地改名（不经过清空）不受影响，单价照常保留。原有交互零改动：库价匹配、记忆库复用、混用单位提示、礼物模式、折数/加价等逻辑全部保持原样。
 // Release note: 8.3.26 修复「未保存项目 + 自定义单价」在局数模式下总价算错、且切「局数/小时」按钮总价纹丝不动的两个 bug。此前整串表达式（如「1h新项目」）的结算单位完全由价格库推导，从不理会用户在按钮上的选择——库匹配失败时兜底取到「小时」，于是「1h + 每局25」算成 1×25=25，而正确结果是 3×25=75（1小时＝3局）；同时切换按钮只重绘界面、从不触发表达式重算，看上去像是按钮失灵。现在规则明确为：**手输单价的项目按你选的单位结算，已存价格库的项目仍按库里自带单位结算**（库价本身带结算单位语义，不受按钮影响）。切换「局数/小时」后整串会立即按新单位重算；同一串里若库价项与手输项采用了不同单位，项目小计下方会多一行说明（例如「王者荣耀按小时结算 · 神秘服务按局数结算」），让你一眼看清各按什么算；单位一致的串不显示任何提示，不产生噪音。另修复两处会误删逐项定价的隐患：切按钮或复用记忆库价时系统清空单价框，不再被误判为「用户撤销定价」；服务类型框清空时才真正作废本轮定价。原有交互零改动：库价匹配、记忆库复用、礼物模式、折数/加价等逻辑全部保持原样。
 // Release note: 8.3.25 支持「服务类型里写未保存的项目 + 自定义单价」自动算总价并沉淀记忆库。此前整串表达式（如「1h神秘项目+2局新项目」）只会去正式价格库逐项匹配，任一项目不在库里就整串否决、总价为空；现在自定义单价输入框的价会按项目序号「静默自动归位」——你在服务类型框每写完一项，随后填的单价就归到那一项，多项各填各的价，手输价优先覆盖库价、未填项继续走库价兜底，混着写也能算出总价。点「生成并复制订单」时，这些手输单价会写入单价记忆库（只进记忆库、不进正式价格库），下次输入同名项目即可直接带价复用。原有交互零改动：已保存项目的联动、库价匹配、礼物模式、折数/加价等逻辑全部保持原样，服务类型框清空即自动作废本轮逐项定价，不会串到下一单。
 // Release note: 8.3.24 服务类型输入框的示例提示更新为「例如：1h+2局星耀包c+1h23min鹅鸭杀」，更贴合实际录单时的混合写法（时长 + 局数 + 段位/包c 备注 + 服务项目）。本版同时修正上一版发布时的版本号错位：此前 version.json 被单独改为 8.3.24、而更新包内 APP_VERSION 仍为 8.3.23，导致安卓端每次启动都判定「有新版本」并反复下载同一个包（无限更新循环）；现已将代码版本与更新清单统一升至 8.3.24 并重新打包，二者严格对齐，循环终止。业务逻辑、计算引擎与存储结构零改动。
@@ -13631,12 +13632,59 @@ class PriceMemoryFeature {
  // 用户编辑单价框时按「单价归属最靠后的、尚未定价的项目」自动登记，
  // 从而让「1h王者荣耀+2局未知服务」这类混合串也能逐项定价、自动求和。
  this._expressionManualPrices = new Map();
- // 8.3.25：与上面一一对应的「项目名快照」，用于在服务类型串变化时判断
- // 旧的逐项单价是否仍然适用（前缀一致 = 用户在追加，可保留；否则丢弃）。
- this._expressionManualNames = new Map();
- this._expressionManualCursor = 0;
- // 8.3.26：本次单价框变化是否来自用户手动编辑（用于区分主动删空 vs 系统清空）。
- this._expressionPriceUserEdited = false;
+ // 8.3.27：本单「最近一次手输的单价」。
+ // 用途：服务类型框被清空（用户改时长/重打时常会先删干净）本身不代表要放弃定价，
+ // 真正放弃定价的动作是「清空≠重新输入」——见 isExpressionManualPricesCompatible 的判定。
+ this._expressionManualPriceSticky = null;
+ // 8.3.27：本单是否已经「被服务类型框清空」。
+ // 用户明确选择「服务类型框清空立即失效」：清空即本单结束，旧价不得再套到新单上。
+ // 但清空同时是「改时长」的必经瞬间（全选重打/退格删空都要先经过空串），
+ // 所以用一个「清空时留下的话题指纹」来区分这两种语义：
+ //   · 清空后输入的内容仍与旧单同话题（项目名一致、只换了时长）→ 视为改单，价继续用；
+ //   · 清空后输入的是别的话题（换了项目名）→ 视为新单，旧价一律不套用。
+ this._expressionPriceClearedByEmptyType = false;
+ // 8.3.27：「清空那一刻」旧单的话题指纹（项目名序列），用于判断后续输入是否同话题。
+ this._expressionPriceClearedTopic = '';
+ // 8.3.27：当次输入是否紧接着一次清空（用于决定话题指纹该不该重算）。
+ this._expressionPriceAwaitingResume = false;
+ }
+
+ // 8.3.27：读取本单「最近一次手输的单价」（粘滞价）。
+ // 用于在服务类型框被清空/重打的瞬间，把定价原样放回去，避免用户必须切一次
+ // 「局数/小时」才能重新看到总价。
+ getExpressionStickyManualPrice() {
+ const value = PriceRuleEngine.normalizePositivePrice(this._expressionManualPriceSticky);
+ return value === null ? null : value;
+ }
+
+ // 8.3.27：登记/更新本单粘滞价；传 null 表示撤销。
+ setExpressionStickyManualPrice(price) {
+ const normalized = PriceRuleEngine.normalizePositivePrice(price);
+ this._expressionManualPriceSticky = normalized === null ? null : normalized;
+ return this._expressionManualPriceSticky;
+ }
+
+ // 8.3.27：构造「把粘滞价补回缺失项目」后的手输单价数组，供表达式引擎重试结算。
+ // 规则：已登记的逐项单价优先保留；凡是没有价的项（典型就是用户刚改了時长的那一项）
+ // 一律用粘滞价兜底。这样「1h技术 → 2h技术」这种改时长场景能立刻按新时长重算。
+ // 用户已裁定「单价跟着单位走」：这里只补数值，结算单位由 preferredMode 决定。
+ buildStickyManualPrices(sourceValue = '', sticky = this.getExpressionStickyManualPrice()) {
+ try {
+ const price = PriceRuleEngine.normalizePositivePrice(sticky);
+ if (price === null) return [];
+ const parsed = ProjectExpressionEngine.parse(String(sourceValue ?? ''));
+ const items = Array.isArray(parsed?.items) ? parsed.items : [];
+ if (!items.length) return [];
+ const out = [];
+ for (let index = 0; index < items.length; index += 1) {
+ const registered = this._expressionManualPrices instanceof Map ? this._expressionManualPrices.get(index) : null;
+ out.push(PriceRuleEngine.normalizePositivePrice(registered) ?? price);
+ }
+ return out;
+ } catch (error) {
+ appLogSilent(error);
+ return [];
+ }
  }
 
  // 8.3.25：读取当前表达式的手输单价数组（供 ProjectExpressionEngine.resolve 使用）
@@ -13660,21 +13708,18 @@ class PriceMemoryFeature {
  setExpressionManualPrice(index, price) {
  try {
  if (!(this._expressionManualPrices instanceof Map)) this._expressionManualPrices = new Map();
- if (!(this._expressionManualNames instanceof Map)) this._expressionManualNames = new Map();
  const normalized = PriceRuleEngine.normalizePositivePrice(price);
  const key = Math.max(0, Number(index) || 0);
  if (normalized === null) {
  this._expressionManualPrices.delete(key);
- this._expressionManualNames.delete(key);
  return false;
  }
  this._expressionManualPrices.set(key, normalized);
- // 同步记录该序号对应的项目名（用于判断后续服务类型串是否前缀兼容）。
- // 注意用 normalizeManualNameKey 归一化后再存：此处拿到的 serviceRaw 可能仍带尾部 `+`
- // （用户刚敲下分隔符、还没写下一项时），归一化能让快照在后续比较中稳定命中。
- const parsed = ProjectExpressionEngine.parse(String(this.getElement('type')?.value ?? ''));
- const item = Array.isArray(parsed?.items) ? parsed.items[key] : null;
- if (item) this._expressionManualNames.set(key, this.normalizeManualNameKey(item.serviceRaw));
+ this._expressionManualPriceSticky = normalized;
+ // 8.3.27：用户重新填价 = 主动认可本单定价，清空作废标记随之复位。
+ this._expressionPriceClearedByEmptyType = false;
+ this._expressionPriceClearedTopic = '';
+ this._expressionPriceAwaitingResume = false;
  return true;
  } catch (error) {
  appLogSilent(error);
@@ -13730,7 +13775,9 @@ class PriceMemoryFeature {
  if (hit && Number.isInteger(hit.index)) return hit.index;
  }
  for (let index = 0; index < count; index += 1) if (!this._expressionManualPrices.has(index)) return index;
- return count - 1;
+ // 8.3.27：所有项目都已有价时，再填的价视为「改这一项」，归到刚编辑（游标）那一项 —— 没有游标才兜底末项。
+ const fallback = Number.isInteger(this._expressionManualCursor) ? this._expressionManualCursor : null;
+ return (fallback !== null && fallback >= 0 && fallback < count) ? fallback : count - 1;
  } catch (error) {
  appLogSilent(error);
  return 0;
@@ -13739,19 +13786,33 @@ class PriceMemoryFeature {
 
  clearExpressionManualPrices() {
  if (this._expressionManualPrices instanceof Map) this._expressionManualPrices.clear();
- if (this._expressionManualNames instanceof Map) this._expressionManualNames.clear();
  this._expressionManualCursor = 0;
- this._expressionPriceUserEdited = false;
+ this._expressionManualPriceSticky = null;
+ this._expressionPriceClearedByEmptyType = false;
+ this._expressionPriceClearedTopic = '';
+ this._expressionPriceAwaitingResume = false;
  return true;
  }
 
- // 8.3.25：比较两个「项目名」是否指同一项。
- // 关键：表达式解析器对**打字中间态**有固有行为 —— 末尾挂着的 `+` 后面还没写完时长时，
+ // 8.3.27：服务类型框被清空时调用（previousSource = 清空前的服务类型串）。
+ // 只清「逐项映射」，保留粘滞价，并记下「旧单话题指纹」——
+ // 随后输入若仍是同话题（项目名一致、只是改了时长），就把价放回去；
+ // 若换了话题（改成别的项目名），说明用户是在开新单，旧价一律不套用。
+ noteExpressionSourceCleared(previousSource = '') {
+ if (this._expressionManualPrices instanceof Map) this._expressionManualPrices.clear();
+ this._expressionManualCursor = 0;
+ this._expressionPriceClearedByEmptyType = true;
+ this._expressionPriceClearedTopic = this.describeExpressionTopic(previousSource);
+ this._expressionPriceAwaitingResume = true;
+ return true;
+ }
+
+ // 8.3.27：归一化「项目名」，用于比较两个项目是不是同一个服务。
+ // 表达式解析器对**打字中间态**有固有行为 —— 末尾挂着的 `+` 后面还没写完时长时，
  // 无法构成项目边界，于是被并入前一项的服务名。实测三种中间态：
  //   `1h甲服务+`    → serviceRaw 为 `甲服务+`
  //   `1h甲服务+2`   → serviceRaw 为 `甲服务+2`   （数字已敲、单位未敲）
  //   `1h甲服务+2局` → 正常切成两项
- // 若直接严格比较，用户每追加一项都会判定「不兼容」而丢掉已填的逐项单价。
  // 因此比较前先剥掉首尾的 `+`/`＋` 与空白，再剥掉结尾「分隔符 + 纯数字」的未成形时长片段。
  normalizeManualNameKey(value) {
  return String(value ?? '')
@@ -13761,32 +13822,52 @@ class PriceMemoryFeature {
   .trim();
  }
 
- // 8.3.25：判断已有的逐项手输单价是否仍然适用于「新的服务类型串」。
- // 规则：把锚定表按序号还原成项目名快照（`_expressionManualNames`），
- // 若新串的前 N 项项目名与快照逐一对得上，说明用户是在原串后面追加，
- // 旧单价依然有效；否则视为整体改写，应丢弃锚定。
+ // 8.3.27：抽取一串表达式的「话题指纹」= 各项目的归一化项目名序列。
+ // 只关心「是不是同一个服务」，刻意不含时长 —— 改时长正是我们要放行的情况。
+ describeExpressionTopic(sourceValue = '') {
+ try {
+ const parsed = ProjectExpressionEngine.parse(String(sourceValue ?? ''));
+ const items = Array.isArray(parsed?.items) ? parsed.items : [];
+ if (!items.length) return '';
+ return items.map(item => this.normalizeManualNameKey(item?.serviceRaw)).filter(Boolean).join('|');
+ } catch (error) {
+ appLogSilent(error);
+ return '';
+ }
+ }
+
+ // 8.3.27：判断「清空之后重新输入的内容」是否仍属于被清空那一单。
+ // 是 → 允许把粘滞价放回去（用户只是在改时长）；否 → 视为新单，旧价作废。
+ isResumingClearedExpression(sourceValue = '') {
+ if (!this._expressionPriceClearedByEmptyType) return true;
+ const next = this.describeExpressionTopic(sourceValue);
+ if (!next) return false;
+ if (!this._expressionPriceClearedTopic) return false;
+ return next === this._expressionPriceClearedTopic;
+ }
+
+ // 8.3.27：判断已有的逐项手输单价是否仍然适用于「新的服务类型串」。
+ //
+ // 背景（用户实测反馈）：填好「1h技术 + 每局25」后去改时长，若改的过程里服务类型框
+ // 被清空过（全选重打、退格删空都会），旧逻辑会连同「自定义单价」一起丢弃，
+ // 于是总价变成空、只留一句「当前价格库中没有匹配规则」；用户必须切一次
+ // 「局数/小时」才能重新算出来 —— 这就是本次要消灭的摩擦。
+ //
+ // 新规则（用户已裁定）：
+ //   · 单价只认「数值」，不再和项目名绑定 —— 改时长不该把价弄丢；
+ //   · 服务类型框清空 = 本单随时可能结束。但清空是改时长的必经瞬间，
+ //     因此按「话题指纹」区分：清空后重新输入若是同话题（项目名没变、只是改了时长），
+ //     继续沿用粘滞价；若换了话题（改成别的项目名），视为新单，旧价一律不套用。
  isExpressionManualPricesCompatible(nextValue = '') {
  try {
- if (!(this._expressionManualPrices instanceof Map) || this._expressionManualPrices.size === 0) return false;
  const source = String(nextValue ?? '');
- const names = this._expressionManualNames;
- if (!(names instanceof Map) || names.size === 0) return true;
- // 8.3.25：服务类型框被清空 = 这一单已结束 / 用户开始录新单，
- // 此时锚定表必须一并清空，绝不能因为「空串解析不出项目」而被当成兼容保留下来，
- // 否则旧单的逐项单价会串到下一单去。
  if (!source.replace(/[\s+＋]/g, '')) return false;
- const parsed = ProjectExpressionEngine.parse(source);
- const items = Array.isArray(parsed?.items) ? parsed.items : [];
- // 打字中间态（如刚敲下 `+` 还没写下一项时长）常导致 parse 拿不全项目，
- // 此时无法判断，按「兼容」处理以保住用户已填的逐项单价。
- if (!items.length) return true;
- // 逐个核对已锚定项：只要其对应序号的「新项目名」与快照一致，就说明是前缀追加。
- // 中间态下后续项目可能暂时缺失（items[index] 为空），那属于「还没写完」，同样保留。
- for (const [index, name] of names.entries()) {
- const next = items[index];
- if (!next) return true;
- if (this.normalizeManualNameKey(next.serviceRaw) !== this.normalizeManualNameKey(name)) return false;
+ // 8.3.27：先判「清空话题」——此时逐项映射已被清空，不能再用它作为前提。
+ // 只要清空后重新输入的是同一话题（项目名没变、只是改了时长），粘滞价就继续适用。
+ if (this._expressionPriceClearedByEmptyType) {
+ return this.isResumingClearedExpression(source);
  }
+ if (!(this._expressionManualPrices instanceof Map) || this._expressionManualPrices.size === 0) return false;
  return true;
  } catch (error) {
  appLogSilent(error);
@@ -13994,17 +14075,33 @@ class PriceMemoryFeature {
  // 8.3.26：仅当「用户主动编辑过单价框」且「单价被删空」时才撤销锚定。
  // 切「局数/小时」按钮、复用记忆库价后控件被系统清空等场景不会触发用户编辑标记，
  // 因而锚定得以保留，切换结算单位时总价才能正确重算。
- // 锚定彻底失效由「服务类型框清空」与「项目名整体改写」两条规则负责。
+ // 8.3.27：单价一旦填过就记成本单的「粘滞价」。服务类型框改时长时若被清空、
+ // 单价框跟着被清空，粘滞价会在重新输入后自动放回，用户不必再切一次「局数/小时」。
+ // 真正撤销定价只有两条路：① 用户在单价框里把价删空；② 服务类型框清空后不再输入。
  if (protectedSource && this.isExpressionServiceInput()) {
  const userEdited = this._expressionPriceUserEdited === true;
  this._expressionPriceUserEdited = false;
  const index = this.resolveExpressionManualIndex();
  if (value === null) {
- if (userEdited) this._expressionManualPrices.delete(index);
+ // 用户真的在单价框里删空 → 撤销本单定价（粘滞价一并清掉，避免又被放回来）
+ if (userEdited) {
+ this._expressionManualPrices.delete(index);
+ this.setExpressionStickyManualPrice(null);
+ }
  } else {
  this.setExpressionManualPrice(index, value);
  }
  this.app.autoPriceFeature?.scheduleCombinedExpressionSync?.();
+ }
+ // 8.3.27：单价框被（系统或用户）清空、但服务类型框仍是一串可结算表达式时，
+ // 把粘滞价放回去继续结算。这是「改时长要切按钮才出总价」的正面修复入口。
+ // 放在 isExpressionServiceInput() 分支之外，因为表达式态在清空瞬间已归零。
+ if (value === null) {
+ const sticky = this.getExpressionStickyManualPrice();
+ if (sticky !== null && !this._expressionPriceClearedByEmptyType && this.isExpressionServiceInput()) {
+ this.setExpressionManualPrice(this.resolveExpressionManualIndex(), sticky);
+ this.app.autoPriceFeature?.scheduleCombinedExpressionSync?.();
+ }
  }
  if (value === null && serviceKey) this.scheduleServicePriceMatch();
  return value !== null;
@@ -15948,8 +16045,12 @@ class AutoPriceFeature {
  // 8.3.26：表达式状态归零时清掉混用单位说明，避免残留到下一单。
  this._expressionMixedModeNotice = '';
  // 8.3.25：表达式状态归零时，一并清掉逐项手输单价锚定表（换单/清空后不应残留旧价）。
- // keepManualPrices=true 用于「打字中间态」（如刚敲下 + 还没写完下一项），
- // 此时表达式解析会暂时失败，但用户已填的逐项单价必须留到串打完。
+ // keepManualPrices=true 用于两种情况：
+ //   ①「打字中间态」（如刚敲下 + 还没写完下一项）—— 表达式暂时解析失败，但串还没打完；
+ //   ② 8.3.27 新增的「原项目改时长」—— 服务类型框先被清空再重填，中间必然经过一次
+ //      「表达式态归零」。此处若连粘滞价一起清掉，用户重填后就无价可用、总价空白，
+ //      只能靠切一次「局数/小时」手动救回 —— 那正是本次要消灭的摩擦。
+ // 真正要彻底作废的情形（清空后不再输入、生成订单）由 withSticky=false 的调用负责。
  if (!keepManualPrices) this.priceMemoryFeature?.clearExpressionManualPrices?.();
  this.invalidateDraftSnapshot('expression-state-cleared');
  return owned;
@@ -15967,17 +16068,62 @@ class AutoPriceFeature {
  scheduleCombinedExpressionSync() {
  const raw = String(this.getElement('type')?.value || '').trim();
  const candidate = ProjectExpressionEngine.looksLikeExpression(raw);
+ const wasExpressionActive = this._expressionActive;
  // 8.3.25：服务类型框被清空 = 这一单结束，逐项手输单价锚定表必须立即作废。
  // 注意这里要单独处理：清空后 candidate 为 false，若当前又不在表达式态，
  // 下面的流程会直接 return false，根本走不到 clearExpressionState，
  // 于是旧单的锚定就残留下来、串到下一单去。
- if (!raw) this.priceMemoryFeature?.clearExpressionManualPrices?.();
+ //
+ // 8.3.27：「清空」同时是改时长（全选重打/退格删空）的必经瞬间。此刻立刻清掉锚定，
+ // 会让用户随后重新输入时无价可用、总价空白，必须切一次「局数/小时」才恢复。
+ // 处理：清空当下打上「本单作废」标记并清掉逐项映射，但**保留粘滞价**。
+ //   · 若紧接着重新输入了内容 → 粘滞价自动放回，总价随新内容立即刷新；
+ //   · 若用户就此停手（标记仍为 true）→ 粘滞价永远不会被放回，等效立即失效。
+ const cleared = !raw;
+ if (cleared) {
+ // 8.3.27：话题指纹必须在「清空之前」算好 —— 此处 input 已经是空串，
+ // 若交给 noteExpressionSourceCleared 自己去读，只会得到空指纹，
+ // 于是「同话题改时长」会被误判成新单、粘滞价失效。
+ // 用上一次成功解析的 source（_expressionSource）作为旧单话题来源。
+ this.priceMemoryFeature?.noteExpressionSourceCleared?.(this._expressionSource || '');
+ }
+ if (cleared && wasExpressionActive) {
+ // 8.3.27：清空瞬间把「总价/时长」这两个展示字段归零，避免旧数字挂在界面上
+ // 让人误以为还没清干净。注意只清展示，粘滞价必须留下 —— 那是重新输入后
+ // 立即恢复结算的依据。
+ //
+ // 同时必须清掉 this.projects：草稿快照会由 projects 重新聚合出小计，
+ // 若留下旧项目，紧接着的 syncUI 会把刚归零的总价又算回来（表现为「清空后
+ // 总价还挂着 75」）。这正是 8.3.26 之前「切按钮才刷新」的同源症状。
+ this.projects = [];
+ this._expressionActive = false;
+ this._expressionSource = '';
+ this._expressionDurationValue = '';
+ this._expressionTotalValue = '';
+ this._expressionMixedModeNotice = '';
+ this.setTotalValue('', 'combinedExpression', { cleared: true });
+ this.setExpressionDuration('');
+ this.currentDraft = null;
+ this.invalidateDraftSnapshot('expression-source-cleared');
+ this.setNote('');
+ this.setDurationNote('');
+ }
  if (this._expressionActive && this.normalizeExpressionSource(raw) !== this._expressionSource) {
- // 8.3.25：服务类型串发生变化时重建表达式状态。若新串只是「在旧串后面继续追加」
- // （前缀兼容），则保留已登记的逐项手输单价 —— 否则用户追加第二项会把第一项的价抹掉；
- // 若是整体改写，锚定序号已失去意义，交回 clearExpressionState 正常清理。
- const keepManualPrices = this.priceMemoryFeature?.isExpressionManualPricesCompatible?.(raw) ?? false;
- this.clearExpressionState({ clearProjects: true, clearAutoFields: true, keepManualPrices });
+ // 8.3.25：服务类型串发生变化时重建表达式状态，并决定是否保留已登记的逐项手输单价。
+ // 8.3.27：这里改造为「按语义逐条判定」，不再只依赖 isExpressionManualPricesCompatible：
+ //   · raw 为空 —— 用户正在清空（改时长的必经瞬间）。保留粘滞价，由作废标记把关；
+ //   · raw 非空 —— 用户已重新输入。只要本单还有粘滞价就保留，让总价立即刷新。
+ //     这正是「改完时长总价就出来」的关键，不必再切一次「局数/小时」。
+ const compatible = this.priceMemoryFeature?.isExpressionManualPricesCompatible?.(raw) ?? false;
+ const keepManualPrices = Boolean(raw) ? compatible : true;
+ if (!keepManualPrices) this.priceMemoryFeature?.clearExpressionManualPrices?.();
+ this._expressionActive = false;
+ this._expressionSource = '';
+ this._expressionDurationValue = '';
+ this._expressionTotalValue = '';
+ this._expressionMixedModeNotice = '';
+ this.setTotalValue('', 'combinedExpression', { cleared: true });
+ this.invalidateDraftSnapshot('expression-source-changed');
  this.currentDraft = null;
  this.setNote('');
  this.setDurationNote('');
@@ -15993,6 +16139,12 @@ class AutoPriceFeature {
  applyCombinedExpression(rawValue = this.getElement('type')?.value || '') {
  if (Number(this.app.currentMode) === 2) return false;
  const raw = String(rawValue || '').trim();
+ // 8.3.27：服务类型框已清空 —— 本单结束。此处必须直接返回，不能走下面的
+ // 「粘滞价补回重试」，否则刚被清掉的总价又会被粘滞价重新算出来挂回界面。
+ if (!raw) {
+ if (this._expressionActive) this.clearExpressionState({ clearProjects: true, clearAutoFields: true, keepManualPrices: true });
+ return false;
+ }
  if (!this._expressionActive && this.isExpressionSuppressed(raw)) return false;
  if (!ProjectExpressionEngine.looksLikeExpression(raw)) {
  // 8.3.25：服务类型被清空/删到不成表达式时，才算真正离开表达式场景，此时可以清锚定表；
@@ -16020,6 +16172,20 @@ class AutoPriceFeature {
  if (!resolved.ok) {
  // 8.3.25：解析失败多为「还在打字」的中间态（缺时长、项目还没写完），
  // 也可能是真的缺价。两种情况都要保留已填的逐项单价，等用户补完输入。
+ //
+ // 8.3.27：若本串只是「原项目改了时长、还没重新填价」，而本单又存有粘滞价，
+ // 就在这里自动把粘滞价补回对应项目后重试一次 —— 这是「改时长不必再切一次
+ // 局数/小时」的关键：用户看到的总价会随新时长立即刷新，而不是先报错再手动救回。
+ // 注意必须确认「仍在被清空那一单的话题内」，否则旧单价格会串到新单上。
+ const sticky = this.priceMemoryFeature?.getExpressionStickyManualPrice?.();
+ const resuming = this.priceMemoryFeature?.isResumingClearedExpression?.(raw) ?? true;
+ if (sticky !== null && resuming && ProjectExpressionEngine.looksLikeExpression(raw)) {
+ const retry = ProjectExpressionEngine.resolve(this.app.priceLibraries, raw, {
+ manualPrices: this.priceMemoryFeature?.buildStickyManualPrices?.(raw, sticky) || [],
+ preferredMode: this.mode
+ });
+ if (retry.ok) return this.commitCombinedExpression(retry);
+ }
  if (this._expressionActive) this.clearExpressionState({ clearProjects: true, clearAutoFields: true, keepManualPrices: true });
  this.currentDraft = null;
  this.setNote(`⚠ ${resolved.message || '整串表达式暂时无法完整结算'}`);
@@ -16027,6 +16193,13 @@ class AutoPriceFeature {
  this.updateManualControls(null);
  return false;
  }
+ return this.commitCombinedExpression(resolved);
+ }
+
+ // 8.3.27：把一次成功的表达式结算落到应用状态并刷新界面。
+ // 抽出来是因为「首次解析成功」与「粘滞价补回后重试成功」两条路径必须完全一致。
+ commitCombinedExpression(resolved) {
+ if (!resolved?.ok) return false;
  this.projects = resolved.projects;
  this.currentDraft = null;
  this._expressionActive = true;
