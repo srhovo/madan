@@ -1,6 +1,6 @@
 {
-  "version": "8.3.28",
-  "url": "https://madan.pages.dev/madan-8.3.28.zip",
-  "checksum": "30a54c63d53586366696ad744b95f22d93758554f3eec4a61018ed398576005a",
-  "notes": "修复加价候选渲染里一处会「静默失效」的转义隐患，并清理三处与代码对不上的旧注释。此前 SurchargeFeature 渲染加价候选时写作 this.app.escapeHtml?.bind(this.app) || (value => String(value ?? ''))——那个兜底分支不做任何转义，而它转义的正是加价规则名称与触发关键词（都是用户自己输入的文本）。只要 this.app.escapeHtml 因任何原因被移除或改名，转义就会悄悄退化成「原样拼字符串」，让带引号或尖括号的规则名直接进入 title 与 DOM。现在改为直接引用确定存在的 AppTextUtils.escapeHtml（顶层冻结对象、纯函数），去掉可选链与静默兜底：万一将来真出问题会显式报错，而不是无声放行。注释方面：OrderEngine 处的说明原先误挂为「提取修正弹窗」（复制残留），现补上它「纯静态工具类」的真实职责并标明与 OrderCalculator 的区别；DialogManager 上方三组已失效的旧模块边界注释一并清理；OrderCalculator 补充架构地位说明。本次零功能改动：计价、提取、折扣、加价、记忆库、布局等全部逻辑与存储结构原样生效。"
+  "version": "8.3.29",
+  "url": "https://madan.pages.dev/madan-8.3.29.zip",
+  "checksum": "1190969aacefcab424b7621fae6b2b461dbaad768c522a91326c06408603b715",
+  "notes": "纯内部重构，零功能改动。把 EnhancedNameExtractor 里 12 个无状态纯函数（名字规范化/清洗/合法性判定）抽到新类 NameTextUtils，原类保留 12 个同名转发方法，对外接口与返回值完全不变——该类行数由 1038 降至 961。同时删掉一个只含注释、没有任何可执行语句的空 <script> 标签。行为等价性用真实聊天记录素材逐字比对过：pat1/pat2/at/chain 四组提取结果 66/65/56/31 项与重构前完全一致。顺带修掉测试脚本一处隐性耦合（原先写死按 class 名切片，产品做类拆分后会漏掉新类、导致假回归）。"
 }

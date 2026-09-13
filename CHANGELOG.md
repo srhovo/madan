@@ -1,5 +1,20 @@
 # 码单器更新日志
 
+## 8.3.29（纯内部重构：拆出 NameTextUtils 纯函数类 + 清理空 script 标签）
+
+**本次零功能改动**：计价、提取、折扣、加价、记忆库、布局等全部逻辑与存储结构原样生效。
+
+- **拆分巨型类**：`EnhancedNameExtractor` 由 **1038 行降至 961 行**。把其中 12 个**无状态纯函数**抽到新类 `NameTextUtils`（114 行）：
+  `normalizeLearningText`、`getLearningKey`、`normalizeExtractText`、`compactExtractName`、`uniqueExtractNames`、`stripExtractPlatformPrefix`、`stripExtractQuotes`、`normalizeOutputName`、`cleanName`、`isValidName`、`isChineseName`、`isReasonableName`。
+- **为什么是这 12 个**：逐个核查过它们的 `this.X` 引用，**全部落在这 12 个方法之内**，对实例状态（`this.data` / `this.config` 等）零依赖。因此抽离后依赖是**单向、无环**的；早先曾计划按「数据 / 算法 / 学习」三分，实测出 44 条跨块引用，已否决。
+- **对外接口完全不变**：原类保留 12 个**同名转发方法**，签名与返回值逐字一致，任何外部调用方都不需要改动。
+- **删除 100% 确定的冗余**：`index.html` 里有一个 `<script>…</script>`，其内部**只有一行注释、没有任何可执行语句**——每次加载都被 JS 解析器空跑一趟。改为 HTML 注释后语义不变。行首统计的真实 HTML `<script>` 标签由 5 个减为 4 个，其中内联脚本由 3 个减为 2 个。
+- **顺带修掉测试脚本的隐性耦合**：「五段式全链路」脚本原先**写死** `html.indexOf('class EnhancedNameExtractor')` 作为切片起点。产品一旦把该类的方法抽到**定义在其之前**的新类里，切片就会漏掉新类 → 转发方法抛 `ReferenceError` → 异常被上层 `try` 吞掉 → 表现为「提取结果全为空」。本次正是踩中此坑（一度显示 0/8 的假回归）。现改为**依赖驱动**取起点：按括号配平取类体，扫描类体里 `Xxx.` 形式引用的外部类，再把这些类定义一并纳入切片（支持多跳传递依赖）。今后再做同类拆分不会再误报。
+- **验证（全部在真实产品上跑，非 mock）**：
+  - **行为指纹 sha256 完全一致**：`ea5e09a7…` 重构前 == 重构后。指纹覆盖 59 个方法，并用 `tests/_materials.json` 里的**真实聊天记录素材**驱动 `pat1`/`pat2`/`at`/`chain`，提取结果 **66 / 65 / 56 / 31 项逐字比对**（共 220 个真实名字）。
+  - **`node --check`** 全部内联脚本通过。
+  - **`tests/run-all.sh` 全量 6 套通过**：引擎 126/126 · 喂入链路 122/122 · DOM 26/26 · 组合联动 27/27 · 五段式 8/8 + 13/13 · **变异捕捉 9/9**。
+
 ## 8.3.28（修复加价候选的转义静默降级隐患 + 清理失效注释）
 
 - **修复的问题**：`SurchargeFeature` 渲染加价候选时，转义函数写作 `this.app.escapeHtml?.bind(this.app) || (value => String(value ?? ''))`。那个**兜底分支不做任何转义**，而它转义的正是**加价规则名称与触发关键词**——都是用户自己输入的文本。一旦 `this.app.escapeHtml` 因任何原因被移除或改名，转义会**悄悄退化**为「原样拼字符串」，让带引号或尖括号的规则名直接进入 `title` 与 DOM。
