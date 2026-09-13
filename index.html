@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.25</title>
+ <title>码单器8.3.26</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -239,6 +239,8 @@
  .app-form-grid--compact { grid-template-columns: 1fr 1fr auto; gap: 8px; }
  .app-list-actions { display: flex; gap: var(--spacing-xs); }
  .app-list-note { font-size: var(--font-size-sm); color: var(--color-text-lighter); margin-top: 2px; }
+ /* 8.3.26：单价小计提示需要把「混用结算单位说明」换行显示在第二行。 */
+ .app-list-note.price-subtotal-note { white-space: pre-line; line-height: 1.45; }
  .app-empty-state { text-align: center; color: var(--color-text-light); font-style: italic; }
  .app-empty-state--panel {
  padding: var(--spacing-2xl) var(--spacing-xl); background: var(--color-bg-light);
@@ -4013,9 +4015,10 @@ h1 { margin-bottom: 4px; }
 
 
  <script>
-const APP_VERSION = '8.3.25';
+const APP_VERSION = '8.3.26';
 const TUTORIAL_VIDEO_URL = 'https://cdn.jsdelivr.net/gh/srhovo/tutorialvideo@main/video.mp4';
 const WECHAT_OPEN_URL = 'weixin://'; // 生成订单后尝试唤起微信主界面
+// Release note: 8.3.26 修复「未保存项目 + 自定义单价」在局数模式下总价算错、且切「局数/小时」按钮总价纹丝不动的两个 bug。此前整串表达式（如「1h新项目」）的结算单位完全由价格库推导，从不理会用户在按钮上的选择——库匹配失败时兜底取到「小时」，于是「1h + 每局25」算成 1×25=25，而正确结果是 3×25=75（1小时＝3局）；同时切换按钮只重绘界面、从不触发表达式重算，看上去像是按钮失灵。现在规则明确为：**手输单价的项目按你选的单位结算，已存价格库的项目仍按库里自带单位结算**（库价本身带结算单位语义，不受按钮影响）。切换「局数/小时」后整串会立即按新单位重算；同一串里若库价项与手输项采用了不同单位，项目小计下方会多一行说明（例如「王者荣耀按小时结算 · 神秘服务按局数结算」），让你一眼看清各按什么算；单位一致的串不显示任何提示，不产生噪音。另修复两处会误删逐项定价的隐患：切按钮或复用记忆库价时系统清空单价框，不再被误判为「用户撤销定价」；服务类型框清空时才真正作废本轮定价。原有交互零改动：库价匹配、记忆库复用、礼物模式、折数/加价等逻辑全部保持原样。
 // Release note: 8.3.25 支持「服务类型里写未保存的项目 + 自定义单价」自动算总价并沉淀记忆库。此前整串表达式（如「1h神秘项目+2局新项目」）只会去正式价格库逐项匹配，任一项目不在库里就整串否决、总价为空；现在自定义单价输入框的价会按项目序号「静默自动归位」——你在服务类型框每写完一项，随后填的单价就归到那一项，多项各填各的价，手输价优先覆盖库价、未填项继续走库价兜底，混着写也能算出总价。点「生成并复制订单」时，这些手输单价会写入单价记忆库（只进记忆库、不进正式价格库），下次输入同名项目即可直接带价复用。原有交互零改动：已保存项目的联动、库价匹配、礼物模式、折数/加价等逻辑全部保持原样，服务类型框清空即自动作废本轮逐项定价，不会串到下一单。
 // Release note: 8.3.24 服务类型输入框的示例提示更新为「例如：1h+2局星耀包c+1h23min鹅鸭杀」，更贴合实际录单时的混合写法（时长 + 局数 + 段位/包c 备注 + 服务项目）。本版同时修正上一版发布时的版本号错位：此前 version.json 被单独改为 8.3.24、而更新包内 APP_VERSION 仍为 8.3.23，导致安卓端每次启动都判定「有新版本」并反复下载同一个包（无限更新循环）；现已将代码版本与更新清单统一升至 8.3.24 并重新打包，二者严格对齐，循环终止。业务逻辑、计算引擎与存储结构零改动。
 // Release note: 8.3.23 头部「DIY布局」按钮改造为「图标 + 布局」的直接切换键——图标随当前方案切换（4 宫格＝完整布局 / 3 横线＝精简布局），点击即在完整与精简之间来回切换并给出顶部浮层提示，原先的 DIY 布局弹窗（方案卡片列表 + 确定按钮）整体下线，省去「点按钮→选方案→再确定」的多余动作。同时从「导入导出」的模块清单中移除「DIY布局」与「DIY布局模板」两项，并清理其连带的版本表、导出装配、导入计数与导入应用分支；布局模板无导入入口后 mergeLayoutTemplates 成为死代码一并删除。底层存储零改动：hiddenModules / layoutTemplates 两个 key 与格式完全保留，saveLayoutPrefs / saveLayoutTemplates / applyLayoutVisibility 等持久化链路原样生效，老用户已有布局状态继续有效。按钮触控高度提升到 38px（≤480px 为 36px）以匹配其升级后的高频直接操作定位。
@@ -6893,8 +6896,16 @@ class ProjectExpressionEngine {
  const parsed = this.parse(value);
  if (!parsed.ok) return { ...parsed, projects: [], aggregate: ProjectSettlementEngine.aggregateProjects([]) };
  const manualPrices = this.normalizeManualPrices(options?.manualPrices);
+ // 8.3.26：用户在「局数 / 小时」按钮上的选择。手输单价的项目（通常就是未保存项目）
+ // 必须按这个选择结算 —— 例如「1h + 每局25」应得 3×25=75，而不是 1×25=25。
+ // 库价项目仍以库推导出的模式为准（那是既有正确行为，且库价本身就带结算单位语义）。
+ const preferredMode = ['hour', 'round'].includes(String(options?.preferredMode || '').toLowerCase())
+ ? String(options.preferredMode).toLowerCase()
+ : '';
  const projects = [];
  const manualOverrideIndexes = [];
+ // 8.3.26：逐项记录实际采用的结算单位，用于在「库价项 / 手输项单位不一致」时给出提示。
+ const modesUsed = [];
  for (let index = 0; index < parsed.items.length; index += 1) {
  const item = parsed.items[index];
  const selected = this.matchByAvailablePrice(priceLibraryData, item);
@@ -6919,9 +6930,15 @@ class ProjectExpressionEngine {
  };
  }
  const unitPrice = useManual ? manualPrice : match.unitPrice;
+ // 8.3.26：模式归属 —— 库价项用库推导模式；手输项用用户选择的模式，
+ // 用户没选过（preferredMode 为空）时才退回库推导模式/round 兜底。
+ const quantityMode = libraryOk && !useManual
+ ? selected.mode
+ : (preferredMode || selected.mode || 'round');
+ modesUsed.push({ index, service: item.serviceRaw, mode: quantityMode, manual: useManual });
  const created = ProjectSettlementEngine.createProject({
  quantityRaw: item.quantityRaw,
- quantityMode: libraryOk ? selected.mode : (selected.mode || 'round'),
+ quantityMode,
  serviceRaw: item.serviceRaw,
  // 未命中时 serviceDisplay 退化为输入的原始项目名，保证账单上仍显示用户写的名字
  serviceDisplay: libraryOk ? match.serviceDisplay : ProjectSettlementEngine.normalizeServiceDisplay(item.serviceRaw),
@@ -6959,8 +6976,24 @@ class ProjectExpressionEngine {
  items: parsed.items,
  projects,
  manualOverrideIndexes,
+ // 8.3.26：仅当同一串里出现「不止一种结算单位」时才非空，
+ // 供上层渲染一行说明（例如：王者荣耀按小时价 80/h、神秘服务按局数价 40/局）。
+ mixedModeNotice: this.buildMixedModeNotice(modesUsed),
  aggregate: ProjectSettlementEngine.aggregateProjects(projects)
  };
+ }
+
+ // 8.3.26：构造「混用结算单位」的说明文案。
+ // 仅当表达式里同时存在两种单位时返回文案，单一单位返回空串（避免噪音）。
+ static buildMixedModeNotice(modesUsed) {
+ const list = Array.isArray(modesUsed) ? modesUsed : [];
+ if (list.length < 2) return '';
+ const kinds = new Set(list.map(item => item.mode));
+ if (kinds.size < 2) return '';
+ const label = mode => (mode === 'hour' ? '小时' : '局数');
+ return list
+ .map(item => `${item.service}按${label(item.mode)}结算`)
+ .join(' · ');
  }
 }
 
@@ -13602,6 +13635,8 @@ class PriceMemoryFeature {
  // 旧的逐项单价是否仍然适用（前缀一致 = 用户在追加，可保留；否则丢弃）。
  this._expressionManualNames = new Map();
  this._expressionManualCursor = 0;
+ // 8.3.26：本次单价框变化是否来自用户手动编辑（用于区分主动删空 vs 系统清空）。
+ this._expressionPriceUserEdited = false;
  }
 
  // 8.3.25：读取当前表达式的手输单价数组（供 ProjectExpressionEngine.resolve 使用）
@@ -13706,6 +13741,7 @@ class PriceMemoryFeature {
  if (this._expressionManualPrices instanceof Map) this._expressionManualPrices.clear();
  if (this._expressionManualNames instanceof Map) this._expressionManualNames.clear();
  this._expressionManualCursor = 0;
+ this._expressionPriceUserEdited = false;
  return true;
  }
 
@@ -13955,14 +13991,31 @@ class PriceMemoryFeature {
  this._servicePriceState.appliedSettleType = '';
  // 8.3.25：整串表达式场景下，把这次手输单价按「项目序号」登记下来，
  // 让未保存的项目也能凭该单价参与结算（静默自动归位，不打断输入节奏）。
+ // 8.3.26：仅当「用户主动编辑过单价框」且「单价被删空」时才撤销锚定。
+ // 切「局数/小时」按钮、复用记忆库价后控件被系统清空等场景不会触发用户编辑标记，
+ // 因而锚定得以保留，切换结算单位时总价才能正确重算。
+ // 锚定彻底失效由「服务类型框清空」与「项目名整体改写」两条规则负责。
  if (protectedSource && this.isExpressionServiceInput()) {
+ const userEdited = this._expressionPriceUserEdited === true;
+ this._expressionPriceUserEdited = false;
  const index = this.resolveExpressionManualIndex();
- if (value === null) this._expressionManualPrices.delete(index);
- else this.setExpressionManualPrice(index, value);
+ if (value === null) {
+ if (userEdited) this._expressionManualPrices.delete(index);
+ } else {
+ this.setExpressionManualPrice(index, value);
+ }
  this.app.autoPriceFeature?.scheduleCombinedExpressionSync?.();
  }
  if (value === null && serviceKey) this.scheduleServicePriceMatch();
  return value !== null;
+ }
+
+ // 8.3.26：标记「这次单价框变化来自用户手动编辑」。
+ // 由 autoUnitPrice 的 input 事件调用，配合 handleAutoPriceManualChange
+ // 区分「用户主动删空单价（意图撤销该项定价）」与「系统清空单价（切模式/复用记忆库价）」。
+ noteExpressionPriceEditedByUser() {
+ this._expressionPriceUserEdited = true;
+ return true;
  }
 
  // 8.3.25：当前服务类型框里是否是一整串「时长+项目+…」表达式（表达式才有逐项定价需求）
@@ -15733,9 +15786,12 @@ class OrderDraftSnapshotCoordinator {
  hasDuration,
  committedPriceBreakdown: feature.formatProjectPriceBreakdown(baseAggregate.projects, baseAggregate),
  committedDurationBreakdown: feature.formatProjectDurationBreakdown(baseAggregate.projects, baseAggregate),
- pricedPriceBreakdown: feature.formatProjectPriceBreakdown(pricedAggregate.projects, pricedAggregate),
- pricedDurationBreakdown: feature.formatProjectDurationBreakdown(pricedAggregate.projects, pricedAggregate),
- rendered: renderSurcharge
+  pricedPriceBreakdown: feature.formatProjectPriceBreakdown(pricedAggregate.projects, pricedAggregate),
+  pricedDurationBreakdown: feature.formatProjectDurationBreakdown(pricedAggregate.projects, pricedAggregate),
+  // 8.3.26：整串表达式里「库价项 / 手输项」采用了不同结算单位时的说明文案。
+  // 只在表达式态下有效（其他路径没有这条信息），单一单位时为空串。
+  mixedModeNotice: expressionActive ? String(feature._expressionMixedModeNotice || '') : '',
+  rendered: renderSurcharge
  };
  if (render && !renderSurcharge) this.renderStatus(snapshot);
  this.stats.builds += 1;
@@ -15771,6 +15827,7 @@ class AutoPriceFeature {
  this._expressionSource = '';
  this._expressionDurationValue = '';
  this._expressionTotalValue = '';
+ this._expressionMixedModeNotice = '';
  this._expressionSuppressedSource = '';
  this.draftSnapshots = new OrderDraftSnapshotCoordinator(this);
  this.resetState = this.resetState.bind(this);
@@ -15888,6 +15945,8 @@ class AutoPriceFeature {
  this._expressionSource = '';
  this._expressionDurationValue = '';
  this._expressionTotalValue = '';
+ // 8.3.26：表达式状态归零时清掉混用单位说明，避免残留到下一单。
+ this._expressionMixedModeNotice = '';
  // 8.3.25：表达式状态归零时，一并清掉逐项手输单价锚定表（换单/清空后不应残留旧价）。
  // keepManualPrices=true 用于「打字中间态」（如刚敲下 + 还没写完下一项），
  // 此时表达式解析会暂时失败，但用户已填的逐项单价必须留到串打完。
@@ -15953,8 +16012,10 @@ class AutoPriceFeature {
  }
  // 8.3.25：把「按项目序号锚定的手输单价」交给表达式引擎，
  // 使未保存项目也能凭手输单价参与整串结算（手输优先、库价兜底）。
+ // 8.3.26：同时传入用户在「局数 / 小时」按钮上的选择，让手输单价项目按用户选的单位结算。
  const resolved = ProjectExpressionEngine.resolve(this.app.priceLibraries, raw, {
- manualPrices: this.priceMemoryFeature?.getExpressionManualPrices?.(raw) || []
+ manualPrices: this.priceMemoryFeature?.getExpressionManualPrices?.(raw) || [],
+ preferredMode: this.mode
  });
  if (!resolved.ok) {
  // 8.3.25：解析失败多为「还在打字」的中间态（缺时长、项目还没写完），
@@ -15970,6 +16031,9 @@ class AutoPriceFeature {
  this.currentDraft = null;
  this._expressionActive = true;
  this._expressionSource = resolved.source;
+ // 8.3.26：记录本次结算里「混用单位」的说明文案（库价项按库单位、手输项按用户所选单位）。
+ // 同一串里所有项目单位一致时为空串，此时不产生任何提示噪音。
+ this._expressionMixedModeNotice = String(resolved.mixedModeNotice || '');
  // 8.3.25 注意：这里**不能**清空 _expressionManualPrices。
  // 每次输入服务类型或单价都会重新解析表达式，若解析成功就清表，
  // 用户刚填的逐项单价会立刻丢失（追加第二项时第一项的价被抹掉）。
@@ -16236,7 +16300,9 @@ class AutoPriceFeature {
  this.setTotalValue(ProjectSettlementEngine.formatNumber(aggregate.totalPrice), 'combinedExpression');
  this._expressionTotalValue = ProjectSettlementEngine.formatNumber(aggregate.totalPrice);
  if (this.getElement('duration')?.value !== aggregate.durationText) this.setExpressionDuration(aggregate.durationText);
- this.setNote(snapshot.pricedPriceBreakdown);
+ // 8.3.26：混用结算单位时，把说明文案接在项目小计后面单独一行展示
+ // （换行由 price-subtotal-note 的 white-space: pre-line 负责）。
+ this.setNote([snapshot.pricedPriceBreakdown, snapshot.mixedModeNotice].filter(Boolean).join('\n'));
  this.setDurationNote(snapshot.pricedDurationBreakdown);
  this.updateManualControls(null);
  return true;
@@ -16261,11 +16327,24 @@ class AutoPriceFeature {
 
  setMode(mode) {
  const nextMode = mode === 'hour' ? 'hour' : 'round';
- if (this.mode !== nextMode) this.invalidateDraftSnapshot('quantity-mode-changed');
+ const changed = this.mode !== nextMode;
+ if (changed) this.invalidateDraftSnapshot('quantity-mode-changed');
  this.mode = nextMode;
  [['apModeRound', 'round'], ['apModeHour', 'hour']].forEach(([id, value]) => {
  this.getElement(id)?.classList.toggle('active', this.mode === value);
  });
+ // 8.3.26：切「局数 / 小时」后必须让整串表达式按新单位重算一次。
+ // 手输单价的项目（如「1h + 每局25」）单价不变、但结算数量随单位改变，
+ // 不重算就会出现「切了按钮总价纹丝不动」的假象。
+ // 注意：重算所需的逐项定价由 handleAutoPriceManualChange 保留（见其内部注释），
+ // 这里只需触发一次解析。
+ if (changed && this._expressionActive) {
+ const raw = String(this.getElement('type')?.value || '').trim();
+ if (raw) {
+ this.cancelExpressionSync();
+ this.scheduleExpressionFrame(() => this.applyCombinedExpression(raw));
+ }
+ }
  this.syncUI();
  }
 
@@ -16357,6 +16436,10 @@ class AutoPriceFeature {
  if (!this.mountPanel(total)) return false;
  this.bind('autoUnitPrice', 'input', () => {
  if (!this.inputFlowFeature.getActiveWriteContext('autoUnitPrice')) this.fieldProvenance?.markManual?.('autoUnitPrice', this.getElement('autoUnitPrice')?.value, { eventType: 'input' });
+ // 8.3.26：这是「用户真的在单价框里敲字（含删空）」的唯一信号。
+ // 只有它才应被允许撤销逐项锚定；切模式、复用记忆库价等系统行为触发的
+ // 单价框变化不算用户撤销，必须保住已登记的逐项定价。
+ this.priceMemoryFeature?.noteExpressionPriceEditedByUser?.();
  this.invalidateDraftSnapshot('unit-price-input');
  this.syncUI();
  this.emitPriceInputChange();
