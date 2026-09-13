@@ -3509,9 +3509,7 @@ h1 { margin-bottom: 4px; }
    } catch (e) {}
  })();
  </script>
- <script>
- // Service Worker 注册已移除：单文件部署场景中 sw.js 不存在，每次加载产生 404
- </script>
+ <!-- Service Worker 注册已移除：单文件部署场景中 sw.js 不存在，每次加载产生 404 -->
     <!-- AIGC meta 标签已移除：生产环境不应暴露内部内容生产者信息 -->
 </head>
 <body>
@@ -4286,6 +4284,130 @@ class InlineChunkLoader {
  // 终极存储系统 - 双重保险，永久保存（优化版）
  // ============================================
 
+
+ // ============================================
+ // 名字文本处理工具 · 纯函数集合
+ // 职责：名字的规范化 / 清洗 / 合法性判定。全部为无状态纯函数，不读写任何实例数据。
+ // 由来：原先进这些方法内联在 EnhancedNameExtractor 中（该类因此膨胀到千行以上）。
+ //       现按「只搬代码、不改逻辑」原则抽离：原类保留同名转发方法，对外接口完全不变。
+ // 依赖：无。本类不引用任何其它类，可被任意模块安全复用。
+ // ============================================
+ class NameTextUtils {
+ static normalizeLearningText(value) {
+ let text = String(value ?? '');
+ if (typeof text.normalize === 'function') text = text.normalize('NFKC');
+ return text
+ .replace(/[\u200b\u200c\u200d\u2060\ufeff]/g, '')
+ .replace(/\s+/g, ' ')
+ .trim();
+ }
+ static getLearningKey(value) { return NameTextUtils.normalizeLearningText(value).toLowerCase(); }
+ static normalizeExtractText(value) {
+ try {
+ let text = String(value ?? '');
+ if (typeof text.normalize === 'function') text = text.normalize('NFKC');
+ return text
+ .replace(/[“”]/g, '"')
+ .replace(/[‘’]/g, "'")
+ .replace(/[（）]/g, m => (m === '（' ? '(' : ')'))
+ .replace(/[。．]/g, '.')
+ .replace(/[\u200b\u200c\u200d\u2060\ufeff]/g, '')
+ .replace(/[\u2005\u2006\u2009\u202f\u00a0]/g, ' ')
+ .trim();
+ } catch {
+ return String(value ?? '').trim();
+ }
+ }
+ static compactExtractName(value) {
+ return NameTextUtils.normalizeExtractText(value)
+ .replace(/\s+/g, '')
+ .replace(/["'`]+/g, '')
+ .trim();
+ }
+ static uniqueExtractNames(names) {
+ const result = [];
+ const seen = new Set();
+ (Array.isArray(names) ? names : []).forEach(name => {
+ const clean = NameTextUtils.compactExtractName(name);
+ const key = clean.toLowerCase();
+ if (!key || seen.has(key)) return;
+ seen.add(key);
+ result.push(clean);
+ });
+ return result;
+ }
+ static stripExtractPlatformPrefix(value) {
+ return NameTextUtils.normalizeExtractText(value)
+ .replace(/^[@\s]+/, '')
+ .replace(/^(?:See|FL|F\s*L)[\s\-.。．:：]*/i, '')
+ .replace(/^f\s*派\s*陪?/i, '')
+ .trim();
+ }
+ static stripExtractQuotes(value) {
+ return NameTextUtils.normalizeExtractText(value).replace(/^["'`]+|["'`]+$/g, '').trim();
+ }
+ static normalizeOutputName(name) {
+ let value = NameTextUtils.stripExtractQuotes(name);
+ value = NameTextUtils.stripExtractPlatformPrefix(value);
+ value = value.replace(/[\[\]{}<>《》【】]/g, '');
+ value = value.replace(/[!！?？~～]+$/g, '');
+ value = value.replace(/\s+/g, ' ').trim();
+ value = NameTextUtils.compactExtractName(value);
+ return value;
+ }
+ static cleanName(name) {
+ if (name === null || name === undefined) return '';
+
+ let result = String(name).trim();
+ if (!result) return '';
+
+ if (typeof result.normalize === 'function') {
+ result = result.normalize('NFKC');
+ }
+
+ result = result
+ .replace(/[\u200b\u200c\u200d\u2060\ufeff]/g, '')
+ .replace(/[（(【\[<{].*?[）)\]\】>}]/g, '')
+ .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}].*/gu, '')
+ .replace(/[^\u4e00-\u9fa5a-zA-Z0-9\s\-]/g, '')
+ .replace(/\s+/g, ' ')
+ .trim();
+
+ return result;
+ }
+ static isValidName(name, allowPureNumbers = false) {
+ if (!name || name.length < 1) return false;
+
+ const excludeWords = [
+ '点群', '试营业', '全糖', '下次见', '动画表情', '谢谢', '晚安', '铜锣烧',
+ '其他人', '我拍拍', '点2', '待冠', 'V', '应', '宝宝', '刚刚', '选送', '你们',
+ '娱乐', '娱技', '技术', '派歌技', '心想事成', '悦悦', '拍了拍', '拍一拍',
+ '最帅的', '好好学习', '天天上当', '多睡觉', '让我再睡', '说少爷', '的翘起',
+ 'see'
+ ];
+
+ if (excludeWords.some(word => name.toLowerCase().includes(word.toLowerCase()))) return false;
+
+ if (/^\d+$/.test(name)) {
+ if (allowPureNumbers) {
+ return name.length >= 2;
+ } else {
+ return ['928', '928H', '7'].includes(name);
+ }
+ }
+
+ if (/^[a-zA-Z0-9]{10,}$/.test(name)) return false;
+
+ return true;
+ }
+ static isChineseName(name) {
+ return /^[\u4e00-\u9fa5]+$/.test(name);
+ }
+ static isReasonableName(name) {
+ return name.length >= 1 && name.length <= 6 && NameTextUtils.isValidName(name, true);
+ }
+ }
+
  class EnhancedNameExtractor {
  constructor() {
  this.config = {
@@ -4343,15 +4465,12 @@ class InlineChunkLoader {
 
  // 学习数据统一标准化与瞬时索引
  normalizeLearningText(value) {
- let text = String(value ?? '');
- if (typeof text.normalize === 'function') text = text.normalize('NFKC');
- return text
- .replace(/[\u200b\u200c\u200d\u2060\ufeff]/g, '')
- .replace(/\s+/g, ' ')
- .trim();
- }
+   return NameTextUtils.normalizeLearningText(value);
+  }
 
- getLearningKey(value) { return this.normalizeLearningText(value).toLowerCase(); }
+ getLearningKey(value) {
+   return NameTextUtils.getLearningKey(value);
+  }
 
  normalizeConfirmedCollection(list) {
  const map = new Map();
@@ -4924,41 +5043,16 @@ class InlineChunkLoader {
  // ============================================
 
  normalizeExtractText(value) {
- try {
- let text = String(value ?? '');
- if (typeof text.normalize === 'function') text = text.normalize('NFKC');
- return text
- .replace(/[“”]/g, '"')
- .replace(/[‘’]/g, "'")
- .replace(/[（）]/g, m => (m === '（' ? '(' : ')'))
- .replace(/[。．]/g, '.')
- .replace(/[\u200b\u200c\u200d\u2060\ufeff]/g, '')
- .replace(/[\u2005\u2006\u2009\u202f\u00a0]/g, ' ')
- .trim();
- } catch {
- return String(value ?? '').trim();
- }
- }
+   return NameTextUtils.normalizeExtractText(value);
+  }
 
  compactExtractName(value) {
- return this.normalizeExtractText(value)
- .replace(/\s+/g, '')
- .replace(/["'`]+/g, '')
- .trim();
- }
+   return NameTextUtils.compactExtractName(value);
+  }
 
  uniqueExtractNames(names) {
- const result = [];
- const seen = new Set();
- (Array.isArray(names) ? names : []).forEach(name => {
- const clean = this.compactExtractName(name);
- const key = clean.toLowerCase();
- if (!key || seen.has(key)) return;
- seen.add(key);
- result.push(clean);
- });
- return result;
- }
+   return NameTextUtils.uniqueExtractNames(names);
+  }
 
  getConfirmedMemoryIndex() {
  const { confirmedSet, originalMap, namesByLength } = this.getLearningIndexes();
@@ -4970,26 +5064,16 @@ class InlineChunkLoader {
  }
 
  stripExtractPlatformPrefix(value) {
- return this.normalizeExtractText(value)
- .replace(/^[@\s]+/, '')
- .replace(/^(?:See|FL|F\s*L)[\s\-.。．:：]*/i, '')
- .replace(/^f\s*派\s*陪?/i, '')
- .trim();
- }
+   return NameTextUtils.stripExtractPlatformPrefix(value);
+  }
 
  stripExtractQuotes(value) {
- return this.normalizeExtractText(value).replace(/^["'`]+|["'`]+$/g, '').trim();
- }
+   return NameTextUtils.stripExtractQuotes(value);
+  }
 
  normalizeOutputName(name) {
- let value = this.stripExtractQuotes(name);
- value = this.stripExtractPlatformPrefix(value);
- value = value.replace(/[\[\]{}<>《》【】]/g, '');
- value = value.replace(/[!！?？~～]+$/g, '');
- value = value.replace(/\s+/g, ' ').trim();
- value = this.compactExtractName(value);
- return value;
- }
+   return NameTextUtils.normalizeOutputName(name);
+  }
 
  findConfirmedNameHits(text) {
  const memory = this.getConfirmedMemoryIndex();
@@ -5271,59 +5355,20 @@ class InlineChunkLoader {
  // ============================================
 
  cleanName(name) {
- if (name === null || name === undefined) return '';
-
- let result = String(name).trim();
- if (!result) return '';
-
- if (typeof result.normalize === 'function') {
- result = result.normalize('NFKC');
- }
-
- result = result
- .replace(/[\u200b\u200c\u200d\u2060\ufeff]/g, '')
- .replace(/[（(【\[<{].*?[）)\]\】>}]/g, '')
- .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}].*/gu, '')
- .replace(/[^\u4e00-\u9fa5a-zA-Z0-9\s\-]/g, '')
- .replace(/\s+/g, ' ')
- .trim();
-
- return result;
- }
+   return NameTextUtils.cleanName(name);
+  }
 
  isValidName(name, allowPureNumbers = false) {
- if (!name || name.length < 1) return false;
-
- const excludeWords = [
- '点群', '试营业', '全糖', '下次见', '动画表情', '谢谢', '晚安', '铜锣烧',
- '其他人', '我拍拍', '点2', '待冠', 'V', '应', '宝宝', '刚刚', '选送', '你们',
- '娱乐', '娱技', '技术', '派歌技', '心想事成', '悦悦', '拍了拍', '拍一拍',
- '最帅的', '好好学习', '天天上当', '多睡觉', '让我再睡', '说少爷', '的翘起',
- 'see'
- ];
-
- if (excludeWords.some(word => name.toLowerCase().includes(word.toLowerCase()))) return false;
-
- if (/^\d+$/.test(name)) {
- if (allowPureNumbers) {
- return name.length >= 2;
- } else {
- return ['928', '928H', '7'].includes(name);
- }
- }
-
- if (/^[a-zA-Z0-9]{10,}$/.test(name)) return false;
-
- return true;
- }
+   return NameTextUtils.isValidName(name, allowPureNumbers);
+  }
 
  isChineseName(name) {
- return /^[\u4e00-\u9fa5]+$/.test(name);
- }
+   return NameTextUtils.isChineseName(name);
+  }
 
  isReasonableName(name) {
- return name.length >= 1 && name.length <= 6 && this.isValidName(name, true);
- }
+   return NameTextUtils.isReasonableName(name);
+  }
  }
 
 

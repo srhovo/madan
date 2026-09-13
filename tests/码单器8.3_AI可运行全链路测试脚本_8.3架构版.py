@@ -398,9 +398,15 @@ def extraction_report(html_path):
     用户已于 2026-09-11 裁决期望语义：颜色后缀应剥离、条目内残留数字应剥离。
     因此该类差异的最终状态是「期望已明确、实现待改进」，属**已知偏差**，
     与「不知道对不对」的 unknown 区分开，在报告中单列并统计。
+    ⚠ 切片起点不能写死 `indexOf('class EnhancedNameExtractor')`。
+      产品允许把 EnhancedNameExtractor 的方法抽到新工具类（如 NameTextUtils）里，
+      此时新类定义在其**之前**，写死起点的切片会漏掉新类 —— 转发方法一调用就
+      ReferenceError，而异常被上层 try 吞掉，表现为「提取结果全为空」的假回归。
+      故此处改为**依赖驱动**取起点：先按括号配平取出类体，扫描类体里 `Xxx.` 形式
+      引用的外部类，再把这些类的定义一并纳入切片（支持多跳传递依赖）。
     """
     js = r'''
-const fs=require('fs'),html=fs.readFileSync(process.argv[2],'utf8'),out=process.argv[3],materials=JSON.parse(process.env.MATERIALS_JSON),expected=JSON.parse(process.env.EXPECTED_JSON);globalThis.storage={get(){return null},set(){return true}};globalThis.appLogSilent=()=>{};globalThis.appLogError=()=>{};const a=html.indexOf('class EnhancedNameExtractor'),b=html.indexOf('class ExtractorService',a+1);eval(html.slice(a,b).replace('class EnhancedNameExtractor','globalThis.EnhancedNameExtractor=class EnhancedNameExtractor'));const ex=new EnhancedNameExtractor();try{const m=JSON.parse(materials.memory_json);ex.data.confirmedNames=m.modules?.playableNames||[]}catch{}
+const fs=require('fs'),html=fs.readFileSync(process.argv[2],'utf8'),out=process.argv[3],materials=JSON.parse(process.env.MATERIALS_JSON),expected=JSON.parse(process.env.EXPECTED_JSON);globalThis.storage={get(){return null},set(){return true}};globalThis.appLogSilent=()=>{};globalThis.appLogError=()=>{};var b=html.indexOf('class ExtractorService');var __ln=[];{var __p=0;for(;;){var __n=html.indexOf('\n',__p);if(__n<0){__ln.push([__p,html.length]);break;}__ln.push([__p,__n]);__p=__n+1;}}function __lineOf(__x){for(var __i=0;__i<__ln.length;__i++){if(__ln[__i][0]<=__x&&__x<=__ln[__i][1])return __i;}return -1;}function __blockEnd(__i){var __d=0,__st=false;for(var __k=__i;__k<__ln.length;__k++){var __r=html.slice(__ln[__k][0],__ln[__k][1]);for(var __c of __r){if(__c==='{'){__d++;__st=true;}else if(__c==='}')__d--;}if(__st&&__d<=0)return __k;}return -1;}var __si=__lineOf(html.indexOf('class EnhancedNameExtractor'));var __a=__ln[__si][0];var __seen={};for(var __hop=0;__hop<8;__hop++){var __ss=__lineOf(html.indexOf('class EnhancedNameExtractor'));var __ee=__blockEnd(__ss);var __body=html.slice(html.indexOf('class EnhancedNameExtractor'),__ln[__ee][1]);var __need={};var __mm=__body.match(/\b([A-Z][A-Za-z0-9_$]*)\s*\./g)||[];for(var __x of __mm){var __nm=__x.replace(/\s*\.$/,'');if(__nm!=='EnhancedNameExtractor')__need[__nm]=1;}var __grew=false;for(var __nm2 in __need){if(__seen[__nm2])continue;__seen[__nm2]=1;var __re=new RegExp('(^|\\n)[ \\t]*class[ \\t]+'+__nm2+'\\b');var __idx=html.slice(0,__a).search(__re);if(__idx<0)continue;var __li2=__lineOf(__idx);if(__li2>=0&&__ln[__li2][0]<__a){__a=__ln[__li2][0];__grew=true;}}if(!__grew)break;}var a=__a;eval(html.slice(a,b).replace(/^[ \t]*class[ \t]+([A-Za-z_$][\w$]*)/gm,'globalThis.$1=class $1'));const ex=new EnhancedNameExtractor();try{const m=JSON.parse(materials.memory_json);ex.data.confirmedNames=m.modules?.playableNames||[]}catch{}
 function norm(v){return String(v||'').normalize('NFKC').replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[（）]/g,m=>m==='（'?'(':')').replace(/[。．]/g,'.').replace(/[\u200b\u200c\u200d\ufeff]/g,'').replace(/[\u2005\u2006\u2009\u202f\u00a0]/g,' ').replace(/\s+/g,'').replace(/["'`]+/g,'').trim().toLowerCase()}
 function uniq(a){const o=[],s=new Set;for(const x of a||[]){const k=norm(x);if(k&&!s.has(k)){s.add(k);o.push(x)}}return o}
 
@@ -512,12 +518,14 @@ def extraction_boundary_report(html_path):
 
     本段不参与总判定（总结果不受它影响），因为已知偏差是「已接受」状态。
     它输出的价值在于：把边界行为固化为可对比的快照，防止无声回归。
+    ⚠ 同 extraction_report：切片起点依赖驱动，避免产品做类拆分后漏掉新工具类。
     """
     js = r'''
 const fs=require('fs'),html=fs.readFileSync(process.argv[2],'utf8'),out=process.argv[3];
 globalThis.storage={get(){return null},set(){return true}};globalThis.appLogSilent=()=>{};globalThis.appLogError=()=>{};
-const a=html.indexOf('class EnhancedNameExtractor'),b=html.indexOf('class ExtractorService',a+1);
-eval(html.slice(a,b).replace('class EnhancedNameExtractor','globalThis.EnhancedNameExtractor=class EnhancedNameExtractor'));
+var b=html.indexOf('class ExtractorService');var __ln=[];{var __p=0;for(;;){var __n=html.indexOf('\n',__p);if(__n<0){__ln.push([__p,html.length]);break;}__ln.push([__p,__n]);__p=__n+1;}}function __lineOf(__x){for(var __i=0;__i<__ln.length;__i++){if(__ln[__i][0]<=__x&&__x<=__ln[__i][1])return __i;}return -1;}function __blockEnd(__i){var __d=0,__st=false;for(var __k=__i;__k<__ln.length;__k++){var __r=html.slice(__ln[__k][0],__ln[__k][1]);for(var __c of __r){if(__c==='{'){__d++;__st=true;}else if(__c==='}')__d--;}if(__st&&__d<=0)return __k;}return -1;}var __si=__lineOf(html.indexOf('class EnhancedNameExtractor'));var __a=__ln[__si][0];var __seen={};for(var __hop=0;__hop<8;__hop++){var __ss=__lineOf(html.indexOf('class EnhancedNameExtractor'));var __ee=__blockEnd(__ss);var __body=html.slice(html.indexOf('class EnhancedNameExtractor'),__ln[__ee][1]);var __need={};var __mm=__body.match(/\b([A-Z][A-Za-z0-9_$]*)\s*\./g)||[];for(var __x of __mm){var __nm=__x.replace(/\s*\.$/,'');if(__nm!=='EnhancedNameExtractor')__need[__nm]=1;}var __grew=false;for(var __nm2 in __need){if(__seen[__nm2])continue;__seen[__nm2]=1;var __re=new RegExp('(^|\\n)[ \\t]*class[ \\t]+'+__nm2+'\\b');var __idx=html.slice(0,__a).search(__re);if(__idx<0)continue;var __li2=__lineOf(__idx);if(__li2>=0&&__ln[__li2][0]<__a){__a=__ln[__li2][0];__grew=true;}}if(!__grew)break;}
+var a=__a;
+eval(html.slice(a,b).replace(/^[ \t]*class[ \t]+([A-Za-z_$][\w$]*)/gm,'globalThis.$1=class $1'));
 const ex=new EnhancedNameExtractor();
 const cases=[
  {key:'chain_color_spaced',  input:'1. 孤豪 蓝色'},

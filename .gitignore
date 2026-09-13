@@ -15,3 +15,7 @@ node_modules/
 # 临时/校验 hash 文件（误提交过，见历史）
 *.sha256
 *.sha1
+
+# 测试运行产物：每跑一次 tests/run-all.sh 就会重新生成，无版本价值
+.test-out/
+report/
