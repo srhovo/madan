@@ -1472,7 +1472,7 @@
       },
       {
         "name": "嘟嘟",
-        "paiDan": "米米",
+        "paiDan": "小逸",
         "discount": 0.88
       },
       {
@@ -3284,6 +3284,6 @@
   },
   "integrity": {
     "algorithm": "fnv1a32",
-    "value": "c1d2536a"
+    "value": "03b2da85"
   }
 }

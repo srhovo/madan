@@ -1,5 +1,28 @@
 # 码单器更新日志
 
+## 8.3.32（补齐「缺失的信息」注释）
+
+**本次零功能改动、零逻辑改动**：计价、提取、折扣、加价、记忆库、布局等全部逻辑与存储结构原样生效。
+
+8.3.31 的审计结论里，把「写错的信息」修了，而把「缺失的信息」列为暂缓。本次把**暂缓的那部分全部补上**：
+
+- **22 个类补上类级职责注释（已完成）**：`EnhancedNameExtractor`、`GiftMemoryEngine`、`ProjectExpressionEngine`、`PinyinKeyEngine`、全部 `Ui*` 组件（`UiModal`/`UiToast`/`UiConfirm`/`UiButton`/`UiCard`/`UiList`）、`NameCorrectionModal`、`FeatureEventScope`、`ServiceSuggestionFeature`、`PriceQuickPickFeature`、`PriceRuleEditorFeature`、`SurchargeFeature`、`GiftMemoryFeature`、`PriceMemoryFeature`、`DeviceScopeFeature`、`AutoPriceFeature`、`HistoryFeature`、`BossMemoryFeature`。
+  > 修完之后，`index.html` 中 **56 个类 100% 带职责注释**，不再有「打开一个上千行的类却不知道它干什么」的情况。
+
+- **两个内联 chunk 补上文件级 banner 注释（已完成）**：`dataPortability`、`durationCalculator`。注释写明了这个关键事实——它们是**被 JSON 转义后存于 `__INLINE_CHUNKS_RAW__` 单行字符串中的内联源码**，改动必须双向同步。这此前是仓库里最大的「注释真空区」（`dataPortability` 1025 行零注释）。
+
+- **修正两处「注释张冠李戴」（已完成）**：
+  - 原本贴在 `DurationCalculatorEngine` 上方的「集合持久化边界」注释 —— 文不对题，实为 `CollectionStoreBoundary` 的说明
+  - 原本贴在 `CollectionStoreBoundary` 上方的「创建终极存储管理器」注释 —— 是 `UltimateStorageManager` 的残留
+  - 两处均已改为与所注释类**真正对应**的说明
+
+**验证**（改动仅涉注释，务必确保零行为变化）：
+
+- 逐行核对：新增行**除内联模板字符串那一行外全部以 `//` 开头**；删除行仅 2 条旧注释
+- 内联 chunk **正文逐字节一致**：解码后与修改前源码做全等比较，只有头部多了注释行
+- `node --check` 全部 4 个内联脚本通过
+- `tests/run-all.sh` 全量 7 套通过：引擎 126/126 · 喂入链路 122/122 · DOM 26/26 · 组合联动 27/27 · 五段式 33/33 + 8/8 + 30/30 + 13/13 · 变异捕捉 9/9 · OTA 包自包含性通过
+
 ## 8.3.31（注释与文档可维护性审计与订正）
 
 **本次零功能改动、零逻辑改动**：计价、提取、折扣、加价、记忆库、布局等全部逻辑与存储结构原样生效。
@@ -25,7 +48,7 @@
 - DOM id 相关注释与实际 `<input id="...">` **完全对应**
 - `CHANGELOG` 与 `version.json` 的版本信息一致
 
-**未在本次处理的两项**（属「缺失的信息」而非「写错的信息」，改动会触及 `index.html` 主体，留待后续按需处理）：
+**未在本次处理的两项**（属「缺失的信息」而非「写错的信息」，改动会触及 `index.html` 主体，留待后续按需处理）——**已在 8.3.32 全部补上**：
 
 - 34 个顶层类中，**17 个没有类级职责注释**，且恰好包含行数最多的几个（`PriceMemoryFeature` 2105 行、`PriceRuleEditorFeature` 708 行 / 注释率 0.1%）
 - 内联 chunk 中的 `DataPortabilityFeature`（**1025 行代码、零注释**）与 `DurationCalculatorFeature`（258 行 / 1 条注释）——这些代码藏在 `__INLINE_CHUNKS_RAW__` 那个 64KB 单行字符串里，是注释真空区

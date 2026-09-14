@@ -1,6 +1,6 @@
 {
-  "version": "8.3.31",
-  "url": "https://madan.pages.dev/madan-8.3.31.zip",
-  "checksum": "73fd1e59222dd6a9a4e962484d97f1f695218d43de4ae3da6c2e0ad25e3f50f8",
-  "notes": "全仓库注释与文档的可维护性审计与订正，零功能改动。① 清理一处孤儿注释残骸：index.html 里曾有连续 9 个「模块分隔线」标题，但它们描述的模块早已定义在更靠前的行（L5717~L8224），实际紧跟着的只有 PriceLibraryStore 一个类——是历史上模块搬移留下的注释残骸，会让维护者误判代码位置；已删除这 30 行冗余标题，仅保留对应的那一个。② README 订正：测试防线由「6 套」更正为「7 套」（两处），结构清单补齐 4 个发布专项测试脚本，并标注 update-checker.js / analytics.js 自 8.3.30 起已内联进 index.html。③ 在 index.html 的内联脚本块补「维护须知」：写明这两个 script 块是仓库根目录两个 .js 源文件的逐字副本，改动需双向同步，并给出校验命令。④ 顺带规避一个工具解析隐患：HTML 注释里不再出现裸 <script 字样（会干扰按标签切片的测试脚本）。业务逻辑、计算引擎、存储结构完全未改动。"
+  "version": "8.3.32",
+  "url": "https://madan.pages.dev/madan-8.3.32.zip",
+  "checksum": "ac636c205a511b67512af2c68c4cb71823dff0ad2585c06e34666c0d5d83dcd6",
+  "notes": "补齐「缺失的信息」注释，零功能改动、零逻辑改动。① 为 22 个缺少类级职责注释的顶层类补上职责说明（含 EnhancedNameExtractor、GiftMemoryEngine、ProjectExpressionEngine、PinyinKeyEngine、全部 Ui* 组件、NameCorrectionModal、FeatureEventScope、ServiceSuggestionFeature、PriceQuickPickFeature、PriceRuleEditorFeature、SurchargeFeature、GiftMemoryFeature、PriceMemoryFeature、DeviceScopeFeature、AutoPriceFeature、HistoryFeature、BossMemoryFeature）——至此 index.html 中 56 个类全部带职责注释。② 为两个内联 chunk（dataPortability、durationCalculator）补上文件级 banner 注释，说明它们是被 JSON 转义后存于 __INLINE_CHUNKS_RAW__ 单行字符串中的内联源码，以及双向同步要求。③ 修正两处「注释张冠李戴」：原本贴在 DurationCalculatorEngine 上方的「集合持久化边界」注释、以及贴在 CollectionStoreBoundary 上方的「创建终极存储管理器」注释，均已改为与所注释类真正对应的说明。以上全部为注释行增删，业务逻辑、计算引擎、存储结构、UI 行为完全未改动。"
 }
