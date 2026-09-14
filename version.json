@@ -1,6 +1,6 @@
 {
-  "version": "8.3.32",
-  "url": "https://madan.pages.dev/madan-8.3.32.zip",
-  "checksum": "ac636c205a511b67512af2c68c4cb71823dff0ad2585c06e34666c0d5d83dcd6",
-  "notes": "补齐「缺失的信息」注释，零功能改动、零逻辑改动。① 为 22 个缺少类级职责注释的顶层类补上职责说明（含 EnhancedNameExtractor、GiftMemoryEngine、ProjectExpressionEngine、PinyinKeyEngine、全部 Ui* 组件、NameCorrectionModal、FeatureEventScope、ServiceSuggestionFeature、PriceQuickPickFeature、PriceRuleEditorFeature、SurchargeFeature、GiftMemoryFeature、PriceMemoryFeature、DeviceScopeFeature、AutoPriceFeature、HistoryFeature、BossMemoryFeature）——至此 index.html 中 56 个类全部带职责注释。② 为两个内联 chunk（dataPortability、durationCalculator）补上文件级 banner 注释，说明它们是被 JSON 转义后存于 __INLINE_CHUNKS_RAW__ 单行字符串中的内联源码，以及双向同步要求。③ 修正两处「注释张冠李戴」：原本贴在 DurationCalculatorEngine 上方的「集合持久化边界」注释、以及贴在 CollectionStoreBoundary 上方的「创建终极存储管理器」注释，均已改为与所注释类真正对应的说明。以上全部为注释行增删，业务逻辑、计算引擎、存储结构、UI 行为完全未改动。"
+  "version": "8.3.33",
+  "url": "https://madan.pages.dev/madan-8.3.33.zip",
+  "checksum": "a895bc103b0cc5bfab346fa16c3b4d421ffcc80ca665e96a3ad2cf0a380f9504",
+  "notes": "架构拆分第一步（A3）：消除「隐式动态挂载」，把 OrderCalculator 上的冗余转发入口收敛为显式委托。零功能改动、零逻辑改动。背景：OrderCalculator 长期充当「编排队」，历史上为兼容旧调用点，把大量 Feature 方法以 this.xxx(...args) 形式平铺在自身上（133 个方法中 77 个是单行转发），其中 RatioFeature 更是通过 bindToApp() 在运行时把 12 个方法动态挂到 app 上——这正是工程边界明令禁止的「隐式动态挂载/全局隐藏状态」。本版处理三件事：① 删除 59 个已无任何调用方的纯转发入口（实现全部原样保留在其所属 Feature 内，仅移除 app 级冗余镜像）；② 移除 RatioFeature.bindToApp() 的隐式动态挂载，改为显式路径调用（ModeFlowFeature → this.app.ratioFeature.handleModeButtonClick(...)）；③ 顺带修复一处因 ① 暴露出来的既有隐患：dataPortability 的 refreshAfterImport() 原本用 ['applyLockedDataToUI','applyLayoutVisibility',...] 字符串数组 + this.app[method]() 做动态派发（同属隐式动态挂载），导入数据后的 7 项界面刷新依赖它；现改为显式委托数组，导入后刷新链路恢复可靠。验证：app 可调用方法 159 → 100（移除 59、新增 0），state 键 24/24 与 feature 数 23 完全一致；7 套测试全绿（引擎 126、喂入链路 122、DOM 26、组合 27、五段式、变异捕捉 9/9、包自包含）；并逐一校验 59 项移除均有「实现保留在所属 Feature + 全文无动态字符串访问 + 无 HTML 属性引用 + 无外部调用者」四项证明。保留 clearAll 作为外部可见的「清空全部」公共入口（测试与外部脚本按此复位）。业务逻辑、计算引擎、存储结构、UI 行为完全未改动。"
 }

@@ -1,5 +1,52 @@
 # 码单器更新日志
 
+## 8.3.33（架构拆分第一步 A3：消除「隐式动态挂载」）
+
+**本次零功能改动、零逻辑改动**：计价、提取、折扣、加价、记忆库、布局等全部逻辑与存储结构原样生效。
+
+### 为什么要做
+
+`OrderCalculator` 长期充当「编排队」，历史上为兼容旧调用点，把大量 Feature 的方法以 `this.xxx(...args) { return this.<feature>.xxx(...args); }` 的形式**平铺在自己身上**——133 个方法里 **77 个是这种单行转发**。
+
+更严重的是 `RatioFeature.bindToApp()`：
+
+```js
+this.methodNames.forEach(name => { this.app[name] = this[name].bind(this); });
+```
+
+它在运行时把 12 个方法**动态挂到 `app` 上**。这正是工程边界明令禁止的「隐式动态挂载 / 全局隐藏状态」——静态读代码时根本无法发现这些方法是从哪来的，也让任何「这个方法是死是活」的分析都失效。
+
+### 本版做了什么
+
+1. **删除 59 个已无任何调用方的纯转发入口**
+   实现**全部原样保留在其所属 Feature 内**，只是不再在 `app` 上镜像一份。
+   （`app` 可调用方法 159 → 100；新增 0。）
+
+2. **移除 `RatioFeature.bindToApp()` 的隐式动态挂载**
+   改为显式路径：`ModeFlowFeature` 直接调 `this.app.ratioFeature.handleModeButtonClick(1|2)`。
+
+3. **顺带修复一处被 1 暴露出来的既有隐患** ⚠️
+   `dataPortability` 的 `refreshAfterImport()` 原本是这样写的：
+
+   ```js
+   ['applyLockedDataToUI', 'applyLayoutVisibility', 'updateSavedNamesList', 'updatePriceMemoryUI',
+    'updateRatioCards', 'updateModeButtonText', 'updateModeIndicator', 'updatePeiPeiCount',
+    'hideBossSuggestions']
+     .forEach(method => { if (typeof this.app[method] === 'function') this.app[method](); });
+   ```
+
+   字符串数组 + `this.app[method]()` 动态派发（同属隐式动态挂载）。**用户导入备份数据后**的 7 项界面刷新依赖它——转发器一删，导入成功但界面不刷新，而且被静默吞掉不易察觉。现改为显式委托数组，导入后刷新链路恢复可靠。
+
+4. **保留 `clearAll` 作为公共入口**
+   它是外部可见的「清空全部」入口（测试脚本与外部脚本按此复位状态），不属于可删的冗余转发，以显式委托形式保留。
+
+### 验证
+
+- `app` 可调用方法 **159 → 100**（移除 59、新增 0）；**state 键 24/24、feature 数 23 与改动前完全一致**
+- 59 项移除**逐一**给出四项证明：实现保留在所属 Feature ✅ · 全文无动态字符串访问 ✅ · 无 HTML 属性引用 ✅ · 无外部调用者 ✅
+- 端到端行为验证：导入刷新、比例切换、模式按钮、模态注册、布局可见性、输入锁定、清空全部等 15 条路径全通过，**零静默异常**
+- `tests/run-all.sh` 全量 7 套通过：引擎 126/126 · 喂入链路 122/122 · DOM 26/26 · 组合联动 27/27 · 五段式 33/33 + 8/8 + 30/30 + 13/13 · **变异捕捉 9/9** · OTA 包自包含性通过
+
 ## 8.3.32（补齐「缺失的信息」注释）
 
 **本次零功能改动、零逻辑改动**：计价、提取、折扣、加价、记忆库、布局等全部逻辑与存储结构原样生效。
