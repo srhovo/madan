@@ -1,6 +1,6 @@
 {
-  "version": "8.3.30",
-  "url": "https://madan.pages.dev/madan-8.3.30.zip",
-  "checksum": "82a05b865f05fa95064d0819aef306276ecb08d0366dd2766234dba480d1aa33",
-  "notes": "修复安卓端「每隔一小会儿就自动重新加载」的循环重载。根因在发布产物而非业务代码：从 8.3.26 起，OTA 更新包只打包了 index.html 一个文件，但 index.html 里仍以 <script src> 引用 update-checker.js 与 analytics.js——这两个文件没有进包。缺了 update-checker.js，资源包切换后 Updater.notifyAppReady() 永远不会被调用，原生层等满 appReadyTimeout 就判定这一版包不健康并自动回退到旧包；回退后本机 APP_VERSION 仍是旧值，下次启动又判定有新版本，于是 下载→切换→回退→再判定 无限循环，用户看到的就是 App 反复重新加载。修复分两层：① 把 update-checker.js 与 analytics.js 的内容内联进 index.html，单文件彻底自包含，今后无论怎么打包都不会再漏文件；② 给更新逻辑加「同一版本只尝试一次」的持久化闸门，即使将来还有别的因素导致切换不生效，也最多尝试一次就安静停在当前版本，不会无限重载。另修正一处危险兜底：原先读不到本机版本号时会退化成 '0.0.0'（最小版本），导致任何云端版本都被判为更新；现在读不到就放弃本次检查。业务逻辑、计算引擎、存储结构零改动。"
+  "version": "8.3.31",
+  "url": "https://madan.pages.dev/madan-8.3.31.zip",
+  "checksum": "73fd1e59222dd6a9a4e962484d97f1f695218d43de4ae3da6c2e0ad25e3f50f8",
+  "notes": "全仓库注释与文档的可维护性审计与订正，零功能改动。① 清理一处孤儿注释残骸：index.html 里曾有连续 9 个「模块分隔线」标题，但它们描述的模块早已定义在更靠前的行（L5717~L8224），实际紧跟着的只有 PriceLibraryStore 一个类——是历史上模块搬移留下的注释残骸，会让维护者误判代码位置；已删除这 30 行冗余标题，仅保留对应的那一个。② README 订正：测试防线由「6 套」更正为「7 套」（两处），结构清单补齐 4 个发布专项测试脚本，并标注 update-checker.js / analytics.js 自 8.3.30 起已内联进 index.html。③ 在 index.html 的内联脚本块补「维护须知」：写明这两个 script 块是仓库根目录两个 .js 源文件的逐字副本，改动需双向同步，并给出校验命令。④ 顺带规避一个工具解析隐患：HTML 注释里不再出现裸 <script 字样（会干扰按标签切片的测试脚本）。业务逻辑、计算引擎、存储结构完全未改动。"
 }

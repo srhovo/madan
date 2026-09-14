@@ -130,9 +130,11 @@ webView.loadUrl("file:///android_asset/index.html")
 
 ```
 .
-├── index.html          # 完整单页应用（HTML + CSS + JS，单文件交付）
-├── update-checker.js   # OTA 热更新检测 / 下载 / 替换（Capacitor 原生壳内生效）
+├── index.html          # 完整单页应用（HTML + CSS + JS，单文件自包含交付）
+├── update-checker.js   # OTA 热更新检测 / 下载 / 替换
+│                       # ⚠️ 8.3.30 起其内容已【内联】进 index.html，本文件保留为源文件
 ├── analytics.js        # 匿名使用统计（纯 Web API，失败静默降级）
+│                       # ⚠️ 8.3.30 起其内容已【内联】进 index.html，本文件保留为源文件
 ├── test-engine.js      # 引擎单元测试（Node 隔离运行，L3 核心回归，126 项）
 ├── tests/              # 全链路测试资产
 │   ├── 码单器8.3_AI可运行全链路测试脚本_8.3架构版.py                                   # 主入口：五段式全链路
@@ -141,7 +143,11 @@ webView.loadUrl("file:///android_asset/index.html")
 │   ├── combo.js                                       # 跨模块组合联动（6 场景，27 项）
 │   ├── project-chain.js                               # 喂入链路真机回归（122 项）
 │   ├── mutate-chain.py                                # 变异测试（9 条）＋ combo.js 交叉验证
-│   └── run-all.sh                                     # 统一测试入口（6 套防线一次跑完）
+│   ├── check-package-selfcontained.py                 # OTA 包自包含性（防「包内引用包外文件」）
+│   ├── ota-loop-guard.js                              # OTA 防无限重载闸门（对照实验）
+│   ├── ota-e2e.js                                     # OTA 端到端（真实 zip + 真实 version.json）
+│   ├── inline-integrity.js                            # 内联副本与 .js 源文件逐字节一致性
+│   └── run-all.sh                                     # 统一测试入口（7 套防线一次跑完）
 ├── version.json        # OTA 更新清单（version / url / checksum）
 ├── madan-<版本>.zip    # OTA 更新包，Pages 直出，不可从仓库删除
 ├── CHANGELOG.md        # 版本更新日志
@@ -165,7 +171,7 @@ webView.loadUrl("file:///android_asset/index.html")
 ```bash
 npm install jsdom                  # JS 侧测试需要
 
-# 推荐：统一入口，一次跑完全部 6 套防线
+# 推荐：统一入口，一次跑完全部 7 套防线
 bash tests/run-all.sh              # 全量（含约 4 分钟变异测试）
 bash tests/run-all.sh --fast       # 日常提交：跳过变异测试
 
@@ -176,7 +182,17 @@ node tests/combo.js index.html ./combo.json
 node tests/project-chain.js index.html ./project-chain.json
 node test-engine.js index.html                # 版本号自动从 APP_VERSION 提取
 python3 tests/mutate-chain.py      # 变异测试：验证断言不是「假的绿」
+
+# 发布专项（8.3.30 新增，run-all.sh 已含前者）
+python3 tests/check-package-selfcontained.py madan-<版本>.zip   # 包必须自包含
+node tests/ota-loop-guard.js       # 防无限重载闸门（含旧逻辑对照）
+node tests/ota-e2e.js              # 真实包 + 真实 version.json 端到端
+node tests/inline-integrity.js     # 内联副本与 .js 源文件是否同步
 ```
+
+> **改了 `update-checker.js` / `analytics.js` 之后**：这两个文件的内容已被内联进
+> `index.html`（见「项目结构」中的 ⚠️ 说明），**必须同步更新 `index.html` 里的内联副本**，
+> 否则打包出去的仍是旧逻辑。跑 `node tests/inline-integrity.js` 可校验两者是否一致。
 
 > **关于 `test-engine.js` 的版本参数**：它的第二个参数是**期望版本号**，省略时会
 > 自动从 `index.html` 的 `APP_VERSION` 提取。
@@ -217,7 +233,7 @@ python3 tests/mutate-chain.py      # 变异测试：验证断言不是「假的�
 
 ## 版本
 
-当前版本：`8.3.30`
+当前版本：`8.3.31`
 
 版本规则：第三位用于内部修订；第二位在整体达到预期、无已知阻断并确认可交付后晋升。
 
