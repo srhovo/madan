@@ -396,7 +396,9 @@ else
   node tools/sync-root-scripts.js --check >/dev/null && ok "根级脚本内联一致"
   node tools/build-inline-chunks.js --check >/dev/null && ok "内联 chunk 一致"
 
-  RUN_ARGS=(--require-package)
+  # --release-flow 告诉防线：当前处于发版流程中，zip 刚生成、尚未 git add
+  # 属预期中间态。缺少它会让「zip 必须被 git 跟踪」这道检查把发版流程自锁。
+  RUN_ARGS=(--require-package --release-flow)
   [ $SKIP_FULL -eq 1 ] && RUN_ARGS+=(--fast)
   echo
   echo "  执行：bash tests/run-all.sh ${RUN_ARGS[*]}"

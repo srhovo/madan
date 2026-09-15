@@ -8,6 +8,7 @@
 #   bash tests/run-all.sh --fast           # 跳过变异测试（日常提交用）
 #   bash tests/run-all.sh --only=engine    # 只跑某一套
 #   bash tests/run-all.sh --require-package # 当前版本没有对应 zip 即判失败（CI/发版用）
+#   bash tests/run-all.sh --release-flow   # 发版流程中调用：允许「zip 刚生成尚未 git add」
 #
 # 可用 --only 值: engine | chunk | arch | chain | dom | combo | fullchain | mutate | package | version
 #
@@ -24,11 +25,13 @@ mkdir -p "$OUT"
 FAST=0
 ONLY=""
 REQUIRE_PACKAGE=0
+RELEASE_FLOW=0
 for arg in "$@"; do
   case "$arg" in
     --fast) FAST=1 ;;
     --only=*) ONLY="${arg#--only=}" ;;
     --require-package) REQUIRE_PACKAGE=1 ;;
+    --release-flow) RELEASE_FLOW=1 ;;
     *) echo "未知参数: $arg"; exit 1 ;;
   esac
 done
@@ -233,7 +236,13 @@ fi
 if ! should_skip version; then
   echo
   echo "── [10/11] 版本号单一真源 version-single-source.js ────────────"
-  out=$(node tests/version-single-source.js 2>&1)
+  # --release-flow：发版脚本刚打完包、尚未 git add 时调用，
+  # 此时「zip 未被跟踪」是预期中间态（git add 由人在收到提示后执行），
+  # 不该据此判失败 —— 否则发版流程会自锁。
+  # 常规提交与 CI 不带此参数，检查依旧强制。
+  VER_ARGS=()
+  [ $RELEASE_FLOW -eq 1 ] && VER_ARGS+=(--allow-no-git)
+  out=$(node tests/version-single-source.js "${VER_ARGS[@]}" 2>&1)
   rc=$?
   echo "$out" | tail -8
   line=$(echo "$out" | grep -oE "参与代码的版本号出现位置：[0-9]+ 处" | tail -1)
