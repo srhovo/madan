@@ -241,7 +241,7 @@ if ! should_skip version; then
   # 不该据此判失败 —— 否则发版流程会自锁。
   # 常规提交与 CI 不带此参数，检查依旧强制。
   VER_ARGS=()
-  [ $RELEASE_FLOW -eq 1 ] && VER_ARGS+=(--allow-no-git)
+  [ $RELEASE_FLOW -eq 1 ] && VER_ARGS+=(--release-flow)
   out=$(node tests/version-single-source.js "${VER_ARGS[@]}" 2>&1)
   rc=$?
   echo "$out" | tail -8

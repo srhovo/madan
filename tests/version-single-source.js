@@ -23,7 +23,7 @@
  *   2. 更一般的：被引号包裹的 HTML 属性内部。
  * 排除后只统计「裸在代码里」的版本号字面量。
  *
- * 用法：node tests/version-single-source.js [--allow-no-git]
+ * 用法：node tests/version-single-source.js [--allow-no-git | --release-flow]
  *   --allow-no-git  在校验不含 .git 的裸发布目录时显式声明跳过 git 跟踪检查。
  *                   默认（不加）时，非 git 环境同样判失败 —— 防线不许静默跳空。
  */
@@ -160,12 +160,16 @@ if (fs.existsSync(vjPath)) {
     // version.json.url 指向它，漏提交会让已安装设备的 OTA 下载 404。
     // 本检查只能证明「本地文件存在且哈希对」，无法证明「它会进仓库」，
     // 所以额外查一次 git 跟踪状态，把「忘了 git add zip」挡在推送前。
-    // 失败策略遵循「防线不得静默跳过」：非 git 环境默认同样判为失败，
-    // 除非调用方显式声明 --allow-no-git（例如校验解压出来的裸发布目录）。
-    // 之所以不默认放过：静默跳过的防线等于没有防线 —— 8.3.24 事故正是
-    // 「检查看着跑了，其实什么都没查」的形状。
+    //
+    // 两个豁免参数，语义不同，别混用：
+    //   --allow-no-git    校验对象本身就不是 git 工作目录（如解压出来的裸发布目录）
+    //   --release-flow    处于发版流程中：zip 是刚打出来的，尚未 git add 属
+    //                     预期的中间态（收尾会强制提示 git add，CI 兜底拦截）
+    // 默认（都不给）时一律判失败 —— 静默跳过的防线等于没有防线，
+    // 8.3.24 事故正是「检查看着跑了，其实什么都没查」的形状。
     const { execFileSync } = require('child_process');
     const allowNoGit = process.argv.includes('--allow-no-git');
+    const releaseFlow = process.argv.includes('--release-flow');
     try {
       execFileSync('git', ['ls-files', '--error-unmatch', `madan-${vj.version}.zip`], {
         cwd: ROOT, stdio: 'pipe',
@@ -179,15 +183,20 @@ if (fs.existsSync(vjPath)) {
       } catch (e2) {
         inRepo = false;
       }
-      if (inRepo) {
+      if (!inRepo) {
+        if (allowNoGit) {
+          console.log('  · 非 git 工作目录，已按 --allow-no-git 跳过「zip 是否被跟踪」检查');
+        } else {
+          console.log('  ✗ 非 git 工作目录，无法验证 zip 是否会被提交 —— 该检查不可跳空');
+          console.log('     若确实在校验一个不含 .git 的裸发布目录，请显式加 --allow-no-git。');
+          fail++;
+        }
+      } else if (releaseFlow) {
+        console.log('  · 发版流程中：zip 刚生成、尚未 git add，属预期中间态');
+        console.log('     （收尾会提示 git add；CI 不带 --release-flow，会在此强制拦截）');
+      } else {
         console.log(`  ✗ madan-${vj.version}.zip 没有被 git 跟踪 —— 提交后 OTA 会 404`);
         console.log('     修复：git add madan-' + vj.version + '.zip');
-        fail++;
-      } else if (allowNoGit) {
-        console.log('  · 非 git 工作目录，已按 --allow-no-git 跳过「zip 是否被跟踪」检查');
-      } else {
-        console.log('  ✗ 非 git 工作目录，无法验证 zip 是否会被提交 —— 该检查不可跳空');
-        console.log('     若确实在校验一个不含 .git 的裸发布目录，请显式加 --allow-no-git。');
         fail++;
       }
     }
