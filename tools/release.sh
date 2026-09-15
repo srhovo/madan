@@ -447,7 +447,8 @@ if [ $DRY_RUN -eq 0 ]; then
   echo "    漏提交会让已安装设备的 OTA 下载 404。"
   echo
   echo " 确认无误后执行（本脚本不代劳，因为 push 即上线）："
-  echo "   git add ${HTML} ${VJ} ${CL} madan-${VER}.zip"
+  # 用 MANAGED 展开，避免手工列举时漏掉文件 —— 上面第一版就漏了 package.json
+  echo "   git add ${MANAGED[*]} madan-${VER}.zip"
   echo "   git commit -m \"release: ${VER} ${THEME}\""
   echo "   git push"
   echo
