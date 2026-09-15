@@ -46,8 +46,11 @@ HTML="index.html"
 VJ="version.json"
 CL="CHANGELOG.md"
 PKG="package.json"
+RM="README.md"
 # 发版过程中会被改写的文件：失败必须能整体回滚
-MANAGED=("$HTML" "$VJ" "$CL" "$PKG")
+# README.md 也在此列 —— set-version.js 会同步里面的「当前版本」，
+# 漏了它就会出现「回滚后 README 停在新版本、其余文件退回旧版本」的半发布状态。
+MANAGED=("$HTML" "$VJ" "$CL" "$PKG" "$RM")
 
 # ── 参数解析 ────────────────────────────────────────────────────────
 VER=""

@@ -40,6 +40,26 @@ echo "==================================================================="
 echo " 源仓库: $SRC_ROOT"
 echo " 沙箱  : $SANDBOX"
 
+# ── 动态版本号 ────────────────────────────────────────────────────
+# 不要在这里写死 8.3.36 之类的字面量。release.sh 有一道「目标版本必须大于
+# 当前版本」的前置门，一旦写死的版本恰好等于当前版本，**那道门会先于本场景
+# 想要考察的门拦下**，于是 grep 不到预期字样、断言恒红 —— 而产品其实是对的。
+# 这不是假设：8.3.36 发布当日，N3/N4 两条就因此从绿变红，且永远不会自己恢复。
+#
+# 所以这里从 version.json 取当前版本，再自行推导出场景所需的版本：
+#   CUR    当前版本，用于「重复发布」场景（同名 zip 已存在 → 必须是 CUR）
+#   NEXT   CUR 的第三位 +1，用于所有「合法可发」场景
+CUR="$(python3 -c "import json;print(json.load(open('$SRC_ROOT/version.json'))['version'])" 2>/dev/null)"
+if [ -z "$CUR" ]; then
+  echo "  ✗ 无法从 version.json 读到当前版本，自检无法进行"
+  exit 1
+fi
+NEXT="$(python3 -c "
+v='$CUR'.split('.')
+print(f'{v[0]}.{v[1]}.{int(v[2])+1}')
+")"
+echo " 当前版本: $CUR   本场景将发版本: $NEXT"
+
 # ── 建一个干净克隆（含 .git，因为 release.sh 要查工作区状态）───────
 make_clone() {
   local dst="$1"
@@ -96,20 +116,37 @@ fi
 
 echo
 echo "── N3. 重复发布（目标版本已有 zip）─────────────────────────────"
+# 这里考察的是「防重复发布」这道门：它比对的是**目标版本自身**的同名 zip。
+# 所以必须让目标版本 = CUR 并预先放置 madan-$CUR.zip —— 但 CUR 又过不了
+# 「必须大于当前版本」那道更靠前的门。
+#
+# 结论：光靠命令行参数无法把这道门单独暴露出来（两道门的目标版本取值天然冲突）。
+# 因此改为直接在夹具里把 version.json 的版本回退一格，使目标版本既「大于当前版本」
+# 又「已有同名 zip」—— 这才是真正在测「防重复发布」，而不是在测版本递增。
 D="$SANDBOX/n3"; make_clone "$D"
-touch "$D/madan-8.3.36.zip"
-OUT="$(run_release "$D" "8.3.36" --notes "x" --dry-run)"; RC=$?
+python3 - "$D" "$CUR" <<'PYFIX'
+import json, sys
+d, cur = sys.argv[1], sys.argv[2]
+p = d + '/version.json'
+o = json.load(open(p, encoding='utf-8'))
+# 把清单版本与包名回退一格，制造「已发布过 CUR」的现场
+o['version'] = cur
+o['url'] = o['url'].replace(cur, cur)
+json.dump(o, open(p, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
+PYFIX
+touch "$D/madan-$CUR.zip"
+OUT="$(run_release "$D" "$NEXT" --notes "x" --dry-run)"; RC=$?
 if [ $RC -ne 0 ] && echo "$OUT" | grep -qE "重复发布|已存在"; then
-  ok "拒绝重复发布 8.3.36"
+  ok "拒绝重复发布（$NEXT 已有同名包）"
 else
-  bad "未拒绝重复发布（rc=$RC）"; echo "$OUT" | tail -5
+  bad "未拒绝重复发布（rc=$RC）"; echo "$OUT" | tail -6
 fi
 
 echo
 echo "── N4. 工作区不干净 ─────────────────────────────────────────────"
 D="$SANDBOX/n4"; make_clone "$D"
 echo "// 脏改动" >> "$D/index.html"
-OUT="$(run_release "$D" "8.3.36" --notes "x" --dry-run)"; RC=$?
+OUT="$(run_release "$D" "$NEXT" --notes "x" --dry-run)"; RC=$?
 if [ $RC -ne 0 ] && echo "$OUT" | grep -qE "工作区不干净"; then
   ok "拒绝在脏工作区发版"
 else
@@ -119,7 +156,7 @@ fi
 echo
 echo "── N5. 缺少 --notes ─────────────────────────────────────────────"
 D="$SANDBOX/n5"; make_clone "$D"
-OUT="$(run_release "$D" "8.3.36" --dry-run)"; RC=$?
+OUT="$(run_release "$D" "$NEXT" --dry-run)"; RC=$?
 if [ $RC -ne 0 ] && echo "$OUT" | grep -qE "notes"; then
   ok "拒绝无说明的发版"
 else
@@ -148,7 +185,7 @@ B_CL="$(sha256sum "$D/CHANGELOG.md" | cut -d' ' -f1)"
 B_PKG="$(sha256sum "$D/package.json" | cut -d' ' -f1)"
 
 # 正式模式（非 dry-run），这样才会真的改文件，才能检验回滚
-OUT="$(run_release "$D" "8.3.36" --notes "自检注入" --skip-full-tests 2>&1)"; RC=$?
+OUT="$(run_release "$D" "$NEXT" --notes "自检注入" --skip-full-tests 2>&1)"; RC=$?
 
 if [ $RC -ne 0 ]; then
   ok "失败链路下退出码非 0（$RC）"
@@ -172,15 +209,15 @@ A_PKG="$(sha256sum "$D/package.json" | cut -d' ' -f1)"
 [ "$A_CL"  = "$B_CL"  ] && ok "CHANGELOG.md 逐字节还原"    || bad "CHANGELOG.md 未还原"
 [ "$A_PKG" = "$B_PKG" ] && ok "package.json 逐字节还原"    || bad "package.json 未还原"
 
-if [ -f "$D/madan-8.3.36.zip" ]; then
-  bad "残留本次生成的 madan-8.3.36.zip"
+if [ -f "$D/madan-$NEXT.zip" ]; then
+  bad "残留本次生成的 madan-$NEXT.zip"
 else
   ok "本次生成的 zip 已删除"
 fi
 
 # 版本号不应残留新值
-if grep -q "8.3.36" "$D/index.html"; then
-  bad "index.html 中残留 8.3.36"
+if grep -q "$NEXT" "$D/index.html"; then
+  bad "index.html 中残留 $NEXT"
 else
   ok "index.html 无新版本号残留"
 fi

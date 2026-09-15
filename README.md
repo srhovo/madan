@@ -294,8 +294,21 @@ node tools/css-diff-check.js <改动前.html> <改动后.html>
 
 ## 版本
 
-当前版本：`8.3.33`
+当前版本：`8.3.36`
 
 版本规则：第三位用于内部修订；第二位在整体达到预期、无已知阻断并确认可交付后晋升。
+
+版本号的**参与代码**落点只有 2 处（`index.html` 的 `<title>` 与 `APP_VERSION`），
+另有 2 处跟随项（`package.json` 的 `version`、本文件上方的「当前版本」）。
+发版时由 `tools/set-version.js` 一并同步，**不要手改**：
+
+```bash
+node tools/set-version.js --check           # 校验各落点是否一致（含 README 漂移提醒）
+node tools/set-version.js --to 8.3.37       # 同步改写全部落点
+```
+
+> `index.html` 里另有 160+ 处 `8.3.x` 字样，全部是变更考古注释（记录「这个功能为什么长这样」），
+> **必须原样保留**，任何批量替换都会毁掉它们。所以版本号只能走 `set-version.js`，
+> 它会拒绝在「出现白名单之外的版本号字面量」时写入。
 
 更新历史详见 [CHANGELOG.md](./CHANGELOG.md)。
