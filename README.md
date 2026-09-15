@@ -158,7 +158,13 @@ webView.loadUrl("file:///android_asset/index.html")
 │   ├── inline-integrity.js                            # 内联副本与 .js 源文件逐字节一致性
 │   ├── arch-snapshot.js                               # 架构边界快照（app 方法/state 键/feature 数）
 │   ├── arch-baseline.json                             # 上述快照的基线，有意改动后须 --update
-│   └── run-all.sh                                     # 统一测试入口（10 套防线一次跑完）
+│   └── run-all.sh                                     # 统一测试入口（11 套防线一次跑完）
+├── tools/             # 开发工具（非运行时依赖，不参与 index.html）
+│   ├── set-version.js                                 # 版本号落点改写器（发版用）
+│   ├── release.sh                                     # 一键发布（改版本号→打包→写清单→跑防线）
+│   ├── build-inline-chunks.js                         # src/chunks/*.js → __INLINE_CHUNKS_RAW__
+│   ├── sync-root-scripts.js                           # update-checker/analytics → index.html 内联副本
+│   └── css-diff-check.js                              # CSS 改动等价性验证（真实 Chromium 计算样式比对）
 ├── version.json        # OTA 更新清单（version / url / checksum）
 ├── madan-<版本>.zip    # OTA 更新包，Pages 直出，不可从仓库删除
 ├── CHANGELOG.md        # 版本更新日志
@@ -175,16 +181,26 @@ webView.loadUrl("file:///android_asset/index.html")
 ```
 
 > `madan-<版本>.zip` 由 Cloudflare Pages 从仓库根目录直出，`version.json` 的 `url`
-> 指向该文件；删除 zip 会导致已安装设备 OTA 下载失败，请勿清理。
+> 指向该文件。**绝不能删除当前版本对应的 zip** —— 删了会让已安装设备的 OTA 下载 404。
+>
+> 保留策略：仓库只保留**当前版本与上一版本**的包（8.3.36 起清理了 8.3.23~8.3.34）。
+> 旧包对已升级的设备无用（OTA 只会拉 version.json 指向的那一个），囤积只会让仓库变重。
+> 上一版本保留一份，是为了万一新版本出问题时能快速回退 `version.json` 指向。
 
 ## 测试
 
 ```bash
-npm install jsdom                  # JS 侧测试需要
+npm ci                             # JS 侧测试需要（锁定 jsdom 版本；不要用 npm install 裸装）
 
-# 推荐：统一入口，一次跑完全部 10 套防线
+# 推荐：统一入口，一次跑完全部 11 套防线
 bash tests/run-all.sh              # 全量（含约 4 分钟变异测试）
 bash tests/run-all.sh --fast       # 日常提交：跳过变异测试
+bash tests/run-all.sh --fast --require-package   # CI / 发版：缺包即判失败
+
+# 一键发布（A1，8.3.36）
+bash tools/release.sh 8.3.37 --notes @notes.txt --theme "主题"   # 正式
+bash tools/release.sh 8.3.37 --notes @notes.txt --dry-run        # 演练（不写盘）
+bash tests/release-selftest.sh     # 负向自检：验证 release.sh 真的拦得住、真的回滚
 
 # 也可单独运行
 python3 tests/码单器8.3_AI可运行全链路测试脚本_8.3架构版.py --html index.html --report-dir ./report
@@ -194,17 +210,38 @@ node tests/project-chain.js index.html ./project-chain.json
 node test-engine.js index.html                # 版本号自动从 APP_VERSION 提取
 python3 tests/mutate-chain.py      # 变异测试：验证断言不是「假的绿」
 
-# 发布专项（8.3.30 新增，run-all.sh 已含前者）
+# 发布专项（run-all.sh 已含前者）
 python3 tests/check-package-selfcontained.py madan-<版本>.zip   # 包必须自包含
 node tests/ota-loop-guard.js       # 防无限重载闸门（含旧逻辑对照）
-node tests/ota-e2e.js              # 真实包 + 真实 version.json 端到端
+node tests/ota-e2e.js              # 真实包 + 真实 version.json 端到端（版本自适应）
 node tests/inline-integrity.js     # 内联副本与 .js 源文件是否同步
 
 # 源码/产物一致性（8.3.34 A4 新增）
 node tools/build-inline-chunks.js --check   # src/chunks/*.js ↔ __INLINE_CHUNKS_RAW__
 node tools/sync-root-scripts.js --check     # update-checker/analytics ↔ 内联副本
 node tests/arch-snapshot.js                 # 架构边界快照（防隐式动态挂载回归）
+
+# CSS 改动等价性验证（8.3.36 新增，按需使用，不参与门禁）
+node tools/css-diff-check.js <改动前.html> <改动后.html>
 ```
+
+> **改了 CSS 之后怎么做等价性证明**：不要靠肉眼，也不要靠静态分析 —— 实测过三种
+> 静态方法，结论互相矛盾且都是假象。用真实浏览器比对：
+>
+> ```bash
+> # 1. 取改动前的版本（用 git，不要靠备份文件）
+> git show HEAD~1:index.html > /tmp/before.html
+>
+> # 2. 装一次依赖（刻意不进 package.json：CI 不需要它，
+> #    不该为它付 14MB + 364MB 的代价）
+> npm install --no-save playwright-core && npx playwright-core install chromium
+>
+> # 3. 比对（默认 6 组视口 × 18 项属性，自动报告媒体查询命中情况）
+> node tools/css-diff-check.js /tmp/before.html index.html
+> ```
+>
+> 零差异时退出码 0；发现差异为 1；**依赖缺失为 2**（工具没跑起来 ≠ 发现差异）。
+> 输出会明确声明测试范围 —— 它只覆盖被测视口/属性，不含交互态与 JS 行为。
 
 > **改了 `update-checker.js` / `analytics.js` 之后**：这两个文件的内容已被内联进
 > `index.html`（见「项目结构」中的 ⚠️ 说明），**必须同步更新 `index.html` 里的内联副本**，

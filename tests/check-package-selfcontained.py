@@ -10,7 +10,8 @@ OTA 包自包含性检查（8.3.30 新增的发布防线）
 本脚本在打包后立即检查：包内 index.html 是否还引用包外文件。
 若有任何 src/href 指向包内不存在的资源，直接失败，阻止问题包发出去。
 
-用法：python3 tests/check-package-selfcontained.py madan-8.3.30.zip
+用法：python3 tests/check-package-selfcontained.py madan-<版本>.zip
+      （包名由 tests/run-all.sh 自动传当前版本；单独运行时可传任意包）
 """
 import re
 import sys
