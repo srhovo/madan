@@ -1,0 +1,88 @@
+name: 防线校验
+
+# A2 —— CI 门禁。
+#
+# 目的：把「发版前要跑全套防线」从**纪律**变成**机制**。此前这道纪律依赖人记得，
+# 而项目历史上两次线上事故（8.3.24 版本号与包不同步、8.3.26~8.3.29 包内漏文件）
+# 恰恰都是「人没记住」造成的。CI 存在之后，这两类错误在推送时就会被拦下。
+#
+# 与本地 run-all.sh 的唯一区别是加了 --require-package：
+# 本地允许「只改代码未打包」的中间态（此时没有对应 zip 属正常），
+# 但推到远端的提交必须自带可下载的包，否则已安装设备的 OTA 会 404。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# 同一分支的新推送取消尚未跑完的旧任务，避免排队堆积
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: 11 套防线
+    # 显式锁定，避免 "latest" 漂移造成与开发机不一致的假红
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    env:
+      # 必须显式指定：宿主机 locale 非 UTF-8 时，Python 会以 ascii 编码输出，
+      # 而本项目测试脚本通篇中文（含中文文件名），会抛 UnicodeEncodeError
+      # 造成与代码无关的假失败。
+      PYTHONIOENCODING: utf-8
+      LANG: C.UTF-8
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 配置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 防线里只有 jsdom 是外部依赖（架构快照 / 内联完整性 / 喂入链路 /
+      # DOM 全链路 / 组合联动 五套要用），Python 侧全用标准库。
+      # playwright 不是测试依赖，故 CI 无需浏览器，跑得很快。
+      - name: 安装测试依赖（锁定版本）
+        run: npm ci
+
+      - name: 环境自检
+        run: |
+          echo "node    $(node --version)"
+          echo "npm     $(npm --version)"
+          echo "python  $(python3 --version)"
+          echo "jsdom   $(node -e "console.log(require('jsdom/package.json').version)")"
+
+      # --fast 跳过约 4 分钟的变异测试：它的价值在于「改测试看是否变红」，
+      # 属于开发期自检，不适合放在每次推送的路径上。
+      # --require-package 是本文件存在的核心理由，切勿去掉。
+      - name: 跑防线
+        run: bash tests/run-all.sh --fast --require-package
+
+      - name: 失败时输出诊断线索
+        if: failure()
+        run: |
+          echo "=== 工作区状态 ==="
+          git status --short
+          echo
+          echo "=== 版本号三处落点 ==="
+          grep -oE "<title>[^<]*</title>" index.html | head -1
+          grep -oE "const APP_VERSION = '[0-9.]+'" index.html | head -1
+          node -e "const v=require('./version.json');console.log('version.json:',v.version,'\nchecksum   :',v.checksum)"
+          echo
+          echo "=== 当前版本对应的 zip ==="
+          V=$(grep -oE "APP_VERSION[[:space:]]*=[[:space:]]*'[0-9.]+'" index.html | head -1 | grep -oE "[0-9]+\.[0-9]+\.[0-9]+")
+          ls -l "madan-${V}.zip" 2>/dev/null || echo "缺失：madan-${V}.zip"

@@ -13,7 +13,9 @@
  * 这会形成一个静默的第二真源 —— 发版时忘了改它，功能就会悄悄走错分支。
  *
  * 本检查剥离所有注释（// 、/* *\/ 、<!-- -->）后统计版本号字面量，
- * 只允许出现在白名单的 2 个位置。
+ * 只允许出现在白名单的 2 个位置（index.html 内）。
+ * 另校验 package.json 的 version —— 它不参与运行时，但必须跟着产品版本走，
+ * 否则日后看依赖清单会误判项目停在哪一版。
  *
  * 另有两类**结构性排除**，它们物理上不可能是「版本号」：
  *   1. 标签属性值内部（如 svg 的 viewBox / path 的 d="... a.326.326 0 0 0 ..."）
@@ -21,13 +23,16 @@
  *   2. 更一般的：被引号包裹的 HTML 属性内部。
  * 排除后只统计「裸在代码里」的版本号字面量。
  *
- * 用法：node tests/version-single-source.js
+ * 用法：node tests/version-single-source.js [--allow-no-git]
+ *   --allow-no-git  在校验不含 .git 的裸发布目录时显式声明跳过 git 跟踪检查。
+ *                   默认（不加）时，非 git 环境同样判失败 —— 防线不许静默跳空。
  */
 const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const HTML = path.join(ROOT, 'index.html');
+const PKG = path.join(ROOT, 'package.json');
 const src = fs.readFileSync(HTML, 'utf8');
 const lines = src.split('\n');
 
@@ -116,6 +121,23 @@ const same = titleV && constV && titleV === constV;
 console.log(`  ${same ? '✓' : '✗'} <title>(${titleV}) 与 APP_VERSION(${constV}) 一致`);
 if (!same) fail++;
 
+// package.json 的 version 必须跟着产品版本走。
+// 它不参与运行时判断（只给 npm 工具链看），但漂移了会让人误判项目版本。
+if (fs.existsSync(PKG)) {
+  let pkgV = null;
+  try {
+    pkgV = JSON.parse(fs.readFileSync(PKG, 'utf8')).version;
+  } catch (e) {
+    console.log(`  ✗ package.json 解析失败：${e.message}`);
+    fail++;
+  }
+  if (pkgV !== null) {
+    const okP = pkgV === constV;
+    console.log(`  ${okP ? '✓' : '✗'} package.json(${pkgV}) 与 APP_VERSION(${constV}) 一致`);
+    if (!okP) fail++;
+  }
+}
+
 // 顺带校验 version.json 与 APP_VERSION 一致（发布物与代码对齐）
 const vjPath = path.join(ROOT, 'version.json');
 if (fs.existsSync(vjPath)) {
@@ -132,8 +154,46 @@ if (fs.existsSync(vjPath)) {
     console.log(`  ${ok2 ? '✓' : '✗'} version.json.checksum 与 madan-${vj.version}.zip 实际 sha256 一致`);
     if (!ok2) console.log(`      记录的: ${vj.checksum}\n      实际的: ${h}`);
     if (!ok2) fail++;
+
+    // zip 是否已被 git 跟踪。
+    // 背景：madan-<版本>.zip 必须提交到仓库 —— Cloudflare Pages 从仓库根目录直出，
+    // version.json.url 指向它，漏提交会让已安装设备的 OTA 下载 404。
+    // 本检查只能证明「本地文件存在且哈希对」，无法证明「它会进仓库」，
+    // 所以额外查一次 git 跟踪状态，把「忘了 git add zip」挡在推送前。
+    // 失败策略遵循「防线不得静默跳过」：非 git 环境默认同样判为失败，
+    // 除非调用方显式声明 --allow-no-git（例如校验解压出来的裸发布目录）。
+    // 之所以不默认放过：静默跳过的防线等于没有防线 —— 8.3.24 事故正是
+    // 「检查看着跑了，其实什么都没查」的形状。
+    const { execFileSync } = require('child_process');
+    const allowNoGit = process.argv.includes('--allow-no-git');
+    try {
+      execFileSync('git', ['ls-files', '--error-unmatch', `madan-${vj.version}.zip`], {
+        cwd: ROOT, stdio: 'pipe',
+      });
+      console.log(`  ✓ madan-${vj.version}.zip 已被 git 跟踪（上传后 OTA 才不会 404）`);
+    } catch (e) {
+      // 区分「不是 git 仓库」与「文件未被跟踪」
+      let inRepo = true;
+      try {
+        execFileSync('git', ['rev-parse', '--git-dir'], { cwd: ROOT, stdio: 'pipe' });
+      } catch (e2) {
+        inRepo = false;
+      }
+      if (inRepo) {
+        console.log(`  ✗ madan-${vj.version}.zip 没有被 git 跟踪 —— 提交后 OTA 会 404`);
+        console.log('     修复：git add madan-' + vj.version + '.zip');
+        fail++;
+      } else if (allowNoGit) {
+        console.log('  · 非 git 工作目录，已按 --allow-no-git 跳过「zip 是否被跟踪」检查');
+      } else {
+        console.log('  ✗ 非 git 工作目录，无法验证 zip 是否会被提交 —— 该检查不可跳空');
+        console.log('     若确实在校验一个不含 .git 的裸发布目录，请显式加 --allow-no-git。');
+        fail++;
+      }
+    }
   } else {
     console.log(`  · madan-${vj.version}.zip 不存在（仅改代码未打包时属正常，跳过 checksum 校验）`);
+    console.log('    注意：发版场景请改用 bash tests/run-all.sh --require-package，让此处判为失败。');
   }
 }
 

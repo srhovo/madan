@@ -7,6 +7,7 @@
 #   bash tests/run-all.sh                  # 全量（含约 4 分钟的变异测试）
 #   bash tests/run-all.sh --fast           # 跳过变异测试（日常提交用）
 #   bash tests/run-all.sh --only=engine    # 只跑某一套
+#   bash tests/run-all.sh --require-package # 当前版本没有对应 zip 即判失败（CI/发版用）
 #
 # 可用 --only 值: engine | chunk | arch | chain | dom | combo | fullchain | mutate | package | version
 #
@@ -22,10 +23,12 @@ mkdir -p "$OUT"
 
 FAST=0
 ONLY=""
+REQUIRE_PACKAGE=0
 for arg in "$@"; do
   case "$arg" in
     --fast) FAST=1 ;;
     --only=*) ONLY="${arg#--only=}" ;;
+    --require-package) REQUIRE_PACKAGE=1 ;;
     *) echo "未知参数: $arg"; exit 1 ;;
   esac
 done
@@ -67,7 +70,7 @@ run_suite() {
 # ── 1. 引擎单元测试 ────────────────────────────────────────────────
 if ! should_skip engine; then
   echo
-  echo "── [1/10] 引擎单元测试 test-engine.js ─────────────────────────"
+  echo "── [1/11] 引擎单元测试 test-engine.js ─────────────────────────"
   if [ -z "$VERSION" ]; then
     echo "  ✗ 无法从 index.html 解析 APP_VERSION"
     run_suite engine "引擎单元测试" 1 "无法解析版本号"
@@ -87,7 +90,7 @@ fi
 # tools/build-inline-chunks.js 生成。这道防线盯「有人改了 src 却忘了重新生成」。
 if ! should_skip chunk; then
   echo
-  echo "── [8/10] 内联 chunk 源码一致性 build-inline-chunks.js --check ──"
+  echo "── [2/11] 内联 chunk 源码一致性 build-inline-chunks.js --check ──"
   out=$(node tools/build-inline-chunks.js --check 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -112,7 +115,7 @@ fi
 # 显式更新基线，从而迫使改动者回答「这个增删是有意的吗」。
 if ! should_skip arch; then
   echo
-  echo "── [10/10] 架构边界快照 arch-snapshot.js ─────────────────────"
+  echo "── [3/11] 架构边界快照 arch-snapshot.js ─────────────────────"
   out=$(node tests/arch-snapshot.js 2>&1)
   rc=$?
   echo "$out" | tail -8
@@ -122,7 +125,7 @@ fi
 # ── 3. 喂入链路 ────────────────────────────────────────────────────
 if ! should_skip chain; then
   echo
-  echo "── [4/10] 喂入链路 project-chain.js ───────────────────────────"
+  echo "── [4/11] 喂入链路 project-chain.js ───────────────────────────"
   out=$(node tests/project-chain.js "$HTML" "$OUT/project-chain.json" 2>&1)
   rc=$?
   echo "$out" | tail -4
@@ -133,7 +136,7 @@ fi
 # ── 3. DOM 全链路 ──────────────────────────────────────────────────
 if ! should_skip dom; then
   echo
-  echo "── [5/10] DOM 全链路 dom-full.js ──────────────────────────────"
+  echo "── [5/11] DOM 全链路 dom-full.js ──────────────────────────────"
   out=$(node tests/dom-full.js "$HTML" "$OUT/domfull.json" 2>&1)
   rc=$?
   echo "$out" | tail -3
@@ -143,7 +146,7 @@ fi
 # ── 4. 组合联动 ────────────────────────────────────────────────────
 if ! should_skip combo; then
   echo
-  echo "── [6/10] 组合联动 combo.js ───────────────────────────────────"
+  echo "── [6/11] 组合联动 combo.js ───────────────────────────────────"
   out=$(node tests/combo.js "$HTML" "$OUT/combo.json" 2>&1)
   rc=$?
   echo "$out" | tail -3
@@ -156,7 +159,7 @@ fi
 FULLCHAIN="tests/码单器8.3_AI可运行全链路测试脚本_8.3架构版.py"
 if ! should_skip fullchain; then
   echo
-  echo "── [7/10] 五段式全链路 $(basename "$FULLCHAIN") ──────────"
+  echo "── [7/11] 五段式全链路 $(basename "$FULLCHAIN") ──────────"
   if [ ! -f "$FULLCHAIN" ]; then
     run_suite fullchain "五段式全链路" 1 "脚本不存在: $FULLCHAIN"
   else
@@ -171,10 +174,10 @@ fi
 if ! should_skip mutate; then
   if [ $FAST -eq 1 ]; then
     echo
-    echo "── [8/10] 变异测试 mutate-chain.py  （--fast 已跳过）────────────"
+    echo "── [8/11] 变异测试 mutate-chain.py  （--fast 已跳过）────────────"
   else
     echo
-    echo "── [8/10] 变异测试 mutate-chain.py  （约 4 分钟）──────────────"
+    echo "── [8/11] 变异测试 mutate-chain.py  （约 4 分钟）──────────────"
     out=$(python3 tests/mutate-chain.py 2>&1)
     rc=$?
     echo "$out" | tail -25
@@ -189,7 +192,7 @@ fi
 # 这道防线专门盯「包内 index.html 是否引用了包外不存在的资源」。
 if ! should_skip package; then
   echo
-  echo "── [9/10] OTA 包自包含性 check-package-selfcontained.py ──────"
+  echo "── [9/11] OTA 包自包含性 check-package-selfcontained.py ──────"
   # 找当前版本对应的 zip；找不到就跳过（例如只改代码、尚未打包）
   ZIP=""
   for f in "$ROOT"/madan-*.zip; do
@@ -199,7 +202,19 @@ if ! should_skip package; then
     esac
   done
   if [ -z "$ZIP" ]; then
-    echo "  （未找到 madan-${VERSION}.zip，跳过——仅改代码未打包时属正常）"
+    # 这里曾经是「静默跳过」，是个危险的洞：发版时若改了版本号却忘了打包，
+    # 本套件会显示「通过 0 套 / 失败 0 套」并 exit 0 —— 全绿放行。
+    # 而这正是 8.3.24 事故（version.json 版本 ≠ 包内版本 → 无限更新循环）的形状。
+    # --require-package 把「跳过」改判为「失败」，供 CI 与发版流程使用；
+    # 本地日常改代码（确实还没打包）仍保持宽松。
+    if [ $REQUIRE_PACKAGE -eq 1 ]; then
+      echo "  ✗ 未找到 madan-${VERSION}.zip，但本次以 --require-package 运行"
+      echo "    版本号已改为 ${VERSION} 却没有对应的更新包 —— 这正是无限更新循环的成因。"
+      run_suite package "OTA 包自包含性" 1 "缺少 madan-${VERSION}.zip"
+    else
+      echo "  （未找到 madan-${VERSION}.zip，跳过——仅改代码未打包时属正常）"
+      echo "    提示：发版与 CI 场景请加 --require-package，把此处改为强制失败。"
+    fi
   else
     out=$(python3 tests/check-package-selfcontained.py "$ZIP" 2>&1)
     rc=$?
@@ -217,7 +232,7 @@ fi
 # 只允许版本号出现在白名单的 2 个位置，并交叉校验 title↔APP_VERSION↔version.json↔zip。
 if ! should_skip version; then
   echo
-  echo "── [11/11] 版本号单一真源 version-single-source.js ────────────"
+  echo "── [10/11] 版本号单一真源 version-single-source.js ────────────"
   out=$(node tests/version-single-source.js 2>&1)
   rc=$?
   echo "$out" | tail -8
