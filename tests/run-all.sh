@@ -8,7 +8,7 @@
 #   bash tests/run-all.sh --fast           # 跳过变异测试（日常提交用）
 #   bash tests/run-all.sh --only=engine    # 只跑某一套
 #
-# 可用 --only 值: engine | chunk | arch | chain | dom | combo | fullchain | mutate | package
+# 可用 --only 值: engine | chunk | arch | chain | dom | combo | fullchain | mutate | package | version
 #
 # 退出码: 0 全通过 / 1 有套件失败
 set -u
@@ -206,6 +206,23 @@ if ! should_skip package; then
     echo "$out" | tail -6
     run_suite package "OTA 包自包含性" $rc "$(basename "$ZIP")"
   fi
+fi
+
+# ── 11. 版本号单一真源（B2 新增）───────────────────────────────────
+# 背景：index.html 里 8.3.x 字样共 165 处，但其中 163 处是注释（变更考古，应保留），
+# 真正参与代码的只有 <title> 与 APP_VERSION 两处。风险是将来有人写出一处
+# 「参与运行时判断的硬编码版本号」（如 compareVersions('8.3.20', ...)），
+# 形成静默的第二真源 —— 发版时忘改它，功能会悄悄走错分支。
+# 本套件剥离注释、排除标签属性（SVG path 坐标天然含 x.y.z 形状）后，
+# 只允许版本号出现在白名单的 2 个位置，并交叉校验 title↔APP_VERSION↔version.json↔zip。
+if ! should_skip version; then
+  echo
+  echo "── [11/11] 版本号单一真源 version-single-source.js ────────────"
+  out=$(node tests/version-single-source.js 2>&1)
+  rc=$?
+  echo "$out" | tail -8
+  line=$(echo "$out" | grep -oE "参与代码的版本号出现位置：[0-9]+ 处" | tail -1)
+  run_suite version "版本号单一真源" $rc "${line:-无输出}"
 fi
 
 # ── 汇总 ───────────────────────────────────────────────────────────
