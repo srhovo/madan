@@ -147,6 +147,9 @@
     try { return window.localStorage.getItem(ATTEMPT_KEY) || ''; } catch (e) { return ''; }
   }
   function rememberAttemptedVersion(v) {
+    // 故意吞掉：写失败只意味着「本机不记忆已尝试版本」，最坏结果是下次启动
+    // 重复尝试一次更新（不会无限重载，因为闸门只在本次进程内失效）。
+    // 这类环境里日志通道（log）本身也可能不可用，故不值得记日志。
     try { window.localStorage.setItem(ATTEMPT_KEY, String(v)); } catch (e) {}
   }
 

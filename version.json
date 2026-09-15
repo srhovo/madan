@@ -1,6 +1,6 @@
 {
-  "version": "8.3.33",
-  "url": "https://madan.pages.dev/madan-8.3.33.zip",
-  "checksum": "a895bc103b0cc5bfab346fa16c3b4d421ffcc80ca665e96a3ad2cf0a380f9504",
-  "notes": "架构拆分第一步（A3）：消除「隐式动态挂载」，把 OrderCalculator 上的冗余转发入口收敛为显式委托。零功能改动、零逻辑改动。背景：OrderCalculator 长期充当「编排队」，历史上为兼容旧调用点，把大量 Feature 方法以 this.xxx(...args) 形式平铺在自身上（133 个方法中 77 个是单行转发），其中 RatioFeature 更是通过 bindToApp() 在运行时把 12 个方法动态挂到 app 上——这正是工程边界明令禁止的「隐式动态挂载/全局隐藏状态」。本版处理三件事：① 删除 59 个已无任何调用方的纯转发入口（实现全部原样保留在其所属 Feature 内，仅移除 app 级冗余镜像）；② 移除 RatioFeature.bindToApp() 的隐式动态挂载，改为显式路径调用（ModeFlowFeature → this.app.ratioFeature.handleModeButtonClick(...)）；③ 顺带修复一处因 ① 暴露出来的既有隐患：dataPortability 的 refreshAfterImport() 原本用 ['applyLockedDataToUI','applyLayoutVisibility',...] 字符串数组 + this.app[method]() 做动态派发（同属隐式动态挂载），导入数据后的 7 项界面刷新依赖它；现改为显式委托数组，导入后刷新链路恢复可靠。验证：app 可调用方法 159 → 100（移除 59、新增 0），state 键 24/24 与 feature 数 23 完全一致；7 套测试全绿（引擎 126、喂入链路 122、DOM 26、组合 27、五段式、变异捕捉 9/9、包自包含）；并逐一校验 59 项移除均有「实现保留在所属 Feature + 全文无动态字符串访问 + 无 HTML 属性引用 + 无外部调用者」四项证明。保留 clearAll 作为外部可见的「清空全部」公共入口（测试与外部脚本按此复位）。业务逻辑、计算引擎、存储结构、UI 行为完全未改动。"
+  "version": "8.3.34",
+  "url": "https://madan.pages.dev/madan-8.3.34.zip",
+  "checksum": "4a9dc3e9de1298e24b547ea3582c6d4b3dd5014f1a0366c5d4ff53aa8a833d7f",
+  "notes": "架构拆分第二步（A4+A5）：把「不可读的产物」变成「可读的源码」，并给全部空 catch 补上「为什么可以吞」的说明。零功能改动、零逻辑改动。A4 —— 内联 chunk 源码外置：dataPortability（约1117行）与 durationCalculator（约272行）的源码此前只以 JSON 转义的单行字符串存在于 index.html 的 __INLINE_CHUNKS_RAW__ 中，编辑器无法索引、无法 diff、无法 review，是全项目最大的维护盲区。现将源码落到 src/chunks/*.js，index.html 里的字符串改由 tools/build-inline-chunks.js 生成；编码配方经「重新编码结果与现存字符串逐字节比对」验证未漂移。同时补 tools/sync-root-scripts.js 统一 update-checker.js / analytics.js 的内联同步。A5 —— 空 catch 注释化：全量清点为 9 处（清单原记 6 处，实测多出 3 处），逐一补上「为什么可以吞」的就近注释，其中 loadModeRatios 是唯一有真实用户影响的（静默丢失自定义比例），已改为记 appLogError。新增两道常驻防线：tests/arch-snapshot.js（A3 遗留建议 —— 用运行时原型链内省冻结 app 方法集/state 键/featureOrder 三个架构不变量，专防「隐式动态挂载」这类不报错的静默回归，已用注入式反例验证可捕获）；两个 --check 工具纳入统一入口。测试防线 7 套 → 10 套，全部通过（含变异捕捉 9/9）。过程中修正一处自己引入的失误：在 index.html 里直接给 update-checker/analytics 的内联副本加注释，破坏了源文件与副本的逐字节一致性 —— 正确做法是改源文件再同步，已纠正并固化为工具。"
 }

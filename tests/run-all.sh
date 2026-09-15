@@ -8,7 +8,7 @@
 #   bash tests/run-all.sh --fast           # 跳过变异测试（日常提交用）
 #   bash tests/run-all.sh --only=engine    # 只跑某一套
 #
-# 可用 --only 值: engine | chain | dom | combo | fullchain | mutate | package
+# 可用 --only 值: engine | chunk | arch | chain | dom | combo | fullchain | mutate | package
 #
 # 退出码: 0 全通过 / 1 有套件失败
 set -u
@@ -67,7 +67,7 @@ run_suite() {
 # ── 1. 引擎单元测试 ────────────────────────────────────────────────
 if ! should_skip engine; then
   echo
-  echo "── [1/7] 引擎单元测试 test-engine.js ─────────────────────────"
+  echo "── [1/10] 引擎单元测试 test-engine.js ─────────────────────────"
   if [ -z "$VERSION" ]; then
     echo "  ✗ 无法从 index.html 解析 APP_VERSION"
     run_suite engine "引擎单元测试" 1 "无法解析版本号"
@@ -80,10 +80,49 @@ if ! should_skip engine; then
   fi
 fi
 
-# ── 2. 喂入链路 ────────────────────────────────────────────────────
+# ── 2. 内联 chunk 源码一致性（A4 新增）─────────────────────────────
+# 背景：dataPortability / durationCalculator 两个 Feature 的源码被转义后存在
+# index.html 的 __INLINE_CHUNKS_RAW__ 单行字符串里，编辑器无法索引，是全项目
+# 最大的维护盲区。A4 起把源码落到 src/chunks/*.js，index.html 里的副本由
+# tools/build-inline-chunks.js 生成。这道防线盯「有人改了 src 却忘了重新生成」。
+if ! should_skip chunk; then
+  echo
+  echo "── [8/10] 内联 chunk 源码一致性 build-inline-chunks.js --check ──"
+  out=$(node tools/build-inline-chunks.js --check 2>&1)
+  rc=$?
+  echo "$out" | tail -6
+  line=$(echo "$out" | grep -oE "（[0-9]+ 个 chunk）" | tail -1)
+  run_suite chunk "内联 chunk 源码一致性" $rc "${line:-无输出}"
+  # 同时跑既有的内联完整性防线（update-checker/analytics 两份内联副本 + 原生壳冒烟）
+  inline_out=$(node tests/inline-integrity.js 2>&1)
+  inline_rc=$?
+  inline_line=$(echo "$inline_out" | grep -oE "全部通过|失败 [0-9]+ 项" | tail -1)
+  run_suite inline "内联完整性 inline-integrity.js" $inline_rc "${inline_line:-无输出}"
+  # 根级脚本（update-checker/analytics）源文件与内联副本的一致性
+  root_out=$(node tools/sync-root-scripts.js --check 2>&1)
+  root_rc=$?
+  run_suite rootsync "根级脚本内联同步" $root_rc "$(echo "$root_out" | grep -oE '一致|不一致 [0-9]+ 项' | tail -1)"
+fi
+
+# ── 3. 架构边界快照（A3 遗留防线）─────────────────────────────────
+# 8.3.33 修的两类问题（bindToApp 隐式动态挂载、字符串数组动态派发）都是
+# 「静默失效」：不报错、不崩溃，只是某个功能悄悄不工作了。静态扫描抓不住
+# （本项目已验证会给出假绿灯），只有运行时原型链内省可靠。本套件把
+# app 方法集合 / state 键集合 / featureOrder 冻结成基线，任何变化都必须
+# 显式更新基线，从而迫使改动者回答「这个增删是有意的吗」。
+if ! should_skip arch; then
+  echo
+  echo "── [10/10] 架构边界快照 arch-snapshot.js ─────────────────────"
+  out=$(node tests/arch-snapshot.js 2>&1)
+  rc=$?
+  echo "$out" | tail -8
+  run_suite arch "架构边界快照" $rc "$(echo "$out" | grep -oE 'app 方法 [0-9]+ · state 键 [0-9]+ · feature [0-9]+' | tail -1)"
+fi
+
+# ── 3. 喂入链路 ────────────────────────────────────────────────────
 if ! should_skip chain; then
   echo
-  echo "── [2/7] 喂入链路 project-chain.js ───────────────────────────"
+  echo "── [4/10] 喂入链路 project-chain.js ───────────────────────────"
   out=$(node tests/project-chain.js "$HTML" "$OUT/project-chain.json" 2>&1)
   rc=$?
   echo "$out" | tail -4
@@ -94,7 +133,7 @@ fi
 # ── 3. DOM 全链路 ──────────────────────────────────────────────────
 if ! should_skip dom; then
   echo
-  echo "── [3/7] DOM 全链路 dom-full.js ──────────────────────────────"
+  echo "── [5/10] DOM 全链路 dom-full.js ──────────────────────────────"
   out=$(node tests/dom-full.js "$HTML" "$OUT/domfull.json" 2>&1)
   rc=$?
   echo "$out" | tail -3
@@ -104,7 +143,7 @@ fi
 # ── 4. 组合联动 ────────────────────────────────────────────────────
 if ! should_skip combo; then
   echo
-  echo "── [4/7] 组合联动 combo.js ───────────────────────────────────"
+  echo "── [6/10] 组合联动 combo.js ───────────────────────────────────"
   out=$(node tests/combo.js "$HTML" "$OUT/combo.json" 2>&1)
   rc=$?
   echo "$out" | tail -3
@@ -117,7 +156,7 @@ fi
 FULLCHAIN="tests/码单器8.3_AI可运行全链路测试脚本_8.3架构版.py"
 if ! should_skip fullchain; then
   echo
-  echo "── [5/7] 五段式全链路 $(basename "$FULLCHAIN") ──────────"
+  echo "── [7/10] 五段式全链路 $(basename "$FULLCHAIN") ──────────"
   if [ ! -f "$FULLCHAIN" ]; then
     run_suite fullchain "五段式全链路" 1 "脚本不存在: $FULLCHAIN"
   else
@@ -132,10 +171,10 @@ fi
 if ! should_skip mutate; then
   if [ $FAST -eq 1 ]; then
     echo
-    echo "── [6/7] 变异测试 mutate-chain.py  （--fast 已跳过）────────────"
+    echo "── [8/10] 变异测试 mutate-chain.py  （--fast 已跳过）────────────"
   else
     echo
-    echo "── [6/7] 变异测试 mutate-chain.py  （约 4 分钟）──────────────"
+    echo "── [8/10] 变异测试 mutate-chain.py  （约 4 分钟）──────────────"
     out=$(python3 tests/mutate-chain.py 2>&1)
     rc=$?
     echo "$out" | tail -25
@@ -150,7 +189,7 @@ fi
 # 这道防线专门盯「包内 index.html 是否引用了包外不存在的资源」。
 if ! should_skip package; then
   echo
-  echo "── [7/7] OTA 包自包含性 check-package-selfcontained.py ──────"
+  echo "── [9/10] OTA 包自包含性 check-package-selfcontained.py ──────"
   # 找当前版本对应的 zip；找不到就跳过（例如只改代码、尚未打包）
   ZIP=""
   for f in "$ROOT"/madan-*.zip; do

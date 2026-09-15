@@ -48,6 +48,9 @@
       // → 内存（本次会话内兜底）。iOS standalone 模式的 localStorage
       // 与 Safari 相互独立，且在隐私模式下可能抛错，不能只依赖它。
       var existing = null;
+      // 故意吞掉（本组 4 处同理）：设备号仅用于统计去重，读不到就继续往下级存储降级，
+      // 最终必定落到内存兜底并返回一个可用 id，功能不受影响。
+      // 反向「把异常抛出去」反而会让统计上报整体失败，这里吞掉是更稳的选择。
       try { existing = window.localStorage.getItem(DEVICE_ID_KEY); } catch (e) {}
       if (!existing) {
         try { existing = window.sessionStorage.getItem(DEVICE_ID_KEY); } catch (e) {}
@@ -66,6 +69,8 @@
           return v.toString(16);
         });
       }
+      // 故意吞掉：见上方「本组 4 处同理」，写入失败即下一级存储兜底。
+      // 注意内存兜底 memDeviceId 在下方无条件赋值，所以即便两级存储全挂也能拿到稳定 id。
       try { window.localStorage.setItem(DEVICE_ID_KEY, id); } catch (e) {}
       try { window.sessionStorage.setItem(DEVICE_ID_KEY, id); } catch (e) {}
       memDeviceId = id;

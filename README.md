@@ -133,8 +133,17 @@ webView.loadUrl("file:///android_asset/index.html")
 ├── index.html          # 完整单页应用（HTML + CSS + JS，单文件自包含交付）
 ├── update-checker.js   # OTA 热更新检测 / 下载 / 替换
 │                       # ⚠️ 8.3.30 起其内容已【内联】进 index.html，本文件保留为源文件
+│                       #    改完请运行 node tools/sync-root-scripts.js 同步内联副本
 ├── analytics.js        # 匿名使用统计（纯 Web API，失败静默降级）
-│                       # ⚠️ 8.3.30 起其内容已【内联】进 index.html，本文件保留为源文件
+│                       # ⚠️ 同上：本文件是源文件，改动后须同步内联副本
+├── src/chunks/         # 懒加载 chunk 的【源文件】（8.3.34 起为唯一可读之处，A4）
+│   ├── dataPortability.js                             # 数据备份/导入 Feature（约 1118 行）
+│   └── durationCalculator.js                          # 时长计算器 Feature（约 273 行）
+│                       # ⚠️ index.html 里的 __INLINE_CHUNKS_RAW__ 由本目录生成，
+│                       #    改完请运行 node tools/build-inline-chunks.js
+├── tools/              # 源码 → 产物 的生成/校验脚本（无构建链，按需手动跑）
+│   ├── build-inline-chunks.js                         # src/chunks/*.js → index.html 字符串
+│   └── sync-root-scripts.js                           # update-checker/analytics → 内联副本
 ├── test-engine.js      # 引擎单元测试（Node 隔离运行，L3 核心回归，126 项）
 ├── tests/              # 全链路测试资产
 │   ├── 码单器8.3_AI可运行全链路测试脚本_8.3架构版.py                                   # 主入口：五段式全链路
@@ -147,7 +156,9 @@ webView.loadUrl("file:///android_asset/index.html")
 │   ├── ota-loop-guard.js                              # OTA 防无限重载闸门（对照实验）
 │   ├── ota-e2e.js                                     # OTA 端到端（真实 zip + 真实 version.json）
 │   ├── inline-integrity.js                            # 内联副本与 .js 源文件逐字节一致性
-│   └── run-all.sh                                     # 统一测试入口（7 套防线一次跑完）
+│   ├── arch-snapshot.js                               # 架构边界快照（app 方法/state 键/feature 数）
+│   ├── arch-baseline.json                             # 上述快照的基线，有意改动后须 --update
+│   └── run-all.sh                                     # 统一测试入口（10 套防线一次跑完）
 ├── version.json        # OTA 更新清单（version / url / checksum）
 ├── madan-<版本>.zip    # OTA 更新包，Pages 直出，不可从仓库删除
 ├── CHANGELOG.md        # 版本更新日志
@@ -171,7 +182,7 @@ webView.loadUrl("file:///android_asset/index.html")
 ```bash
 npm install jsdom                  # JS 侧测试需要
 
-# 推荐：统一入口，一次跑完全部 7 套防线
+# 推荐：统一入口，一次跑完全部 10 套防线
 bash tests/run-all.sh              # 全量（含约 4 分钟变异测试）
 bash tests/run-all.sh --fast       # 日常提交：跳过变异测试
 
@@ -188,11 +199,24 @@ python3 tests/check-package-selfcontained.py madan-<版本>.zip   # 包必须自
 node tests/ota-loop-guard.js       # 防无限重载闸门（含旧逻辑对照）
 node tests/ota-e2e.js              # 真实包 + 真实 version.json 端到端
 node tests/inline-integrity.js     # 内联副本与 .js 源文件是否同步
+
+# 源码/产物一致性（8.3.34 A4 新增）
+node tools/build-inline-chunks.js --check   # src/chunks/*.js ↔ __INLINE_CHUNKS_RAW__
+node tools/sync-root-scripts.js --check     # update-checker/analytics ↔ 内联副本
+node tests/arch-snapshot.js                 # 架构边界快照（防隐式动态挂载回归）
 ```
 
 > **改了 `update-checker.js` / `analytics.js` 之后**：这两个文件的内容已被内联进
 > `index.html`（见「项目结构」中的 ⚠️ 说明），**必须同步更新 `index.html` 里的内联副本**，
-> 否则打包出去的仍是旧逻辑。跑 `node tests/inline-integrity.js` 可校验两者是否一致。
+> 否则打包出去的仍是旧逻辑。跑 `node tools/sync-root-scripts.js` 同步，
+> `--check` 可校验是否一致（已纳入 `run-all.sh`）。
+
+> **改了 `src/chunks/*.js` 之后**：这两个懒加载 Feature 的源码在 `index.html` 里以
+> JSON 转义后的单行字符串（`__INLINE_CHUNKS_RAW__`）存在，编辑器无法索引 ——
+> 所以**日常维护请改 `src/chunks/` 下的源文件**，再运行
+> `node tools/build-inline-chunks.js` 重新生成字符串。
+> `--check` 模式可校验两者是否一致（已纳入 `run-all.sh`）。
+> 注意：`index.html` 里那行字符串**不要手改**，手改会被下次生成覆盖。
 
 > **关于 `test-engine.js` 的版本参数**：它的第二个参数是**期望版本号**，省略时会
 > 自动从 `index.html` 的 `APP_VERSION` 提取。

@@ -22,3 +22,7 @@ report/
 
 # 本地验证用的临时解包目录
 _verify_pkg/
+
+# 注意：src/ 与 tools/ 必须留在仓库（A4 起）
+# src/chunks/ 是懒加载 Feature 的唯一可读源码，tools/ 负责把源码生成为
+# index.html 里的内联字符串。它们不是「构建产物」，而是源头。
