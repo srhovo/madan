@@ -1,0 +1,40 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Node / build artifacts（本项目无构建，但保留以防万一）
+node_modules/
+*.log
+
+# 注意：madan-<版本>.zip 必须留在仓库
+# 更新包由 Cloudflare Pages 从仓库根目录直出，version.json 的 url 指向它；
+# 一旦漏提交，已安装设备 OTA 下载会 404。因此这里刻意不忽略 *.zip。
+
+# 临时/校验 hash 文件（误提交过，见历史）
+*.sha256
+*.sha1
+
+# 测试运行产物：每跑一次 tests/run-all.sh 就会重新生成，无版本价值
+.test-out/
+report/
+# 五段式全链路脚本把报告直接写在仓库根目录（脚本内部写死路径，不便改）
+index_AI全链路测试报告.json
+index_AI全链路测试摘要.txt
+index_AI自动化测试报告.json
+index_AI自动化测试摘要.txt
+
+# 本地验证用的临时解包目录
+_verify_pkg/
+
+# 发版快照目录：tools/release.sh 在改写文件前把 index.html / version.json /
+# CHANGELOG.md 备份到这里，失败时整体回滚；成功时自动清理。
+# 仅失败时保留（取证用），不该进仓库。
+.release-backup/
+
+# 注意：src/ 与 tools/ 必须留在仓库（A4 起）
+# src/chunks/ 是懒加载 Feature 的唯一可读源码，tools/ 负责把源码生成为
+# index.html 里的内联字符串。它们不是「构建产物」，而是源头。
+
+# package-lock.json 必须进仓库（CI 用 npm ci 依赖它做可复现安装）

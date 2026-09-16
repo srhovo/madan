@@ -1,0 +1,6 @@
+{
+  "version": "8.3.36",
+  "url": "https://madan.pages.dev/madan-8.3.36.zip",
+  "checksum": "cbf45cd78df43129a4496b12a9b135adc8b60b6dca4ceac45ec1d41a93d1c5f4",
+  "notes": "A1+A2 发布流程自动化 —— 新增 tools/release.sh 一键发布脚本、tools/set-version.js 版本号落点改写器、tests/release-selftest.sh 负向自检，以及 GitHub Actions 门禁。本版为纯工程改动：index.html 一行未动，用户侧功能与 8.3.35 完全一致。\n\nA1 把「改版本号→同步内联→打包→算 checksum→写 version.json→追加 CHANGELOG→跑全套防线」串成一条命令，失败整体回滚。开发过程中负向自检（主动注入 8 类故障）实测出 release.sh 一处真实缺陷：bash 的 ERR trap 对显式 exit 1 不生效，导致所有失败路径都跳过回滚、文件停在半发布状态；已改为统一走 die() 出口，并新增断言锁死该行为。\n\nA2 加 GitHub Actions 门禁，每次推送跑 11 套防线，把「发版前跑测试」从纪律变成机制 —— 历史上两次线上事故（8.3.24 版本号与包不同步、8.3.26~8.3.29 包内漏文件）都源于人忘了跑。同时把 run-all.sh 里「没有对应 zip 就静默跳过」改为可强制的 --require-package，堵住全项目唯一「出问题反而变绿」的洞。"
+}

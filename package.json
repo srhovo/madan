@@ -1,0 +1,16 @@
+{
+  "name": "madan",
+  "version": "8.3.36",
+  "private": true,
+  "description": "码单器 —— 单文件 HTML 应用。本文件不是构建配置：项目无构建链，index.html 直接运行。它存在只为锁定测试防线所需的外部依赖（jsdom），避免上游版本漂移导致假红。",
+  "comment": "依赖请用 npm ci（有 lock 文件，逐字节可复现）。禁止用 npm install <包> --no-save —— 本项目亲历过它静默删掉 39 个包的事故。",
+  "devDependencies": {
+    "jsdom": "29.1.1"
+  },
+  "scripts": {
+    "test": "bash tests/run-all.sh --fast",
+    "test:full": "bash tests/run-all.sh",
+    "test:ci": "bash tests/run-all.sh --fast --require-package",
+    "release": "bash tools/release.sh"
+  }
+}
