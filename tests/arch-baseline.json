@@ -125,7 +125,8 @@
     "priceLibraries",
     "priceLibraryMigrationStatus",
     "priceMemory",
-    "recentBosses"
+    "recentBosses",
+    "seenTips"
   ],
   "featureOrder": [
     "uiRender",

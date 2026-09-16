@@ -162,6 +162,14 @@
  .instructions-head { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-md); margin-bottom: var(--spacing-md); }
  .instructions-head h4 { margin: 0; }
  .tutorial-video-btn { padding: 10px 16px; background: var(--color-white); color: var(--color-primary-dark); border: 1px solid var(--color-border); box-shadow: var(--shadow-sm); white-space: nowrap; }
+ /* 8.3.37 修「白底白字」：本按钮同时挂着 .app-btn，而 .app-btn 定义在本节之后，
+    同为单类选择器时后出现的胜出，于是 .app-btn 的 color: white 把上面这行的
+    深色字盖掉了 —— 结果白底白字，「播放使用教程」这几个字实际看不见，
+    只有灰字副标题可见（它自带 color，不受影响）。
+    这里用 .app-btn 组合把优先级抬到 (0,2,0)，确保深色字生效。
+    注：本按钮是既有的显示缺陷，与本次其它改动无关，顺手一并修好。 */
+ .app-btn.tutorial-video-btn { color: var(--color-primary-dark); background: var(--color-white); }
+ .app-btn.tutorial-video-btn:hover { background: var(--color-bg-light); }
  .tutorial-video-btn:hover { background: var(--color-bg-light); }
  .tutorial-video-btn-main { font-weight: var(--font-weight-semibold); }
  .tutorial-video-btn-hint { color: var(--color-text-light); font-size: var(--font-size-xs); font-weight: var(--font-weight-normal); }
@@ -193,6 +201,38 @@
  }
 
  .instructions.show, .boss-suggest-list.show { display: block; animation: fadeIn var(--animation-duration-base) ease; }
+
+ /* 8.3.37 使用说明改版：常用列表 + 折叠的「自动行为」词条。
+    目标是把「一眼扫过就懂」和「需要时才查」两层分开，减少首次打开时的视觉压力。
+    词条用 dl/dt/dd 而不是 ul，因为每条都是「现象 → 原因」的问答关系。 */
+ .ins-list--basic { margin: 0; padding-left: 1.15em; }
+ .ins-list--basic > li { margin-bottom: 6px; line-height: 1.65; }
+ .ins-list--basic > li:last-child { margin-bottom: 0; }
+ .ins-details { margin-top: var(--spacing-md); border-top: 1px dashed var(--color-border-light); padding-top: var(--spacing-md); }
+ .ins-details > summary {
+  cursor: pointer; font-weight: var(--font-weight-semibold); font-size: var(--font-size-sm);
+  color: var(--color-primary-dark); list-style: none; display: flex; align-items: center; gap: 6px;
+  user-select: none; -webkit-tap-highlight-color: transparent;
+ }
+ .ins-details > summary::-webkit-details-marker { display: none; }
+ .ins-details > summary::after {
+  content: '▾'; margin-left: auto; font-size: 11px; opacity: .7;
+  transition: transform var(--transition-fast);
+ }
+ .ins-details[open] > summary::after { transform: rotate(180deg); }
+ .ins-details > summary:hover { opacity: .82; }
+ .ins-details-body { margin-top: var(--spacing-md); }
+ .ins-faq { margin: 0; }
+ .ins-faq dt {
+  font-weight: var(--font-weight-semibold); font-size: var(--font-size-sm);
+  color: var(--color-text); margin-top: var(--spacing-md); line-height: 1.5;
+ }
+ .ins-faq dt:first-child { margin-top: 0; }
+ .ins-faq dt::before { content: '·'; margin-right: 6px; color: var(--color-primary-dark); }
+ .ins-faq dd {
+  margin: 3px 0 0 0; padding-left: 14px; font-size: var(--font-size-sm);
+  color: var(--color-text-light); line-height: 1.7;
+ }
 
  .input-section,
  .result-section { flex: 1; padding: var(--spacing-xl);  border-radius: var(--border-radius-lg);  }
@@ -3549,19 +3589,68 @@ h1 { margin-bottom: 4px; }
  </header>
 
  <!-- ========== 使用说明 ========== -->
+ <!-- 8.3.37 改版：原先是 6 条平铺长句，用户根本读不完，也读不出重点。
+      现在拆成两层：上面是「常用三件事」扫一眼就懂；下面是可点开折叠的
+      「自动帮你做的事」，专门收录那些一眼看不出、但一旦不知道就会觉得
+      「这软件怎么不听话」的行为（如时长自动进位、折数在礼物码单不起作用）。 -->
  <div class="instructions" id="instructions" data-layout-module="topInstructions">
  <div class="instructions-head">
  <h4>📋 使用说明</h4>
  <button class="tutorial-video-btn app-btn app-btn--sm" id="tutorialVideoBtn" type="button" aria-haspopup="dialog"><span>▶</span><span class="tutorial-video-btn-main">播放使用教程</span><span class="tutorial-video-btn-hint">点击此按钮即可观看</span></button>
  </div>
- <ul>
- <li><strong>基础录单：</strong>填写总价、派单、陪陪等信息后生成；单子码单折数参与计算，礼物码单折数仅记录。</li>
- <li><strong>多陪一：</strong>陪陪可用空格、逗号、顿号分隔；系统按人数计算总价，到手金额按人均显示。</li>
- <li><strong>复用工具：</strong>自定义比例、老板记忆、单价记忆可快速回填；自定义比例总和必须等于100%。</li>
- <li><strong>名字提取：</strong>支持拍一拍和@格式，修正确认后再应用到陪陪，避免名单误填。</li>
- <li><strong>锁定与备份：</strong>全部清除会回退锁定值；删除锁定记忆需先解锁。换设备或大改前建议按需勾选备份。</li>
- <li><strong>本地数据：</strong>数据保存在当前浏览器本地，清理浏览器数据或更换浏览器可能导致丢失。</li>
+
+ <!-- 第一层：扫一眼就懂的常用操作 -->
+ <ul class="ins-list ins-list--basic">
+ <li><strong>录单四步：</strong>填总价与派单 → 填陪陪与老板 → 按需填折数、加价、时长 → 生成订单。</li>
+ <li><strong>两个按钮的小门道：</strong>「单子码单」「礼物码单」按钮<b>再点一次会换分成比例</b>，不用去别处找。</li>
+ <li><strong>多陪一：</strong>陪陪名字用空格、逗号、顿号分开；总价按人数算，到手金额按人均显示。</li>
+ <li><strong>名字提取：</strong>粘贴聊天记录自动认名字，先确认再应用，认错了能改、改过的名字下次会记住。</li>
+ <li><strong>本地保存：</strong>数据只存在这台设备上；清理浏览器数据或换设备可能丢失，换设备前先做「数据备份」。</li>
  </ul>
+
+ <!-- 第二层：折叠区，收录「自动帮你做的事」——一眼看不出的信息差 -->
+ <details class="ins-details">
+ <summary>💡 自动帮你做的事（点开看，看完少走弯路）</summary>
+ <div class="ins-details-body">
+ <dl class="ins-faq">
+ <dt>时长填多个项目时，会自动出现「+」</dt>
+ <dd>用「时长结算计算器」填入服务类型时，如果你的服务类型里已经有项目，系统会自动在中间补一个「+」把它们连起来，不用自己打加号。只有一项时不会补。</dd>
+
+ <dt>时长不是整小时，会自动进位到档位</dt>
+ <dd>例如 1 小时 12 分钟，不会按 1.2 小时算，而是自动归到「1h+1局」档（超过整点 10 分钟以内不计、超过 10 分钟加 1 局）。</dd>
+
+ <dt>多个项目的时长会合并成一个总数</dt>
+ <dd>每 3 局自动折成 1 小时。比如「1h技术 + 2局娱乐」，时长栏会显示「1h+2局」而不是各写各的。</dd>
+
+ <dt>礼物码单填的折数只记录、不参与算钱</dt>
+ <dd>单子码单的折数会真的把总价压下去，礼物码单的折数只是写在备注里留个记录。两种码单的分成比例也不同，切换按钮时会自动换成对应那一套。</dd>
+
+ <dt>「折数」和「叠加折数」可以同时用</dt>
+ <dd>两个框都填的话是相乘的效果，一起把总价压下去，不是二选一。只填一个也行。</dd>
+
+ <dt>「其他名字」让一个项目认多个叫法</dt>
+ <dd>精确单价可以给一个项目挂多个具体名字，例如「其他手游」后面填上「蛋仔派对、和平精英、手瓦」，之后填其中任何一个都算这个项目。用顿号、逗号、斜杠、分号分隔都行，留空就等于没填。</dd>
+
+ <dt>手输的单价会自己存进记忆库</dt>
+ <dd>服务类型里写了价格库里没有的项目、并手填了单价，生成订单后这个价会记下来，下次填同名项目直接带出。它只进记忆库、不动你的正式价格库。</dd>
+
+ <dt>服务类型清空，是在「结束这一单」</dt>
+ <dd>清空后如果重新填的是同一个项目（只是改了时长），单价会自己接回来、总价立刻刷新；换成别的项目名，旧单价就不再用，防止上一单的价串到下一单。</dd>
+
+ <dt>加价关键词要指定谁加价</dt>
+ <dd>有多个项目时，加价框写的关键词系统不知道该加在哪个项目上，会提示你选一下加价范围；只有一个项目时不用选。</dd>
+
+ <dt>锁定后「全部清除」不会清掉它</dt>
+ <dd>锁定的派单、老板、陪陪在点「全部清除」时不会被清掉，只会回到锁定的那个值。想清掉得先解锁。</dd>
+
+ <dt>名字提取有三种模式</dt>
+ <dd>「拍一拍」认拍拍格式、「@格式」认群里艾特、「接龙」认微信接龙编号名单。粘贴的内容不对时换一种模式往往就好了。</dd>
+
+ <dt>单价区间按段位名匹配</dt>
+ <dd>区间规则用段位名（如星耀1）来命中，命中不了才按星数范围兜底。段位名和星数写得越对齐，结果越准。</dd>
+ </dl>
+ </div>
+ </details>
  </div>
 
  <div class="main-content">
@@ -10953,6 +11042,8 @@ class LayoutFeature {
  set hiddenModules(value) { this.app.hiddenModules = value; }
  get layoutTemplates() { return this.app.layoutTemplates; }
  set layoutTemplates(value) { this.app.layoutTemplates = value; }
+ get seenTips() { return this.app.seenTips; }
+ set seenTips(value) { this.app.seenTips = value; }
 
  saveStateKey(...args) { return this.app.saveStateKey(...args); }
  setRenderedHtml(...args) { return this.app.setRenderedHtml(...args); }
@@ -10960,6 +11051,7 @@ class LayoutFeature {
  openModal(...args) { return this.app.openModal(...args); }
  closeModal(...args) { return this.app.closeModal(...args); }
  showSuccess(...args) { return this.app.showSuccess(...args); }
+ showInfo(...args) { return this.app.showInfo(...args); }
  bindInputFlowAdvance(...args) { return this.app.bindInputFlowAdvance(...args); }
  updateFloatingActionBar(...args) { return this.app.updateFloatingActionBar?.(...args); }
 
@@ -11086,10 +11178,42 @@ class LayoutFeature {
  this.saveLayoutPrefs();
  this.applyLayoutVisibility();
  this.updateLayoutButton();
- if (!already) this.showSuccess(`已切换为${next.name}`);
+ if (!already) {
+ this.showSuccess(`已切换为${next.name}`);
+ // 【8.3.37】切到精简布局时，第一次告诉用户「老板昵称能一键把派单和折数填上」。
+ // 为什么挑这个时机：精简布局把「自定义比例」和「服务时长」藏了起来，
+ // 用户会下意识觉得「功能变少了」，此刻正是最需要知道「还有更省事的用法」的时候。
+ // 为什么只提示一次：这句提示对第一次见到的人有用，对第 N 次切换的人只是打扰。
+ // 提示内容同时写进了「使用说明 → 自动帮你做的事」，错过也不会永久失去。
+ if (next.id === 'simple') this.showSimpleLayoutBossTipOnce();
+ }
  return true;
  } catch (error) {
  this.handleError('toggleLayoutScheme', error, '切换布局失败，请重试');
+ return false;
+ }
+ }
+
+ // 【8.3.37】精简布局新手提示：全局只出现一次（记在 state.seenTips 里，并落盘）。
+ // 容错说明：若读取到的 seenTips 不是数组（老数据、导入异常等），按「没看过」处理，
+ // 最差结果只是多提示一次，不会抛错、也不会把用户卡在某个状态里。
+ showSimpleLayoutBossTipOnce() {
+ const TIP_ID = 'simpleLayoutBossTip';
+ try {
+ const seen = Array.isArray(this.seenTips) ? this.seenTips : [];
+ if (seen.includes(TIP_ID)) return false;
+ this.seenTips = [...seen, TIP_ID];
+ this.saveStateKey('seenTips');
+ // 提示要比普通成功提示停留久一些 —— 它是一句要读进去的建议，不是「操作已完成」。
+ this.app.showInfo('老板昵称可快速填充派单和折数：把老板名字填上，派单与折数会自动带出');
+ const toast = this.el.successMessage;
+ if (toast && typeof toast.classList?.add === 'function') {
+ window.clearTimeout(this.app.toastTimer);
+ this.app.toastTimer = window.setTimeout(() => toast.classList.remove('show'), 6000);
+ }
+ return true;
+ } catch (error) {
+ appLogSilent(error);
  return false;
  }
  }
@@ -17057,7 +17181,18 @@ renderHistoryPagination() {
  try {
  const order = this.store.get(this.history, index);
  if (!order) return false;
- this.populateOrderForm(order, { recalculate: false });
+ // 【8.3.37 修复「编辑回填后订单详情不刷新」，recalculate 由 false 改为 true】
+ // 症状：从历史记录点「编辑」回填后，右侧结果区（总价/团抽/派抽/到手）与
+ //       备注里的「项目小计 / 时长小计」仍是上一条的内容或为空；必须再点一下
+ //       别的输入框再点掉，才会突然显示正确内容。
+ // 根因：populateOrderForm 里 restoreProjects() 只把 projects 恢复到内存并更新了
+ //       服务类型/时长两个输入框，但「项目小计 / 时长小计」这两行详情是
+ //       autoPriceFeature.syncUI() 在重算过程中写出来的。recalculate:false 让它跳过了
+ //       这次重算，于是详情停留在旧值，直到用户误打误撞触发了一次重算。
+ // 为什么现在可以安全地改成 true：这条路径与 loadFromHistory()（同为回填 + 重算，
+ //       长期正常工作）走的是完全相同的一套方法；且重算用的是刚回填进输入框的
+ //       数据本身，不会覆盖用户任何尚未保存的编辑——用户此刻还没有开始改。
+ this.populateOrderForm(order, { recalculate: true });
  this.editingHistoryIndex = index;
  this.showSuccess('已加载历史记录进行编辑');
  return true;
@@ -17834,7 +17969,13 @@ this.lazyFeatures = {
  // 名字学习撤销快照
  learningUndoSnapshot: null,
  hiddenModules: [],
- layoutTemplates: []
+ layoutTemplates: [],
+
+ // 8.3.37：一次性提示的「已看过」记录。
+ // 用途：像「切到精简布局时告诉你老板昵称能一键填派单和折数」这类新手提示，
+ //       只在第一次遇到时出现，看完就不再打扰（避免每次切布局都弹一次）。
+ // 存的是提示 id 的数组，例如 ['simpleLayoutBossTip']；将来加新提示直接往里加 id。
+ seenTips: []
  };
  }
  defineStateField(key, initialValue) {
@@ -18265,7 +18406,9 @@ scheduleLazyFeatureLoad() {
  lockedBoss: null,
  extractionConfig: this.extractionConfig,
  hiddenModules: [],
- layoutTemplates: []
+ layoutTemplates: [],
+ // 8.3.37：一次性提示的「已看过」记录。默认空数组 = 都没看过（新用户会看到新手提示）。
+ seenTips: []
  });
  this.lockedPeiPei = sharedData.lockedPeiPei;
  this.lockedPaiDan = sharedData.lockedPaiDan;
@@ -18273,6 +18416,9 @@ scheduleLazyFeatureLoad() {
  this.extractionConfig = sharedData.extractionConfig;
  this.hiddenModules = this.layoutFeature.normalizeHiddenModules(sharedData.hiddenModules);
  this.layoutTemplates = this.layoutFeature.normalizeLayoutTemplates(sharedData.layoutTemplates);
+ // 读回来必须再校验一次是数组：老数据或异常导入可能给出非数组，
+ // 那样 includes() 会抛错。这里统一兜成空数组，最差结果只是多提示一次。
+ this.seenTips = Array.isArray(sharedData.seenTips) ? sharedData.seenTips.filter(id => typeof id === 'string') : [];
 
  // 最近老板
  this.recentBosses = this.bossDirectory.loadRecent();
