@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.36</title>
+ <title>码单器8.3.37</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -4101,7 +4101,7 @@ h1 { margin-bottom: 4px; }
 
 
  <script>
-const APP_VERSION = '8.3.36';
+const APP_VERSION = '8.3.37';
 // Release note: 8.3.34 架构拆分第二步（A4+A5）：把「不可读的产物」变成「可读的源码」，并给全部空 catch 补上「为什么可以吞」的说明。零功能改动、零逻辑改动。A4 —— 内联 chunk 源码外置：dataPortability（约1117行）与 durationCalculator（约272行）的源码此前只以 JSON 转义的单行字符串存在于 index.html 的 __INLINE_CHUNKS_RAW__ 中，编辑器无法索引、无法 diff、无法 review，是全项目最大的维护盲区。现将源码落到 src/chunks/*.js（可索引/可 diff/可 review），index.html 里的字符串改由 tools/build-inline-chunks.js 从源文件生成；编码配方经「重新编码结果与现存字符串逐字节比对」验证未漂移。同时补 tools/sync-root-scripts.js 统一 update-checker.js / analytics.js 的内联同步（此前只靠 inline-integrity.js 报错提醒，缺正向同步手段）。A5 —— 空 catch 注释化：全量清点为 9 处（清单原记 6 处，实测多出 3 处），逐一补上「为什么可以吞」的就近注释，其中 loadModeRatios 是唯一有真实用户影响的（静默丢失自定义比例），已改为记 appLogError 便于定位。新增两道常驻防线：tests/arch-snapshot.js（A3 遗留建议 —— 用运行时原型链内省冻结 app 方法集/state 键/featureOrder 三个架构不变量，专防「隐式动态挂载」这类不报错的静默回归，已用注入式反例验证可捕获）；tools/build-inline-chunks.js --check 与 tools/sync-root-scripts.js --check 纳入统一入口。测试防线由 7 套增至 10 套，全部通过（含变异捕捉 9/9）。过程中修正一处自己引入的失误：在 index.html 里直接给 update-checker/analytics 的内联副本加注释，破坏了源文件与副本的逐字节一致性 —— 正确做法是改源文件再同步，已按此纠正并固化为工具。
 // Release note: 8.3.35 优化清单 B1+B2，零功能改动、零逻辑改动。B1（CSS 去重）：删除一处完全重复的响应式媒体查询块 —— 平板竖屏（768–1024px）「恢复单栏」规则整块出现了两遍，字节完全相同，保留带说明注释的那一份（覆盖 iPad Pro 12.9 竖屏 1024px 宽度），删掉前面无注释的早期副本，共减少 12 行 CSS。其余 128 个「多次定义」的选择器经逐条核对属于**不同上下文/不同断点下的有意级联覆盖**，不构成无效声明，一律保留。等价性用真实 Chromium 在 6 种视口下比对 58320 项计算样式（其中 3 种视口该媒体查询实际命中），零差异。B2（版本号单一真源）：核查 index.html 内 165 处 8.3.x 字样，剥离注释并排除标签属性后，真正参与代码的仅 <title> 与 APP_VERSION 两处（其余 163 处均为变更考古注释，按约定保留）；compareVersions 走 CURRENT_VERSION 间接引用，未发现游离字面量，故本项无需改代码。新增 tests/version-single-source.js 作为常驻防线，并交叉校验 <title>↔APP_VERSION↔version.json↔zip sha256，今后任何第二真源会在测试中立刻报红。
 // Release note: 8.3.33 架构拆分第一步（A3）：消除「隐式动态挂载」，把 OrderCalculator 上的冗余转发入口收敛为显式委托。零功能改动、零逻辑改动。背景：OrderCalculator 长期充当「编排队」，历史上为兼容旧调用点，把大量 Feature 方法以 this.xxx(...args) 形式平铺在自身上（133 个方法中 77 个是单行转发），其中 RatioFeature 更是通过 bindToApp() 在运行时把 12 个方法**动态挂到 app 上**——这正是工程边界明令禁止的「隐式动态挂载/全局隐藏状态」。本版处理三件事：① 删除 59 个已无任何调用方的纯转发入口（实现全部原样保留在其所属 Feature 内，仅移除 app 级冗余镜像）；② 移除 RatioFeature.bindToApp() 的隐式动态挂载，改为显式路径调用（ModeFlowFeature → this.app.ratioFeature.handleModeButtonClick(...)）；③ 顺带修复一处因 ① 暴露出来的**既有隐患**：dataPortability 的 refreshAfterImport() 原本用 ['applyLockedDataToUI','applyLayoutVisibility',...] 字符串数组 + this.app[method]() 做动态派发（同属隐式动态挂载），导入数据后的 7 项界面刷新依赖它；现改为显式委托数组，导入后刷新链路恢复可靠。验证：app 可调用方法 159 → 100（移除 59、新增 0），state 键 24/24 与 feature 数 23 完全一致；7 套测试全绿（引擎 126、喂入链路 122、DOM 26、组合 27、五段式、变异捕捉 9/9、包自包含）；并逐一校验 59 项移除均有「实现保留在所属 Feature + 全文无动态字符串访问 + 无 HTML 属性引用 + 无外部调用者」四项证明。保留 clearAll 作为外部可见的「清空全部」公共入口（测试与外部脚本按此复位）。业务逻辑、计算引擎、存储结构、UI 行为完全未改动。
@@ -9954,7 +9954,9 @@ class AppShellRenderer {
  label: '派单昵称',
  type: 'input',
  inputType: 'text',
- placeholder: '例如：下雪',
+ /* 8.3.38：原 placeholder「例如：下雪」等于没说 —— 标签已写明是昵称，填过一次就懂。
+    留空占位，靠标签本身表达即可（清除按钮与锁定逻辑不受影响）。 */
+ placeholder: ' ',
  lockId: 'PaiDan',
  lockLabel: '已锁定派单：',
  lockedNameId: 'lockedPaiDanName',
@@ -9966,7 +9968,9 @@ class AppShellRenderer {
  label: '陪陪昵称',
  type: 'input',
  inputType: 'text',
- placeholder: '例如：下雪',
+ /* 8.3.38：同派单框，「例如：下雪」是重复标签信息，留空即可。
+    多人时的填写规则（空格/逗号/顿号分隔）已在使用说明上层交代，不在这里堆叠。 */
+ placeholder: ' ',
  wrapperClass: 'peipei-group',
  lockId: 'PeiPei',
  lockLabel: '已锁定陪陪：',
@@ -9985,7 +9989,11 @@ class AppShellRenderer {
  label: '老板昵称',
  type: 'input',
  inputType: 'text',
- placeholder: '输入老板昵称/关键字',
+ /* 8.3.38：原「输入老板昵称/关键字」在已有记忆库时是废话。改为点出这个框
+    真正的价值 —— 填过的老板会自动带出派单与折数（精简布局的新手提示也说的这件事）。
+    文案长度受窄屏约束：360px 下输入区约 208px，必须留出余量才不截断，
+    故用「自动带出派单折数」这一最短表意写法，不再加字。 */
+ placeholder: '填过自动带出派单折数',
  lockId: 'Boss',
  lockLabel: '已锁定老板：',
  lockedNameId: 'lockedBossName',
@@ -10001,7 +10009,11 @@ class AppShellRenderer {
  label: '服务时长',
  type: 'input',
  inputType: 'text',
- placeholder: '例如：1小时'
+ /* 8.3.38：原来写「例如：1小时」，与隔壁「服务类型」的复合示例（1h+2局…）互相打架，
+    让人以为是两套填法。实际上填了服务类型且价格库认得该项目时，这里会自动算出时长，
+    所以提示改为描述这个框的作用：多数情况不用自己算。
+    措辞刻意不说「一定会自动填」—— 项目不在价格库里时会算不出来，那时仍需手填。 */
+ placeholder: '填了服务类型，这里多半会自动算'
  },
  {
  id: 'durationCalcBtn',
@@ -10034,7 +10046,10 @@ class AppShellRenderer {
  inputType: 'text',
  /* 8.3.20：placeholder 退为透明占位（供 :placeholder-shown 判定），实际提示由两行内联提示承载，形式与折数输入框一致 */
  placeholder: ' ',
- inlineHint: ['直接输入', '关键词/数字']
+ /* 8.3.38：原来两行写「直接输入 / 关键词/数字」，是并列的两个名词，看不出差别在哪。
+    改成把两种填法各自的**效果**说清楚：敲数字＝即时加一笔，敲关键词＝套用价格库里
+    配好的加价规则（那才是「关键词」存在的意义）。 */
+ inlineHint: ['填数字直接加', '填关键词套用规则']
  }
  ];
  }
@@ -12383,6 +12398,8 @@ if (!box) return false;
  if (this._giftLinking || Number(this.currentMode) !== 2) return false;
  const input = this.el.inputs.totalPrice;
  if (String(input?.value ?? '').trim() !== String(this._giftAutoPrice ?? '').trim()) this._giftAutoPrice = '';
+ // 【8.3.38】总价变了，礼物折数那句提示里的金额也要跟着变（原本只在切模式/切档位时刷新）。
+ this.app.updateGiftDiscountNote?.();
  const matches = this.giftMemoryFeature?.suggestByPrice?.(input?.value) || [];
  const uniqueTypes = [...new Map(matches.map(item => [item.serviceType.toLowerCase(), item])).values()];
  if (uniqueTypes.length === 1 && this.canReplaceGiftLinkedValue(this.el.inputs.type, this._giftAutoType)) { this.setGiftLinkedValue(this.el.inputs.type, uniqueTypes[0].serviceType, 'type'); this.hideSharedSuggestions({ force: true }); return true; }
@@ -14815,6 +14832,14 @@ class PriceMemoryFeature {
  if (!context) this.fieldProvenance?.markManual(key, input?.value, { eventType: event?.type || 'input' });
  this.toggleClearButton(input);
  if (key === 'totalPrice' || key === 'discount' || key === 'discountOverlay') this.validateInput(input);
+ // 【8.3.38】礼物码单下，折数或总价任一变化都会改变那句「不影响总价，总价仍为 X」里的
+ //   内容（X 要跟着总价走），所以这两类输入都要顺手刷一次提示。
+ //   注意：模式判断交给 updateGiftDiscountNote 自己做（它读得到 app.currentMode），
+ //   这里不要自己判断 —— InputFlowFeature 上没有 currentMode，写了会永远不成立。
+ //   非礼物模式或无关键位时该调用会立即返回，成本可忽略。
+ if (key === 'totalPrice' || key === 'discount' || key === 'discountOverlay') {
+ this.app.updateGiftDiscountNote?.();
+ }
  if (key === 'peiPei') {
  this.updatePeiPeiCount();
  this.syncPeiPeiScroll(input, { followCaret: true });
@@ -15391,9 +15416,45 @@ class PriceMemoryFeature {
  discountInput.classList.toggle('gift-mode-shadow', isGiftMode);
  discountInput.closest('.input-group')?.classList.toggle('gift-mode-discount-group', isGiftMode);
  this.el.inputs?.discountOverlay?.classList.toggle('gift-mode-shadow', isGiftMode);
+ // 【8.3.38】礼物码单提示随实际情况变化：只说「不参与计算」等于让用户自己推断
+ //   结论。改成分三种情况直说后果：
+ //   ① 已填总价 → 把「总价保持不变」连具体数字一起给出，用户不需要心算；
+ //   ② 填了折数但还没填总价 → 说明折数不会影响接下来填的总价；
+ //   ③ 什么都没填 → 保持原来那句最短的说明即可。
+ this.updateGiftDiscountNote(isGiftMode);
  } catch (error) {
  appLogSilent(error);
  }
+ }
+
+ // 【8.3.38】礼物码单折数提示的动态文案。文本节点是渲染时写死的静态说明，
+ //   这里只按当前状态覆写文字，不改结构、不动样式钩子（.gift-mode-discount-group 仍负责显隐）。
+ //   参数可省略：省略时按「当前是不是礼物码单」自行判断，调用方无需关心模式。
+ updateGiftDiscountNote(isGiftMode) {
+ // 元素可能尚未注入（懒加载/渲染顺序），此时静默跳过即可 —— 提示是纯装饰，
+ // 不值得为它抛错；同样地，本方法也刻意不读 document（保持可单测）。
+ const note = this.el?.giftDiscountNote;
+ if (!note) return false;
+ const DEFAULT_TEXT = '礼物码单：折数仅记录，不参与计算';
+ const giftMode = typeof isGiftMode === 'boolean' ? isGiftMode : this.currentMode === 2;
+ if (!giftMode) {
+ if (note.textContent !== DEFAULT_TEXT) note.textContent = DEFAULT_TEXT;
+ return true;
+ }
+ const discountRaw = String(this.el.inputs?.discount?.value ?? '').trim();
+ const totalRaw = String(this.el.inputs?.totalPrice?.value ?? '').trim();
+ const total = Number(totalRaw);
+ const hasTotal = totalRaw !== '' && Number.isFinite(total);
+ // 折数填了才有必要展开说结果；没填折数时总价是否受影响根本无从谈起。
+ if (!discountRaw) {
+ if (note.textContent !== DEFAULT_TEXT) note.textContent = DEFAULT_TEXT;
+ return true;
+ }
+ const text = hasTotal
+ ? `礼物码单：本次折数不影响总价，总价仍为 ${ProjectSettlementEngine.formatNumber(total)}`
+ : '礼物码单：本次折数不影响总价，填多少都不会改变总价';
+ if (note.textContent !== text) note.textContent = text;
+ return true;
  }
 
  getCurrentRatio(modeKey) {
@@ -18239,7 +18300,7 @@ this.scheduleLazyFeatureLoad();
  'pmLibraryBox', 'pmLibrarySelect', 'pmLibraryCount', 'pmLibraryName', 'pmLibraryCreateBtn', 'pmLibraryRenameBtn', 'pmLibraryCopyBtn', 'pmLibraryDeleteBtn', 'pmLibraryStatus',
  'pmRangeManager', 'pmRangeToggleBtn', 'pmRangeCount', 'pmRangeBody', 'pmRangeType', 'pmRangeLabel', 'pmRangeAlias', 'pmRangeStarBoundary', 'pmRangeNamedBoundary', 'pmRangeLowerBoundary', 'pmRangeMinStar', 'pmRangeMaxStar', 'pmRangeNamedRanks', 'pmRangeNormalRound', 'pmRangeNormalHour', 'pmRangeCarryRound', 'pmRangeCarryHour', 'pmRangeStarRound', 'pmRangeStarHour', 'pmRangeSaveBtn', 'pmRangeCancelBtn', 'pmRangeList',
  'pmSurchargeManager', 'pmSurchargeToggleBtn', 'pmSurchargeCount', 'pmSurchargeBody', 'pmSurchargeName', 'pmSurchargeKeywords', 'pmSurchargeRound', 'pmSurchargeHour', 'pmSurchargeEnabled', 'pmSurchargeSaveBtn', 'pmSurchargeCancelBtn', 'pmSurchargeList',
- 'pmGiftManager', 'pmGiftToggleBtn', 'pmGiftCount', 'pmGiftBody', 'pmGiftName', 'pmGiftMode', 'pmGiftPrice', 'pmGiftSaveBtn', 'pmGiftCancelBtn', 'pmGiftList', 'surchargeStatus',
+ 'pmGiftManager', 'pmGiftToggleBtn', 'pmGiftCount', 'pmGiftBody', 'pmGiftName', 'pmGiftMode', 'pmGiftPrice', 'pmGiftSaveBtn', 'pmGiftCancelBtn', 'pmGiftList', 'surchargeStatus', 'giftDiscountNote',
  'pmUnitPrice', 'pmSettleType', 'pmServiceType', 'pmServiceAliases', 'pmAddBtn', 'pmSearchInput', 'pmUndoBtn', 'pmList', 'pmTabs', 'pmTabExact', 'pmTabRange', 'pmTabSurcharge', 'pmTabGift',
  'dataPortabilityBtn', 'dpTabs', 'dpPanelImport', 'dpPanelExport', 'dpExportModules', 'dpExportBtn', 'dpCopyBtn',
  'dpDownloadBtn', 'dpShareBtn', 'dpExportText', 'dpImportText', 'dpFileInput', 'dpSelectFileBtn', 'dpSelectClubBtn',
@@ -18699,6 +18760,10 @@ scheduleLazyFeatureLoad() {
  switchMode(...args) { return this.modeFlowFeature.switchMode(...args); }
  updatePercentageDisplay(...args) { return this.modeFlowFeature.updatePercentageDisplay(...args); }
  updateDiscountModeHint(...args) { return this.modeFlowFeature.updateDiscountModeHint(...args); }
+ /* 8.3.38：礼物码单折数提示的动态文案，同样从 app 门面转发到 ModeFlowFeature。
+    输入流（handleMainInput）与礼物价格联动（handleGiftPriceInput）都通过 app 调用它，
+    这样 feature 之间不必互相持有引用。 */
+ updateGiftDiscountNote(...args) { return this.modeFlowFeature.updateGiftDiscountNote(...args); }
  getCurrentRatio(...args) { return this.modeFlowFeature.getCurrentRatio(...args); }
 
  // ============================================

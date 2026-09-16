@@ -10,7 +10,14 @@
 | `combo.js` | **已加固** | 跨模块组合联动（6 大场景 / 27 项，含 8.3.19 回归看护） |
 | `project-chain.js` | **新增** | **喂入链路**（界面输入 → 解析 → 结算 → 渲染）真机回归，122 项 |
 | `mutate-chain.py` | **新增** | 对 `project-chain.js` 做变异测试，9 条链路级缺陷 + combo.js 交叉验证 |
-| `run-all.sh` | **新增** | 统一测试入口，一次跑完 6 套防线并给出汇总退出码 |
+| `price-alias.js` | **新增** | 精确项目「其他名字」（多别名）专项，含反向验证 |
+| `history-refill.js` | **新增** | 历史记录「编辑回填」详情同步专项，含反向验证 |
+| `hint-dynamic.js` | **新增** | 辅助提示随实际情况变化专项（重点守刷新链路），含反向验证 |
+| `version-single-source.js` | **新增** | 版本号单一真源：title ↔ APP_VERSION ↔ version.json ↔ zip 交叉校验 |
+| `arch-snapshot.js` | **新增** | 架构边界快照：app 方法 / state 键 / feature 顺序不得越界 |
+| `check-package-selfcontained.py` | **新增** | OTA 包自包含性：包内 index.html 必须与仓库根逐字节一致 |
+| `inline-integrity.js` | **新增** | 内联完整性：`__INLINE_CHUNKS_RAW__` 与 `src/chunks/` 源码一致 |
+| `run-all.sh` | **新增** | 统一测试入口，一次跑完 14 套防线并给出汇总退出码 |
 
 ## 依赖
 
@@ -27,7 +34,7 @@ npm install jsdom     # 所有 JS 侧测试需要
 bash tests/run-all.sh              # 全量（含约 4 分钟变异测试）
 bash tests/run-all.sh --fast       # 跳过变异测试（日常提交用）
 bash tests/run-all.sh --only=chain # 只跑某一套
-# --only 可选: engine | chain | dom | combo | fullchain | mutate
+# --only 可选: engine | chunk | arch | chain | dom | combo | fullchain | mutate | package | version | alias | historyrefill | hints
 ```
 
 退出码 `0` 全通过 / `1` 有套件失败。可直接挂 CI。

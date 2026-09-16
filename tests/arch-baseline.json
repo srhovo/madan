@@ -93,6 +93,7 @@
     "undoLearningData",
     "updateCollectionView",
     "updateDiscountModeHint",
+    "updateGiftDiscountNote",
     "updateLearningUndoButton",
     "updateModeIndicator",
     "updateNamedCollectionView",
