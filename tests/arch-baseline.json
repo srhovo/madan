@@ -84,6 +84,7 @@
     "showSuccess",
     "switchMode",
     "switchSavedNamesTab",
+    "syncGiftUnitPriceTotal",
     "syncPeiPeiInputChanged",
     "throttle",
     "toLocaleString",
@@ -93,6 +94,8 @@
     "undoLearningData",
     "updateCollectionView",
     "updateDiscountModeHint",
+    "updateGiftDiscountNote",
+    "updateGiftPriceRow",
     "updateLearningUndoButton",
     "updateModeIndicator",
     "updateNamedCollectionView",
@@ -125,7 +128,8 @@
     "priceLibraries",
     "priceLibraryMigrationStatus",
     "priceMemory",
-    "recentBosses"
+    "recentBosses",
+    "seenTips"
   ],
   "featureOrder": [
     "uiRender",

@@ -68,7 +68,11 @@ new JSDOM(html, {
 setTimeout(() => {
   const expected = (html.match(/const APP_VERSION = '([^']+)'/) || [])[1];
   const verLine = logs.find((l) => /启动正常/.test(l)) || '';
-  const got = (verLine.match(/当前版本\s*([\d.]+)/) || [])[1];
+  /* 【8.3.43】要连 -test.N 后缀一起读出来。
+     原先的 ([\d.]+) 只认数字和点，遇到后缀里的连字符就停下，
+     于是「8.3.43-test.1」被读成「8.3.43」—— 测试号期间这条断言恒报红。
+     这是 8.3.42 引入测试号机制时漏改的一处（当时只跑了正式号，没走到这条路径）。 */
+  const got = (verLine.match(/当前版本\s*([\w.\-]+)/) || [])[1];
 
   ck('notifyAppReady 被调用（否则原生层会误判包不健康并回退）', readyCalled);
   ck(`读到的版本号正确（期望 ${expected}）`, got === expected, `实际 "${got}"`);

@@ -10,7 +10,19 @@
 | `combo.js` | **已加固** | 跨模块组合联动（6 大场景 / 27 项，含 8.3.19 回归看护） |
 | `project-chain.js` | **新增** | **喂入链路**（界面输入 → 解析 → 结算 → 渲染）真机回归，122 项 |
 | `mutate-chain.py` | **新增** | 对 `project-chain.js` 做变异测试，9 条链路级缺陷 + combo.js 交叉验证 |
-| `run-all.sh` | **新增** | 统一测试入口，一次跑完 6 套防线并给出汇总退出码 |
+| `price-alias.js` | **新增** | 精确项目「其他名字」（多别名）专项，含反向验证 |
+| `history-refill.js` | **新增** | 历史记录「编辑回填」详情同步专项，含反向验证 |
+| `hint-dynamic.js` | **新增** | 辅助提示随实际情况变化专项（重点守刷新链路），含反向验证 |
+| `gift-quantity.js` | **新增** | 礼物码单「单价 × 个数 = 总价」专项（重点守动态注入元素的绑定与显隐），含 6 种反向验证 |
+| `hint-layout.js` | **新增** | 输入框提示文案 + 动态控件类名专项（**真实浏览器**；守提示消失/截断/折行与 classname 这类无效属性），含反向验证 |
+| `gift-combo.js` | **新增** | 礼物码单多礼物组合（`5满天星+3同心结`）+ 按码单类型隐藏时长那一组 + 服务类型提示分流专项，含反向验证 |
+| `gift-fill.js` | **已加固** | 逐项补价（一次补一个、按确定换下一个）+ 纯数字也出候选 + 测试版号不占正式序列专项，含 4 组反向验证 |
+| `gift-fill-ui.js` | **新增** | 补价那一排的宽度与按钮可见性（**真实浏览器 / 三档窄屏**）：守「确定·换XX」被裁字、按钮要到「打完组合」就出现、记忆库已有价不重复要求补，含 3 组反向验证（分别报红 21/4/13 项） |
+| `version-single-source.js` | **新增** | 版本号单一真源：title ↔ APP_VERSION ↔ version.json ↔ zip 交叉校验（测试号期间允许 version.json 落后一版） |
+| `arch-snapshot.js` | **新增** | 架构边界快照：app 方法 / state 键 / feature 顺序不得越界 |
+| `check-package-selfcontained.py` | **新增** | OTA 包自包含性：包内 index.html 必须与仓库根逐字节一致 |
+| `inline-integrity.js` | **新增** | 内联完整性：`__INLINE_CHUNKS_RAW__` 与 `src/chunks/` 源码一致 |
+| `run-all.sh` | **新增** | 统一测试入口，一次跑完 19 套防线并给出汇总退出码 |
 
 ## 依赖
 
@@ -27,7 +39,7 @@ npm install jsdom     # 所有 JS 侧测试需要
 bash tests/run-all.sh              # 全量（含约 4 分钟变异测试）
 bash tests/run-all.sh --fast       # 跳过变异测试（日常提交用）
 bash tests/run-all.sh --only=chain # 只跑某一套
-# --only 可选: engine | chain | dom | combo | fullchain | mutate
+# --only 可选: engine | chunk | arch | chain | dom | combo | fullchain | mutate | package | version | alias | historyrefill | hints | giftqty | hintlayout
 ```
 
 退出码 `0` 全通过 / `1` 有套件失败。可直接挂 CI。

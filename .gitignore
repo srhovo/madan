@@ -38,3 +38,9 @@ _verify_pkg/
 # index.html 里的内联字符串。它们不是「构建产物」，而是源头。
 
 # package-lock.json 必须进仓库（CI 用 npm ci 依赖它做可复现安装）
+
+# 本地浏览器实测脚本（8.3.37 起）：用真实 Chromium 量尺寸、看渲染、验一次性提示。
+# 它们依赖 playwright-core，而该依赖刻意不进 package.json（CI 不需要，
+# 不该为它付 14MB + 364MB 浏览器的代价），所以这些脚本也无法在 CI 跑。
+# 属于「开发者按需使用的取证工具」，不进仓库。
+.verify/

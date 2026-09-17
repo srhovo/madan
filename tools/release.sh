@@ -162,9 +162,23 @@ done
 ok "依赖齐全（node / python3 / zip / unzip / git）"
 
 # 1.1 版本号格式
-if [ -z "$VER" ]; then die "未提供版本号。用法：bash tools/release.sh 8.3.36 --notes @notes.txt"; fi
+# 【8.3.42】允许 X.Y.Z-test.N 后缀（测试版号）。正式发行一律用干净的 X.Y.Z：
+#        带后缀的版本是「还没推送的中间产物」，它的号不该出现在交付序列里。
+if [ -z "$VER" ]; then die "未提供版本号。用法：bash tools/release.sh $(node tools/next-version.js 2>/dev/null || echo '8.3.42') --notes @notes.txt"; fi
 if ! printf '%s' "$VER" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-  die "版本号格式不合法：$VER（应为 X.Y.Z，如 8.3.36）"
+  if printf '%s' "$VER" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+-test\.[0-9]+$'; then
+    die "拒绝用测试版号发版：$VER
+    发版会产生用户能拿到的交付物，版本号必须是干净的 X.Y.Z。
+    请用：bash tools/release.sh $(node tools/next-version.js 2>/dev/null || echo 'X.Y.Z') --notes @notes.txt"
+  fi
+  die "版本号格式不合法：$VER（应为 X.Y.Z，如 $(node tools/next-version.js 2>/dev/null || echo '8.3.42')）"
+fi
+# 【8.3.42】顺位校验：正式号应对照「仓库已发行的最新版」顺位加一。
+# 这里只提示、不阻断 —— 因为「跳过一版」有时是有意的（例如把多个中间版本
+# 合并成一次交付）。但必须让操作者看见自己偏离了自动顺位。
+NEXT_BY_REPO="$(node tools/next-version.js 2>/dev/null || echo '')"
+if [ -n "$NEXT_BY_REPO" ] && [ "$VER" != "$NEXT_BY_REPO" ]; then
+  echo "    ⚠ 自动顺位建议为 $NEXT_BY_REPO，本次指定 $VER（如非有意跳过，请核对）"
 fi
 ok "版本号格式合法：$VER"
 
@@ -191,11 +205,18 @@ if [ -z "$THEME" ]; then
 fi
 
 # 1.3 当前版本（单一真源：APP_VERSION）
-CUR_VER="$(grep -oE "APP_VERSION[[:space:]]*=[[:space:]]*'[0-9.]+'" "$HTML" | head -1 | grep -oE "[0-9]+\.[0-9]+\.[0-9]+")"
-if [ -z "$CUR_VER" ]; then
+# 【8.3.42】当前版本可能是测试版（8.3.42-test.3）。比较时取「主段」（去掉 -test.N），
+#        因为对设备端而言 8.3.42-test.3 与 8.3.42 是同一个交付序列位置；
+#        拿带后缀的整串去比会得到「8.3.42 不大于 8.3.42-test.3」的误导结论。
+CUR_VER_RAW="$(grep -oE "APP_VERSION[[:space:]]*=[[:space:]]*'[0-9]+\.[0-9]+\.[0-9]+(-test\.[0-9]+)?'" "$HTML" | head -1 | grep -oE "[0-9]+\.[0-9]+\.[0-9]+(-test\.[0-9]+)?")"
+if [ -z "$CUR_VER_RAW" ]; then
   die "无法从 $HTML 解析 APP_VERSION"
 fi
-ok "当前版本：$CUR_VER → 目标版本：$VER"
+CUR_VER="${CUR_VER_RAW%%-test.*}"
+case "$CUR_VER_RAW" in
+  *-test.*) ok "当前版本：$CUR_VER_RAW（测试版，主段 $CUR_VER）→ 目标版本：$VER" ;;
+  *)        ok "当前版本：$CUR_VER → 目标版本：$VER" ;;
+esac
 
 # 1.4 版本号必须递增（逐段数值比较，避免字符串比较把 8.3.10 判小于 8.3.9）
 ver_gt() {
