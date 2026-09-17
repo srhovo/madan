@@ -16,11 +16,12 @@
 | `gift-quantity.js` | **新增** | 礼物码单「单价 × 个数 = 总价」专项（重点守动态注入元素的绑定与显隐），含 6 种反向验证 |
 | `hint-layout.js` | **新增** | 输入框提示文案 + 动态控件类名专项（**真实浏览器**；守提示消失/截断/折行与 classname 这类无效属性），含反向验证 |
 | `gift-combo.js` | **新增** | 礼物码单多礼物组合（`5满天星+3同心结`）+ 按码单类型隐藏时长那一组 + 服务类型提示分流专项，含反向验证 |
+| `gift-fill.js` | **新增** | 逐项补价（一次补一个、按确定换下一个）+ 纯数字也出候选 + 测试版号不占正式序列专项，含 4 组反向验证 |
 | `version-single-source.js` | **新增** | 版本号单一真源：title ↔ APP_VERSION ↔ version.json ↔ zip 交叉校验 |
 | `arch-snapshot.js` | **新增** | 架构边界快照：app 方法 / state 键 / feature 顺序不得越界 |
 | `check-package-selfcontained.py` | **新增** | OTA 包自包含性：包内 index.html 必须与仓库根逐字节一致 |
 | `inline-integrity.js` | **新增** | 内联完整性：`__INLINE_CHUNKS_RAW__` 与 `src/chunks/` 源码一致 |
-| `run-all.sh` | **新增** | 统一测试入口，一次跑完 17 套防线并给出汇总退出码 |
+| `run-all.sh` | **新增** | 统一测试入口，一次跑完 18 套防线并给出汇总退出码 |
 
 ## 依赖
 

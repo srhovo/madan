@@ -7070,6 +7070,16 @@ class GiftComboEngine {
  const source = this.normalizeSource(value);
  if (!source) return false;
  if (source.includes('+')) return true;
+ /* 【8.3.42】整串只剩一个数量记号（用户刚敲下「5」）—— 这是「正在写组合」的中间态，
+    必须判定为组合，否则候选会当场收起来。用户感受到的就是「输数字候选就没了」。
+
+    为什么不能靠下面的 parseItem：它对纯数字的处理是「当成一个名字就叫 5 的礼物」，
+    这在语义上没错（确实可能有个礼物叫「5」），但会拿「5」去查记忆库查不到，
+    于是得出「这不像是组合」的结论。
+
+    这个判断刻意做得保守：只有在「名字部分剥完什么都不剩」时才成立。
+    「AWM98K」「98K」这类名字里含数字的礼物不受影响 —— 它们的名字段非空。 */
+ if (/^[x×*]?\s*\d+(?:\.\d+)?\s*[x×*]?\s*$/.test(source)) return true;
  const item = this.parseItem(source);
  if (!item) return false;
  if (item.quantity > 1) return true;
@@ -12548,6 +12558,20 @@ class PriceQuickPickFeature {
                                不是的话可能是用户手填的，不能动）。 */
  this._giftComboSignature = '';
  this._giftComboComputedTotal = null;
+ /* 【8.3.42】逐项补价的记账位（「补完一个，按确定，换下一个」）：
+    _giftComboPrices      —— 本次组合里每个礼物的单价，按「礼物名（服务键）」存，
+                             来源有两种：礼物单价记忆库记得的、用户当场补的。
+                             这是「这一单算得对不对」的唯一依据。
+    _giftComboFillIndex   —— 现在轮到补第几个（从 0 数）。全部补完时等于项数。
+    _giftComboFillNames   —— 与 _giftComboFillIndex 配套的名字清单，用于判断
+                             「组合换了」还是「只是重新渲染了一遍」。
+    之所以要独立记一份价格表，是因为记忆库是「跨单的长期记忆」，而这里记的是
+    「这一单里已经确认过的价」—— 两者生命周期不同：用户补完价、算完这单，
+    价格表随这单结束而作废，记忆库则留着下次用。 */
+ this._giftComboPrices = new Map();
+ this._giftComboFillIndex = 0;
+ this._giftComboFillNames = '';
+ this._giftComboFillStamp = '';
  this._eventScope = new FeatureEventScope();
  this._quickListEventRoot = null;
  }
@@ -12856,7 +12880,17 @@ if (!box) return false;
  applyGiftNameSuggestion(serviceType) { if (serviceType) this.setGiftLinkedValue(this.el.inputs.type, serviceType, 'type'); this.hideSharedSuggestions({ force: true }); return true; }
  applyGiftPriceSuggestion(price, serviceType) { this.setGiftLinkedValue(this.el.inputs.totalPrice, price, 'price'); if (serviceType) this.setGiftLinkedValue(this.el.inputs.type, serviceType, 'type'); this.hideSharedSuggestions({ force: true }); return true; }
  resetGiftLinkedValue(kind) { if (kind === 'price') this._giftAutoPrice = ''; if (kind === 'type') this._giftAutoType = ''; }
- resetGiftState({ hideSuggestions = false } = {}) { this._giftAutoPrice = ''; this._giftAutoType = ''; this._giftLinking = false; this._giftComboSignature = ''; if (hideSuggestions) this.hideSharedSuggestions({ force: true }); }
+ resetGiftState({ hideSuggestions = false } = {}) {
+ this._giftAutoPrice = '';
+ this._giftAutoType = '';
+ this._giftLinking = false;
+ this._giftComboSignature = '';
+ /* 【8.3.42】这里才是「这一单结束」的真正信号（切码单类型、生成订单、清空输入）。
+    到这一步才把这一单攒下的补价进度与价格表清掉 —— 它们只服务于当前这一单。
+    要点是「清得晚」：改数量、改礼物名、打字中间态都不清，只有真的收工才清。 */
+ this.resetGiftComboPriceTable();
+ if (hideSuggestions) this.hideSharedSuggestions({ force: true });
+ }
  refreshAfterLibraryChange() { this._quickListRenderSignature = ''; this._giftComboSignature = ''; this.hideSharedSuggestions({ force: true }); return this.updateAutoPriceQuickList(); }
  handleOrderModeChanged() { this.resetGiftState({ hideSuggestions: true }); this.clearGiftComboNote(); this.updateAutoPriceQuickList(); }
 
@@ -12897,21 +12931,43 @@ if (!box) return false;
  }
 
  // 组合是否已经在界面上生效过 —— 用签名避免每次按键都重写一遍输入框和总价框。
+ /* 【8.3.42】指纹里必须带上「这一单的价格表」。
+    否则会出现这种情况：用户按「确定」补完第一个礼物的价，价格表变了、界面上
+    那一排该换成下一个礼物了，但「礼物名 + 数量」一个字节都没变 —— 指纹相同，
+    于是重算整段被跳过，界面停在「还在补第 1 个」。把价格表并进指纹，
+    「补价」这件事本身就成了内容变化，必然触发完整重算。 */
  buildGiftComboSignature(result) {
  if (!result?.items?.length) return '';
- return result.items.map(item => `${item.name}~${item.quantity}~${item.unitPrice ?? ''}~${item.status}`).join('|');
+ const prices = this._giftComboPrices && this._giftComboPrices.size
+ ? [...this._giftComboPrices.entries()].map(([key, price]) => `${key}=${price}`).join(',')
+ : '';
+ return result.items.map(item => `${item.name}~${item.quantity}~${item.unitPrice ?? ''}~${item.status}`).join('|') + `#${prices}`;
  }
 
  handleGiftComboInput(input) {
  const raw = String(input?.value ?? '').trim();
  const memories = this.getGiftMemories();
- // 空串或不像组合：交还给老逻辑，并把组合提示收掉。
+ // 空串或不像组合：交还给老逻辑，并把组合提示和这一单的补价进度收掉。
  if (!raw || !GiftComboEngine.looksLikeCombo(raw, memories)) {
  this._giftComboSignature = '';
  this.clearGiftComboNote();
+ /* 【8.3.42】只有「框被清空」才作废这一单的补价进度，且延后一拍再作废。
+    以前这里是无条件作废，于是「把 5满天星+6同心结 改成 5满天星+7同心结」这种
+    只是改了个数字的操作，中途会经过「5满天星+」「5满天星+7」这些暂时不成组合的
+    中间态，价格表被反复清掉 —— 用户补好的价凭空消失，得从头再补一遍。
+    改数量本来就不该让单价作废：单价是「这个礼物多少钱」，与买几个无关。
+
+    延后一拍的理由：用户全选删除、准备重打时，输入框会真的一瞬间为空。
+    那一刻就清掉的话，用户重新打出一模一样的组合也得再补一遍价。
+    所以这里只排队一次「如果没有后续输入再作废」，只要下一次输入到来就撤销。 */
+ if (!raw) this.scheduleGiftComboPriceTableReset();
+ else this.cancelGiftComboPriceTableReset();
  return false;
  }
- const result = GiftComboEngine.resolve(raw, memories);
+ const result = this.resolveGiftCombo(raw);
+ /* 【8.3.42】组合的礼物种类变了就把补价进度归零，保证补的是当前这一串里的礼物。
+     放在签名比对之前 —— 进度是「姓名的序列」，与价格无关。 */
+ this.syncGiftComboFillProgress(result);
  const signature = this.buildGiftComboSignature(result);
  if (signature && signature === this._giftComboSignature) {
  // 内容没实质变化：只刷新提示与候选，不重写输入框（否则光标会跳到末尾）。
@@ -12971,11 +13027,18 @@ if (!box) return false;
  return this.renderGiftComboSuggestionItems(matches, namePart);
  }
 
- // 从「6满天星」里剥出「满天星」；没有数量前缀就原样返回。
+ /* 从「6满天星」里剥出「满天星」；没有数量前缀就原样返回。
+    【8.3.42】只写了个数字（例如刚敲下「5」）时，剥完前缀已无名字可匹配 ——
+    这种情况必须返回空串（＝「这一段还没写礼物名」），让候选列出全部礼物。
+    原先这里用 (.+) 要求名字至少一个字符，纯数字匹配不到，于是「5」被原样
+    当成礼物名去做包含匹配，一个礼物都命中不了，候选当场收起来 —— 用户看到的
+    就是「输数字候选就没了」。数量前缀本身绝不是礼物名。 */
  extractGiftComboNamePart(segment) {
  const text = String(segment ?? '').trim();
- const leading = text.match(/^[x×*]?\s*\d+(?:\.\d+)?\s*[x×*]?\s*(.+)$/i);
- return leading ? String(leading[1]).trim() : text;
+ const leading = text.match(/^[x×*]?\s*\d+(?:\.\d+)?\s*[x×*]?\s*(.*)$/i);
+ if (leading) return leading[1].trim();
+ // 「5x」「5×」这类写法剥不掉尾巴，再兜一次：整段只剩数量记号和空格，同样视为没有名字
+ return /^[x×*]?\s*\d+(?:\.\d+)?\s*[x×*]?\s*$/.test(text) ? '' : text;
  }
 
  renderGiftComboSuggestionItems(matches, namePart) {
@@ -13012,18 +13075,211 @@ if (!box) return false;
  return true;
  }
 
- /* 组合算式与「礼物单价 × 个数」那一排同时存在时，以算式为准：
-    把那一排改写成组合的第一项（数量用组合里的数量、单价用查到的单价）。
-    这样用户看到的两处说的是同一件事，不会出现「一排说 6×3、算式说 5×10+3×25」的分裂。 */
+ /* 【8.3.42】把「本次组合各项的单价」叠进结算。
+    在记忆库查到价的基础上，用 _giftComboPrices 里用户已确认的价覆盖/补齐 ——
+    记忆库是跨单的长期记忆，价格表是这一单里已经确认过的事实，两者都要认。
+
+    实现方式：给 GiftComboEngine.resolve 传一份「临时记忆库」——
+    即以记忆库为底、把价格表里已确认的条目按固定单价并进去。
+    这样 resolve 的查找逻辑（含唯一模糊匹配的容忍度）完全复用，不另起一套规则，
+    「同心结」与「结」这类简称的匹配行为不会因为本功能而改变。 */
+ buildComboMemories() {
+ /* 【8.3.42 修正】价格表的键是「服务键」（buildServiceKey 会把大小写、空格、
+    全角统一化，例如「未知B」→「未知b」），而记忆库条目要带原始显示名。
+    因此这里必须同时维护一份「键 → 显示名」的对照表，不能拿键当名字用 ——
+    否则补完价之后，记忆库里出现的名字会是「未知b」，界面上再也认不出「未知B」。
+    先前就是这里漏了对照表，导致补完价仍报「查不到价」。 */
+ const names = this._giftComboPriceNames || new Map();
+ const base = this.getGiftMemories();
+ if (!this._giftComboPrices || !this._giftComboPrices.size) return base;
+ const overlaid = base.map(item => {
+ const price = this._giftComboPrices.get(item.serviceKey);
+ return price === undefined ? item : { ...item, mode: 'fixed', unitPrice: price };
+ });
+ // 记忆库里完全没有的新礼物，按已确认的价补进去（用原始显示名，不是服务键）
+ const known = new Set(base.map(item => item.serviceKey));
+ this._giftComboPrices.forEach((price, serviceKey) => {
+ if (known.has(serviceKey)) return;
+ const name = names.get(serviceKey) || serviceKey;
+ overlaid.push({
+ serviceType: name,
+ serviceKey,
+ mode: 'fixed',
+ unitPrice: price,
+ usageCount: 1,
+ createdAt: Date.now(),
+ updatedAt: Date.now(),
+ lastUsed: Date.now()
+ });
+ });
+ return overlaid;
+ }
+
+ resolveGiftCombo(raw) {
+ const source = String(raw ?? '').trim();
+ if (!source) return null;
+ return GiftComboEngine.resolve(source, this.buildComboMemories());
+ }
+
+ /* 【8.3.42】现在该补第几个礼物。判据是「这一单的价格表」——
+    与结算结果无关，理由见 isGiftComboPriceComplete 上面的说明。
+    返回 null 表示「不用打开补价格式」（没在用组合、已全部补完、或整串解析不出来）。 */
+ getGiftComboFillState() {
+ if (Number(this.currentMode) !== 2) return null;
+ /* 【8.3.42】服务类型框必须现取现用。
+    this.el.inputs.type 这份缓存会被记忆库面板的重绘换掉（补价时会 upsert，
+    upsert 会 updateUI），之后从缓存里读到的是一个已经脱离文档、value 为空的旧节点。
+    拿它做判断会得出「压根没在写组合」，补价流程当场断掉；更糟的是断在
+    getGiftComboFillState 里时，外面拿到的仍是上一轮的名字，于是把价格
+    存到了错误的礼物名下。这是本版踩得最深的一个坑。 */
+ const typeEl = document.getElementById('type') || this.el?.inputs?.type;
+ const raw = String(typeEl?.value ?? '').trim();
+ if (!raw || !GiftComboEngine.looksLikeCombo(raw, this.getGiftMemories())) return null;
+ const parsed = GiftComboEngine.parse(raw);
+ if (!parsed.ok || !parsed.items.length) return null;
+ const prices = this._giftComboPrices || new Map();
+ // 从当前进度往后找第一个还没补齐的（用户回头改前面某一项时也能正确定位）
+ const start = Math.max(0, Math.min(Number(this._giftComboFillIndex) || 0, parsed.items.length));
+ let pending = -1;
+ for (let i = start; i < parsed.items.length; i += 1) {
+ if (!prices.has(PriceRuleEngine.buildServiceKey(parsed.items[i].name))) { pending = i; break; }
+ }
+ if (pending < 0) return null;
+ const item = parsed.items[pending];
+ const remaining = parsed.items.slice(pending + 1).filter(entry => !prices.has(PriceRuleEngine.buildServiceKey(entry.name)));
+ return {
+ index: pending,
+ size: parsed.items.length,
+ name: item.name,
+ quantity: item.quantity,
+ pending: true,
+ next: remaining[0]?.name || '',
+ rest: remaining.map(entry => entry.name)
+ };
+ }
+
+ /* 【8.3.42】组合里的礼物是不是都补齐单价了。
+    这个判断必须看「价格表」，不能看结算结果 —— 结算结果恒不可靠：
+    用户补完价的那一刻，resolve 已经能算出完整总价，此时如果拿
+    「resolve.ok 或 item.unitPrice 不为空」当判据，就会立刻得出「补完了」，
+    按钮当场收起、用户根本没机会按第二次。所以补价进度一律以价格表为准。 */
+ isGiftComboPriceComplete() {
+ if (Number(this.currentMode) !== 2) return false;
+ const raw = String((document.getElementById('type') || this.el?.inputs?.type)?.value ?? '').trim();
+ if (!raw || !this._giftComboPrices || !this._giftComboPrices.size) return false;
+ const parsed = GiftComboEngine.parse(raw);
+ if (!parsed.ok || !parsed.items.length) return false;
+ return parsed.items.every(item => this._giftComboPrices.has(PriceRuleEngine.buildServiceKey(item.name)));
+ }
+
+ /* 【8.3.42】组合内容换了（新增礼物、删礼物、改数量）时把补价进度重置。
+    判据是「名字序列」而不是价格 —— 改数量不需要重新补价（单价没变），
+    但改礼物种类必须从头核对一遍，否则会拿着上一串的进度去填新的一串。 */
+ syncGiftComboFillProgress(result) {
+ const names = (result?.items || []).map(item => item.name).join('+');
+ if (names === this._giftComboFillNames) return false;
+ this._giftComboFillNames = names;
+ this._giftComboFillIndex = 0;
+ /* 名字变了，上一串留下的「已确认价」里可能混着本串已不存在的礼物。
+     留着不会算错（buildComboMemories 只按当前组合的礼物名取值），
+     但会让「满天星」这种同名礼物的旧价悄悄生效 —— 这其实是期望行为
+     （同名礼物当然沿用同一个价），所以这里刻意不清空价格表，
+     只把进度归零。价格表的清空时机是「离开组合」与「这单结束」。 */
+ this._giftComboFillStamp = '';
+ return true;
+ }
+
+ /* 【8.3.42】用户按「确定」：把当前这一项补进价格表 + 存进礼物单价记忆库，
+    然后自动翻到下一个还没价的礼物。 */
+ commitGiftComboFill() {
+ const state = this.getGiftComboFillState();
+ if (!state) return false;
+ /* 【8.3.42】一律现取现用 DOM，不吃 el.inputs 的缓存。
+    原因见 AutoPriceFeature.confirmGiftComboFill 里的说明：下面的 upsert 会重绘
+    记忆库面板并换掉 el.inputs 的引用，之后再用缓存就会拿到已经不在文档里的空节点。 */
+ const unitEl = document.getElementById('autoUnitPrice') || this.el?.inputs?.autoUnitPrice;
+ const raw = String(unitEl?.value ?? '').trim();
+ const price = PriceRuleEngine.normalizePositivePrice(raw);
+ if (price === null) {
+ this.app.showInfo?.(`请先填写「${state.name}」的单价`);
+ return false;
+ }
+ const key = PriceRuleEngine.buildServiceKey(state.name);
+ if (!this._giftComboPrices) this._giftComboPrices = new Map();
+ if (!this._giftComboPriceNames) this._giftComboPriceNames = new Map();
+ this._giftComboPrices.set(key, price);
+ this._giftComboPriceNames.set(key, state.name);
+ /* 【8.3.42】进度必须写在 upsert 之前。
+    upsert 会触发记忆库面板重绘 → 重绘会重新走一遍组合重算 →
+    重算里的 syncGiftComboFillProgress 在「礼物名序列变了」时把进度归零。
+    若把 this._giftComboFillIndex = state.index + 1 放在 upsert 之后，
+    这个正确的递进会被上面那次级联的重置覆盖掉，界面上表现为
+    「补完价却还停在同一个礼物」以及「价存成了上一个礼物的价」。 */
+ this._giftComboFillIndex = state.index + 1;
+ /* 「自动存（推荐）」：补一次价就记进礼物单价记忆库，下次写这个礼物直接认得。
+    记忆库存的是「固定金额礼物」，与这里确认的价语义一致。 */
+ this.app.giftMemoryFeature?.upsert?.({ serviceType: state.name, mode: 'fixed', unitPrice: price });
+ return true;
+ }
+
+ /* 全部补完（或本来就不缺价）后，把价格表交还给「只管这一单」的语义。
+    调用时机是本单结束时（生成订单、清空服务类型、切走组合）。 */
+ resetGiftComboPriceTable() {
+ this.cancelGiftComboPriceTableReset();
+ if (this._giftComboPrices) this._giftComboPrices.clear();
+ if (this._giftComboPriceNames) this._giftComboPriceNames.clear();
+ this._giftComboFillIndex = 0;
+ this._giftComboFillNames = '';
+ this._giftComboFillStamp = '';
+ return true;
+ }
+
+ /* 【8.3.42】「服务类型框刚被清空」的延后作废：给用户一次反悔的机会。
+    紧接着又打出一个同样能解析的组合时，这一次作废会被撤销，
+    用户之前补好的价原样还在 —— 改数量、改礼物名都不用重补。 */
+ scheduleGiftComboPriceTableReset() {
+ this.cancelGiftComboPriceTableReset();
+ this._giftComboResetTimer = window.setTimeout(() => {
+ this._giftComboResetTimer = null;
+ this.resetGiftComboPriceTable();
+ }, 800);
+ return true;
+ }
+
+ cancelGiftComboPriceTableReset() {
+ if (!this._giftComboResetTimer) return false;
+ window.clearTimeout(this._giftComboResetTimer);
+ this._giftComboResetTimer = null;
+ return true;
+ }
+
+ /* 组合算式与「礼物单价 × 个数」那一排同时存在时，以算式为准。
+    【8.3.42 改写】原先是「无条件把第一项投影到那一排」，于是组合里有几种礼物，
+    那一排永远只装得下第一种 —— 第二个礼物根本没地方补价（用户报的问题）。
+    现在分成两种状态：
+      · 还有礼物没价 → 这一排让出来给用户补价，一次补一个，
+        按「确定」后自动换到下一个（见 commitGiftComboFill）；
+      · 全部有价    → 这一排回到「算式投影」的老样子，显示总数量与总价。 */
  syncGiftComboPanelWriteback(result) {
- const first = result?.items?.[0];
- if (!first) return false;
  const unitEl = this.el?.inputs?.autoUnitPrice || document.getElementById('autoUnitPrice');
  const qtyEl = this.el?.giftQuantity || document.getElementById('giftQuantity');
  if (!unitEl || !qtyEl) return false;
- // 把「一排」标记为算式在管，用户后续若手动改这一排，会由 syncGiftUnitPriceTotal 交还控制权。
+ const state = this.getGiftComboFillState();
+ if (state) {
+ /* 补价中：把这一排让出来给用户填当前这一项的价。
+    数量先按这一项的数量垫上（用户看到「3」就知道正在给「3 个同心结」补价），
+    单价留空 —— 特意不清用户已经敲进去的数字：手抖点了别处再回来，输入不该丢。 */
  this._giftComboOwnsPanel = true;
- this.app.inputFlowFeature?.setInputValue?.('giftQuantity', ProjectSettlementEngine.formatNumber(first.quantity), { source: 'giftCombo' });
+ this.app.inputFlowFeature?.setInputValue?.('giftQuantity', ProjectSettlementEngine.formatNumber(state.quantity), { source: 'giftCombo' });
+ unitEl.dataset.giftComboTarget = state.name;
+ return true;
+ }
+ // 全部有价：回到算式投影
+ const first = result?.items?.[0];
+ if (!first) return false;
+ delete unitEl.dataset.giftComboTarget;
+ this._giftComboOwnsPanel = true;
+ this.app.inputFlowFeature?.setInputValue?.('giftQuantity', ProjectSettlementEngine.formatNumber(result.total), { source: 'giftCombo' });
  if (first.unitPrice !== null) {
  this.app.inputFlowFeature?.setInputValue?.('autoUnitPrice', ProjectSettlementEngine.formatNumber(first.unitPrice), { source: 'giftCombo' });
  }
@@ -13055,10 +13311,22 @@ if (!box) return false;
  const detail = result.items.map(item => `${item.name}×${ProjectSettlementEngine.formatNumber(item.quantity)}=${ProjectSettlementEngine.formatNumber(item.subtotal)}`).join('  ');
  text = `共 ${ProjectSettlementEngine.formatNumber(result.total)} 个礼物 · ${detail}`;
  } else {
+ /* 【8.3.42】补价时要说清「现在补哪一个、还剩几个」。
+    原先只说「XX 还没有记录」，用户看完仍不知道从哪儿下手、补完还有没有下一个。
+    现在改成进度式：正在补第 2 个（共 3 个）—— 提示行与那一排的「确定」按钮配合，
+    用户按一下确定就自动换到下一个，全程知道自己在哪一步。 */
+ const state = this.getGiftComboFillState();
  const unknown = [...result.missing, ...result.noPrice];
+ if (state) {
+ const rest = state.rest || [];
+ const progress = `正在补第 ${state.index + 1} 个（共 ${state.size} 个）：`;
+ const tail = rest.length ? `，补完还有 ${rest.length} 个：${rest.join('、')}` : '，补完这一项就能算总价了';
+ text = `⚠ ${progress}${state.name} 还没有单价${tail}`;
+ } else {
  text = unknown.length
  ? `⚠ ${unknown.join('、')} 在礼物单价里还没有记录，补齐后会自动算出总价`
  : '⚠ 礼物组合暂时无法结算';
+ }
  }
  el.textContent = text;
  el.style.display = 'block';
@@ -17493,7 +17761,7 @@ class AutoPriceFeature {
  return raw;
  }
 
- updateManualControls(draft = null) {
+ updateManualControls(draft = null, { forceGiftPriority = false } = {}) {
  const button = this.getElement('addPriceProject');
  const status = this.getElement('manualProjectStatus');
  const count = this.getElement('manualProjectCount');
@@ -17502,13 +17770,79 @@ class AutoPriceFeature {
  && !this._expressionActive
  && !this.isExpressionSuppressed()
  && Boolean(draft?.ok && draft?.project);
+ /* 【8.3.42】礼物码单下这个按钮换了身份：不叫「加入下一项」，而是「确定」——
+    给当前礼物补完单价后按它，把价记下来并自动换到组合里的下一个礼物。
+    它复用同一个按钮位，是为了让礼物码单那一排的排版与单子码单一致
+    （用户的要求：尽量对齐单子码单的模块组布局，视觉适应性更高）。
+
+    forceGiftPriority：本次刷新是由「点确定补价」直接引发的，必须让礼物那条支路
+    优先判定。加这个开关的原因是一个时序细节 —— 补价这一步会走 handleGiftComboInput
+    → syncGiftComboPanelWriteback（写输入框，source: giftCombo）→ 输入事件 → syncUI，
+    而 syncUI 在礼物模式下会调 updateManualControls(null)，于是按钮又被按
+    「还没补价、按钮该收起」的旧结论刷回去。加这个开关让「刚补完价」这一次刷新
+    以礼物进度为准，不受中间那次输入事件的结论覆盖。 */
+ const giftFill = this.priceQuickPickFeature?.getGiftComboFillState?.() || null;
+ const giftCanCommit = Boolean(giftFill) && (Number(this.app.currentMode) === 2 || forceGiftPriority);
  if (button) {
- button.hidden = !canCommit;
- button.disabled = !canCommit;
+ button.hidden = !canCommit && !giftCanCommit;
+ button.disabled = !canCommit && !giftCanCommit;
+ if (giftCanCommit) {
+ const label = giftFill.next ? `确定·换${giftFill.next}` : '确定';
+ const spans = button.querySelectorAll('span');
+ if (spans.length >= 2) {
+ if (spans[0].textContent !== label) spans[0].textContent = label;
+ if (spans[1].textContent) spans[1].textContent = '';
+ } else if (button.textContent !== label) {
+ button.textContent = label;
+ }
+ button.title = `确认「${giftFill.name}」的单价，然后换到${giftFill.next ? `「${giftFill.next}」` : '结算'}`;
+ button.setAttribute('aria-label', button.title);
+ button.dataset.giftComboCommit = '1';
+ } else {
+ delete button.dataset.giftComboCommit;
+ // 回到单子码单的两行写法（「加入 / 下一项」）
+ const spans = button.querySelectorAll('span');
+ if (spans.length >= 2) {
+ if (spans[0].textContent !== '加入') spans[0].textContent = '加入';
+ if (spans[1].textContent !== '下一项') spans[1].textContent = '下一项';
+ }
+ button.title = '加入下一项';
+ button.setAttribute('aria-label', '加入下一项');
+ }
  }
  if (count) count.textContent = String(manualProjects.length);
  if (status) status.classList.toggle('show', manualProjects.length > 0 && Number(this.app.currentMode) === 1 && !this._expressionActive);
- return canCommit;
+ return canCommit || giftCanCommit;
+ }
+
+ /* 【8.3.42】礼物码单「确定」按钮的落点。
+    把当前礼物的单价记进这一单的价格表 + 礼物单价记忆库，然后重算整串 ——
+    重算完若还有礼物没价，提示行与按钮会自动指向下一个，用户接着填就行。
+    全部填完时 getGiftComboFillState 返回 null，按钮自己收起、总价自动写出来。 */
+ confirmGiftComboFill() {
+ const quickPick = this.priceQuickPickFeature;
+ const state = quickPick?.getGiftComboFillState?.();
+ if (!state) return false;
+ const price = PriceRuleEngine.normalizePositivePrice(document.getElementById('autoUnitPrice')?.value ?? this.el?.inputs?.autoUnitPrice?.value);
+ if (!quickPick.commitGiftComboFill()) return false;
+ const name = state.name;
+ /* 价格表变了，指纹必须作废，否则下面的重算会因「指纹没变」而整段跳过。
+    但光作废还不够 —— 重算走的是 handleGiftComboInput 的「内容变化」分支，
+    那一条只刷新提示与候选、不重写那一排。而「补完价之后那一排要变成总数量投影」
+    恰恰需要重写，所以这里把指纹留空，让它走完整的重算分支。 */
+ quickPick._giftComboSignature = '';
+ /* 【8.3.42】重算用的输入框必须现取现用。
+    commitGiftComboFill 里会调 giftMemoryFeature.upsert → updateUI，那一步会重绘
+    记忆库面板，顺带把 el.inputs 的缓存引用换掉。此时再用 this.el.inputs.type，
+    拿到的是已经不在文档里的旧节点，其 value 是空的 —— handleGiftComboInput 收到
+    空值就判定「不是组合」，直接静默退出，界面于是停在原来的进度上。
+    中文注释：这就是「按了确定、价也存进去了，提示却还写着上一个礼物」的原因。 */
+ const input = document.getElementById('type') || this.el?.inputs?.type;
+ if (input) quickPick.handleGiftComboInput(input);
+ const shown = price === null ? '' : ` ¥${ProjectSettlementEngine.formatNumber(price)}`;
+ this.app.showSuccess?.(`已记下「${name}」的单价${shown}，已存入礼物单价`);
+ this.updateManualControls(this.getDraftSnapshot({ render: false }).draft, { forceGiftPriority: true });
+ return true;
  }
 
  getOrderAggregate() {
@@ -17540,7 +17874,7 @@ class AutoPriceFeature {
  if (priceInput) this.inputFlowFeature.setInputValue('autoUnitPrice', '', { source: 'reset' });
  this.setNote('');
  this.setDurationNote('');
- this.updateManualControls(null);
+ this.updateManualControls(null, { forceGiftPriority: true });
  }
 
  restoreProjects(projects, { clearDraft = true } = {}) {
@@ -17604,7 +17938,9 @@ class AutoPriceFeature {
  if (snapshot.currentMode === 2) {
  this.setNote('');
  this.setDurationNote('');
- this.updateManualControls(null);
+ /* 【8.3.42】礼物码单下多一个活儿：组合还没补完价时，「确定」按钮要留在那一排。
+     否则这一排会空着，用户不知道该按哪儿。 */
+ this.updateManualControls(null, { forceGiftPriority: true });
  return true;
  }
  if (snapshot.expressionSuppressed) {
@@ -17837,6 +18173,12 @@ class AutoPriceFeature {
  const addButton = event.target.closest?.('#addPriceProject');
  if (!addButton) return;
  event.stopPropagation();
+ /* 【8.3.42】同一个按钮位在礼物码单下是「确定」：把当前礼物的单价记下来，
+    并自动换到组合里的下一个礼物。与单子码单的「加入下一项」走各自的路。 */
+ if (addButton.dataset.giftComboCommit === '1') {
+ this.confirmGiftComboFill();
+ return;
+ }
  this.commit();
  });
  this.bind('undoLastProject', 'click', () => this.undoLastProject());

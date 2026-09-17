@@ -50,7 +50,17 @@ const DRY_RUN = argv.includes('--dry-run');
 const toIdx = argv.indexOf('--to');
 const TARGET = toIdx >= 0 ? argv[toIdx + 1] : null;
 
-const VER_RE = '\\d+\\.\\d+\\.\\d+';
+/**
+ * 版本号语法：X.Y.Z，允许带 -test.N 后缀（8.3.42 起）。
+ *
+ * 后缀的用途是区分「测试版」与「正式发行版」——在 AI 应用里反复改动的中间产物
+ * 一律带 -test.N，只有真正要交付给用户的那一版才是干净的 X.Y.Z。
+ * 两处落点（<title>、APP_VERSION）都要能容纳后缀，否则测试版号写不进去。
+ *
+ * 注意游离字面量检查用的仍是「不带后缀」的形状（见 findStrayVersions）：
+ * 带后缀的完整号只该出现在白名单落点里，别的写法照样算第二真源。
+ */
+const VER_RE = '\\d+\\.\\d+\\.\\d+(?:-test\\.\\d+)?';
 
 /**
  * 落点规则。每条必须**恰好命中 1 次**。
@@ -169,8 +179,8 @@ function main() {
     console.log('    用法：node tools/set-version.js --to 8.3.36 [--dry-run]');
     process.exit(1);
   }
-  if (TARGET && !/^\d+\.\d+\.\d+$/.test(TARGET)) {
-    console.log(`  ✗ 版本号格式不合法：${JSON.stringify(TARGET)}（应为 X.Y.Z，如 8.3.36）`);
+  if (TARGET && !/^\d+\.\d+\.\d+(-test\.\d+)?$/.test(TARGET)) {
+    console.log(`  ✗ 版本号格式不合法：${JSON.stringify(TARGET)}（应为 X.Y.Z 或 X.Y.Z-test.N，如 8.3.42 / 8.3.42-test.1）`);
     process.exit(1);
   }
 
