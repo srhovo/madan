@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.42</title>
+ <title>码单器8.3.43-test.1</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -2842,6 +2842,46 @@ h1 { margin-bottom: 4px; }
  font-size: 16px;
 }
 
+/* 【8.3.43】补价期间那一排的宽度重分配（用户反馈：确定按钮的字被挤掉一截）。
+   问题出在这一排装不下三样东西：
+     标签 44 + 单价框 3 份 + × 16 + 个数框 2 份 + 按钮 52 = 超出面板可用宽度，
+   而按钮是 flex: 0 0 固定值（52px），文字「确定·换同心结」在 10px 字号下要 59px，
+   实测 390/360/430 三种屏宽下分别差 7/9/7 像素 —— 一律裁掉尾巴。
+
+   修法（用户提的思路）：补价时数量框主动让位。数量永不超过两位数，不需要 80 多像素。
+   分配顺序改成「按需索取」，而不是「按钮固定、其余随意」：
+     · 按钮  flex: 0 1 auto —— 按文字内容自然宽度（最长约 80px），但可以被压缩；
+     · 数量框 flex: 0 0 auto / 58px —— 两位数够用，固定不参与抢夺；
+     · 单价框 flex: 1 1 0 —— 吃掉剩下的全部，它才是需要宽度的地方（6.5 这类小数）。
+   这样在 360 / 390 / 430 三档下，按钮都能拿到自己的自然宽度，不必为每个断点补规则。
+
+   只在补价期间生效（.gift-combo-filling）：全部补完价后这一排要回到
+   「显示总数量」的正常形态，那时数量框该宽就宽，不必迁就按钮。 */
+.gift-mode-panel.gift-combo-filling .gift-quantity-input {
+ flex: 0 0 auto;
+ width: 58px;
+ min-width: 58px;
+}
+.gift-mode-panel.gift-combo-filling #autoUnitPrice {
+ flex: 1 1 0;
+ min-width: 60px;
+}
+/* 按钮按文字自然撑开，文字不再折行、不再被裁。
+   补 6px 左右内边距：实测宽度刚好等于文字宽度时（71/71）看着是贴边的，
+   而各设备字体渲染常有 1~2px 差异，留一点余量更稳。
+   max-width 用 50% 兜住「礼物名特别长」（例如「确定·换超长礼物名称」）——
+   那种情况让文字在按钮内折成两行，也比把单价框挤没要好。 */
+.gift-mode-panel.gift-combo-filling #addPriceProject {
+ flex: 0 1 auto;
+ width: auto;
+ min-width: var(--ap-add-width);
+ max-width: 50%;
+ padding: 0 6px;
+ white-space: normal;
+ overflow: visible;
+ overflow-wrap: anywhere;
+}
+
 .ap-times {
  flex: 0 0 auto;
  width: 16px;
@@ -4207,7 +4247,7 @@ html[data-order-mode="2"] #primaryFieldsContainer .field-type > input {
 
 
  <script>
-const APP_VERSION = '8.3.42';
+const APP_VERSION = '8.3.43-test.1';
 // Release note: 8.3.34 架构拆分第二步（A4+A5）：把「不可读的产物」变成「可读的源码」，并给全部空 catch 补上「为什么可以吞」的说明。零功能改动、零逻辑改动。A4 —— 内联 chunk 源码外置：dataPortability（约1117行）与 durationCalculator（约272行）的源码此前只以 JSON 转义的单行字符串存在于 index.html 的 __INLINE_CHUNKS_RAW__ 中，编辑器无法索引、无法 diff、无法 review，是全项目最大的维护盲区。现将源码落到 src/chunks/*.js（可索引/可 diff/可 review），index.html 里的字符串改由 tools/build-inline-chunks.js 从源文件生成；编码配方经「重新编码结果与现存字符串逐字节比对」验证未漂移。同时补 tools/sync-root-scripts.js 统一 update-checker.js / analytics.js 的内联同步（此前只靠 inline-integrity.js 报错提醒，缺正向同步手段）。A5 —— 空 catch 注释化：全量清点为 9 处（清单原记 6 处，实测多出 3 处），逐一补上「为什么可以吞」的就近注释，其中 loadModeRatios 是唯一有真实用户影响的（静默丢失自定义比例），已改为记 appLogError 便于定位。新增两道常驻防线：tests/arch-snapshot.js（A3 遗留建议 —— 用运行时原型链内省冻结 app 方法集/state 键/featureOrder 三个架构不变量，专防「隐式动态挂载」这类不报错的静默回归，已用注入式反例验证可捕获）；tools/build-inline-chunks.js --check 与 tools/sync-root-scripts.js --check 纳入统一入口。测试防线由 7 套增至 10 套，全部通过（含变异捕捉 9/9）。过程中修正一处自己引入的失误：在 index.html 里直接给 update-checker/analytics 的内联副本加注释，破坏了源文件与副本的逐字节一致性 —— 正确做法是改源文件再同步，已按此纠正并固化为工具。
 // Release note: 8.3.35 优化清单 B1+B2，零功能改动、零逻辑改动。B1（CSS 去重）：删除一处完全重复的响应式媒体查询块 —— 平板竖屏（768–1024px）「恢复单栏」规则整块出现了两遍，字节完全相同，保留带说明注释的那一份（覆盖 iPad Pro 12.9 竖屏 1024px 宽度），删掉前面无注释的早期副本，共减少 12 行 CSS。其余 128 个「多次定义」的选择器经逐条核对属于**不同上下文/不同断点下的有意级联覆盖**，不构成无效声明，一律保留。等价性用真实 Chromium 在 6 种视口下比对 58320 项计算样式（其中 3 种视口该媒体查询实际命中），零差异。B2（版本号单一真源）：核查 index.html 内 165 处 8.3.x 字样，剥离注释并排除标签属性后，真正参与代码的仅 <title> 与 APP_VERSION 两处（其余 163 处均为变更考古注释，按约定保留）；compareVersions 走 CURRENT_VERSION 间接引用，未发现游离字面量，故本项无需改代码。新增 tests/version-single-source.js 作为常驻防线，并交叉校验 <title>↔APP_VERSION↔version.json↔zip sha256，今后任何第二真源会在测试中立刻报红。
 // Release note: 8.3.33 架构拆分第一步（A3）：消除「隐式动态挂载」，把 OrderCalculator 上的冗余转发入口收敛为显式委托。零功能改动、零逻辑改动。背景：OrderCalculator 长期充当「编排队」，历史上为兼容旧调用点，把大量 Feature 方法以 this.xxx(...args) 形式平铺在自身上（133 个方法中 77 个是单行转发），其中 RatioFeature 更是通过 bindToApp() 在运行时把 12 个方法**动态挂到 app 上**——这正是工程边界明令禁止的「隐式动态挂载/全局隐藏状态」。本版处理三件事：① 删除 59 个已无任何调用方的纯转发入口（实现全部原样保留在其所属 Feature 内，仅移除 app 级冗余镜像）；② 移除 RatioFeature.bindToApp() 的隐式动态挂载，改为显式路径调用（ModeFlowFeature → this.app.ratioFeature.handleModeButtonClick(...)）；③ 顺带修复一处因 ① 暴露出来的**既有隐患**：dataPortability 的 refreshAfterImport() 原本用 ['applyLockedDataToUI','applyLayoutVisibility',...] 字符串数组 + this.app[method]() 做动态派发（同属隐式动态挂载），导入数据后的 7 项界面刷新依赖它；现改为显式委托数组，导入后刷新链路恢复可靠。验证：app 可调用方法 159 → 100（移除 59、新增 0），state 键 24/24 与 feature 数 23 完全一致；7 套测试全绿（引擎 126、喂入链路 122、DOM 26、组合 27、五段式、变异捕捉 9/9、包自包含）；并逐一校验 59 项移除均有「实现保留在所属 Feature + 全文无动态字符串访问 + 无 HTML 属性引用 + 无外部调用者」四项证明。保留 clearAll 作为外部可见的「清空全部」公共入口（测试与外部脚本按此复位）。业务逻辑、计算引擎、存储结构、UI 行为完全未改动。
@@ -13137,16 +13177,15 @@ if (!box) return false;
  if (!raw || !GiftComboEngine.looksLikeCombo(raw, this.getGiftMemories())) return null;
  const parsed = GiftComboEngine.parse(raw);
  if (!parsed.ok || !parsed.items.length) return null;
- const prices = this._giftComboPrices || new Map();
- // 从当前进度往后找第一个还没补齐的（用户回头改前面某一项时也能正确定位）
+ // 从当前进度往后找第一个还没价的（用户回头改前面某一项时也能正确定位）
  const start = Math.max(0, Math.min(Number(this._giftComboFillIndex) || 0, parsed.items.length));
  let pending = -1;
  for (let i = start; i < parsed.items.length; i += 1) {
- if (!prices.has(PriceRuleEngine.buildServiceKey(parsed.items[i].name))) { pending = i; break; }
+ if (!this.giftComboItemHasPrice(parsed.items[i].name)) { pending = i; break; }
  }
  if (pending < 0) return null;
  const item = parsed.items[pending];
- const remaining = parsed.items.slice(pending + 1).filter(entry => !prices.has(PriceRuleEngine.buildServiceKey(entry.name)));
+ const remaining = parsed.items.slice(pending + 1).filter(entry => !this.giftComboItemHasPrice(entry.name));
  return {
  index: pending,
  size: parsed.items.length,
@@ -13156,21 +13195,41 @@ if (!box) return false;
  next: remaining[0]?.name || '',
  rest: remaining.map(entry => entry.name)
  };
- }
+}
 
- /* 【8.3.42】组合里的礼物是不是都补齐单价了。
-    这个判断必须看「价格表」，不能看结算结果 —— 结算结果恒不可靠：
-    用户补完价的那一刻，resolve 已经能算出完整总价，此时如果拿
-    「resolve.ok 或 item.unitPrice 不为空」当判据，就会立刻得出「补完了」，
-    按钮当场收起、用户根本没机会按第二次。所以补价进度一律以价格表为准。 */
- isGiftComboPriceComplete() {
+/* 【8.3.43】这个礼物有价了吗。
+   两个价源认一个即可：
+     · _giftComboPrices —— 用户这一单当场补的价；
+     · 礼物单价记忆库   —— 以前存过的价（跨单的长期记忆）。
+   为什么必须认记忆库：结算（resolveGiftCombo）本来就是「记忆库 + 价格表」并集，
+   补价判据若只看价格表，两者就会打架 —— 实测「3满天星+2同心结」里同心结记忆库
+   有 15，用户补完满天星之后总价立刻算出来了，提示行却还要求继续补同心结，
+   用户按确定会把一个没人要的价塞进记忆库（覆盖原有记录）。
+
+   为什么不能直接看结算结果（这是 8.3.42 就踩过的坑）：
+   用户按下确定的那一刻 resolve 已经能算出总价，拿它当判据会立刻判定「补完了」，
+   按钮当场收起、第二项永远补不上。所以这里查的是「价源」，不是「结算结果」——
+   两者看着像，区别在于结算结果是被价格表影响的，判据不能自己影响自己。 */
+giftComboItemHasPrice(name) {
+ const key = PriceRuleEngine.buildServiceKey(name);
+ if (!key) return false;
+ if (this._giftComboPrices?.has(key)) return true;
+ return GiftComboEngine.findMemory(name, this.getGiftMemories()).status === 'found';
+}
+
+/* 【8.3.42】组合里的礼物是不是都补齐单价了。
+   判据是「价源」（价格表 + 记忆库，见 giftComboItemHasPrice），
+   不是结算结果 —— 结算结果恒不可靠：用户补完价的那一刻，resolve 已经能算出
+   完整总价，此时如果拿「resolve.ok 或 item.unitPrice 不为空」当判据，
+   就会立刻得出「补完了」，按钮当场收起、用户根本没机会按第二次。 */
+isGiftComboPriceComplete() {
  if (Number(this.currentMode) !== 2) return false;
  const raw = String((document.getElementById('type') || this.el?.inputs?.type)?.value ?? '').trim();
- if (!raw || !this._giftComboPrices || !this._giftComboPrices.size) return false;
+ if (!raw) return false;
  const parsed = GiftComboEngine.parse(raw);
  if (!parsed.ok || !parsed.items.length) return false;
- return parsed.items.every(item => this._giftComboPrices.has(PriceRuleEngine.buildServiceKey(item.name)));
- }
+ return parsed.items.every(item => this.giftComboItemHasPrice(item.name));
+}
 
  /* 【8.3.42】组合内容换了（新增礼物、删礼物、改数量）时把补价进度重置。
     判据是「名字序列」而不是价格 —— 改数量不需要重新补价（单价没变），
@@ -17783,6 +17842,13 @@ class AutoPriceFeature {
     以礼物进度为准，不受中间那次输入事件的结论覆盖。 */
  const giftFill = this.priceQuickPickFeature?.getGiftComboFillState?.() || null;
  const giftCanCommit = Boolean(giftFill) && (Number(this.app.currentMode) === 2 || forceGiftPriority);
+ /* 【8.3.43】补价期间给面板挂一个类，让样式表把这一排的宽度重新分配：
+    数量框主动让位（两位数用不着 80 多像素），把宽度让给「确定·换XX」按钮 ——
+    否则按钮的文字会被裁掉一截（用户反馈）。全部补完价时这个类要摘掉，
+    那一排回到「显示总数量」的正常形态。挂/摘写在这里是因为只有这里
+    同时知道「礼物码单」和「还有礼物没补价」这两件事。 */
+ const panel = this.getElement('autoPricePanel');
+ if (panel) panel.classList.toggle('gift-combo-filling', giftCanCommit);
  if (button) {
  button.hidden = !canCommit && !giftCanCommit;
  button.disabled = !canCommit && !giftCanCommit;
@@ -18143,6 +18209,12 @@ class AutoPriceFeature {
  this.setNote('');
  this.setDurationNote('');
  }
+ /* 【8.3.43】礼物码单下服务类型框就是「组合算式」的输入处，改它必须顺手刷新
+    那一排的「确定」按钮。原先这里直接 return，按钮只会在「填完单价」那一刻
+    由另一条链路点亮 —— 结果是用户打完 `3满天星+2同心结`、提示行已经在说
+    「正在补第 1 个」，按钮却还是收起的，用户不知道要去哪儿按。
+    这里补一次刷新，让按钮在「进入补价流程」的瞬间就出现。 */
+ this.updateManualControls(null, { forceGiftPriority: true });
  return;
  }
  // 8.3.25：记下「用户此刻正在编辑的是第几个项目」作为逐项手输单价的锚定游标。

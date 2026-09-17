@@ -38,8 +38,8 @@ const lines = src.split('\n');
 
 // 允许出现「参与代码的版本号」的位置（按行号动态匹配内容，不写死行号）
 const ALLOWED = [
-  { name: '<title> 标题', test: (l) => /<title>[^<]*\d+\.\d+\.\d+<\/title>/.test(l) },
-  { name: 'APP_VERSION 常量', test: (l) => /const\s+APP_VERSION\s*=\s*['"]\d+\.\d+\.\d+['"]/.test(l) },
+  { name: '<title> 标题', test: (l) => /<title>[^<]*\d+\.\d+\.\d+(?:-test\.\d+)?<\/title>/.test(l) },
+  { name: 'APP_VERSION 常量', test: (l) => /const\s+APP_VERSION\s*=\s*['"]\d+\.\d+\.\d+(?:-test\.\d+)?['"]/.test(l) },
 ];
 
 // 逐字符剥离注释（// 行注释、/* */ 块注释、<!-- --> HTML 注释）
@@ -87,7 +87,7 @@ for (let i = 0; i < lines.length; i++) {
   const code = stripComments(lines[i], state);
   // 先抹掉标签属性值（含跨行引号由上层 state 无关，逐行处理足够：本项目属性均单行闭合）
   const masked = maskTagAttributes(code);
-  if (/\d+\.\d+\.\d+/.test(masked)) {
+  if (/\d+\.\d+\.\d+(?:-test\.\d+)?/.test(masked)) {
     const allowed = ALLOWED.some((a) => a.test(code.trim()));
     hits.push({ line: i + 1, code: code.trim(), allowed });
   }
@@ -115,8 +115,8 @@ if (bad.length) {
 }
 
 // 顺带校验 <title> 与 APP_VERSION 两者一致
-const titleV = (src.match(/<title>[^<]*?(\d+\.\d+\.\d+)<\/title>/) || [])[1];
-const constV = (src.match(/const\s+APP_VERSION\s*=\s*['"](\d+\.\d+\.\d+)['"]/) || [])[1];
+const titleV = (src.match(/<title>[^<]*?(\d+\.\d+\.\d+(?:-test\.\d+)?)<\/title>/) || [])[1];
+const constV = (src.match(/const\s+APP_VERSION\s*=\s*['"](\d+\.\d+\.\d+(?:-test\.\d+)?)['"]/) || [])[1];
 const same = titleV && constV && titleV === constV;
 console.log(`  ${same ? '✓' : '✗'} <title>(${titleV}) 与 APP_VERSION(${constV}) 一致`);
 if (!same) fail++;
@@ -140,11 +140,28 @@ if (fs.existsSync(PKG)) {
 
 // 顺带校验 version.json 与 APP_VERSION 一致（发布物与代码对齐）
 const vjPath = path.join(ROOT, 'version.json');
+/*
+ * 【8.3.43】当前是测试号（X.Y.Z-test.N）时，version.json 允许落后一个正式版。
+ *
+ * 理由：version.json 是 OTA 发行物的清单，它描述的必须是「线上正在跑的那一版」。
+ * 测试版还在开发中、没有对应的 zip、也不该被推到用户设备上 —— 此时把它改成
+ * 测试号反而是错的：一旦有人误打包推送，用户会收到一个半成品版本。
+ * 正确时机是正式发版时由 tools/pre-push-version.js 一次性顺位对齐（它会把
+ * -test.N 落成正式号，并把 version.json 的 url/checksum 一起改掉）。
+ *
+ * 所以这里只在「代码是正式号」时强制两边相等；测试号期间明确跳过并说明原因，
+ * 而不是静默放过 —— 静默跳过会掩盖「忘了发版对齐」这类真问题。
+ */
+const isTestVer = /-test\.\d+$/.test(String(constV || ''));
 if (fs.existsSync(vjPath)) {
   const vj = JSON.parse(fs.readFileSync(vjPath, 'utf8'));
-  const ok = vj.version === constV;
-  console.log(`  ${ok ? '✓' : '✗'} version.json(${vj.version}) 与 APP_VERSION(${constV}) 一致`);
-  if (!ok) fail++;
+  if (isTestVer) {
+    console.log(`  · 当前是测试号 ${constV}，version.json 保持已发行版 ${vj.version}（发版时由 pre-push-version.js 对齐）`);
+  } else {
+    const ok = vj.version === constV;
+    console.log(`  ${ok ? '✓' : '✗'} version.json(${vj.version}) 与 APP_VERSION(${constV}) 一致`);
+    if (!ok) fail++;
+  }
   // checksum 与实际 zip 是否一致
   const zip = path.join(ROOT, `madan-${vj.version}.zip`);
   if (fs.existsSync(zip)) {

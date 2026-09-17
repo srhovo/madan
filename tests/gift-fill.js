@@ -148,13 +148,20 @@ console.log('\n② 逐项补价的规则');
 const fillStateFn = extractMethod('getGiftComboFillState() {');
 ok('存在 getGiftComboFillState', fillStateFn.length > 0);
 
-/* 判据必须是「价格表」而不是结算结果 —— 这是本版最核心的一条设计决定。
+/* 判据必须是「价源」而不是结算结果 —— 这是本版最核心的一条设计决定。
    反向验证：如果改用 resolve 的 ok / unitPrice 判，用户按下确定的那一刻
-   结算已经能算出总价，就会被判定「补完了」，按钮当场收起、第二项永远补不上。 */
-ok('补价判据用的是价格表', /this\._giftComboPrices/.test(fillStateFn), fillStateFn.slice(0, 300));
+   结算已经能算出总价，就会被判定「补完了」，按钮当场收起、第二项永远补不上。
+
+   【8.3.43 更新】价源从「只看这一单的价格表」放宽为「价格表 + 礼物单价记忆库」。
+   原因是两者原先会打架：结算（resolveGiftCombo）本来就取两个价源的并集，
+   而判据只看价格表 —— 记忆库里有价的礼物会被反复要求补，总价都算出来了
+   提示行还在喊「还没有单价」（8.3.43 用户报的现象）。
+   注意这里仍然不许看结算结果，第 155 行那条断言守的就是这件事，
+   它才是「不许自己影响自己」的真正防线。 */
+ok('补价判据走统一价源判据', /giftComboItemHasPrice\s*\(/.test(fillStateFn), fillStateFn.slice(0, 300));
 ok('补价判据不依赖结算结果', !/resolveGiftCombo\(/.test(fillStateFn));
 ok('存在 isGiftComboPriceComplete', extractMethod('isGiftComboPriceComplete() {').length > 0);
-ok('完整性判据也只看价格表', /_giftComboPrices\.has/.test(extractMethod('isGiftComboPriceComplete() {')));
+ok('完整性判据也走统一价源判据', /giftComboItemHasPrice\s*\(/.test(extractMethod('isGiftComboPriceComplete() {')));
 
 /* 进度不能倒退：它是「补到第几个」的游标 */
 const commitFn = extractMethod('commitGiftComboFill() {');

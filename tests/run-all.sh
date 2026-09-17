@@ -10,7 +10,7 @@
 #   bash tests/run-all.sh --require-package # 当前版本没有对应 zip 即判失败（CI/发版用）
 #   bash tests/run-all.sh --release-flow   # 发版流程中调用：允许「zip 刚生成尚未 git add」
 #
-# 可用 --only 值: engine | chunk | arch | chain | dom | combo | fullchain | mutate | giftcombo | package | version | alias | historyrefill | hints | giftqty | hintlayout | giftfill
+# 可用 --only 值: engine | chunk | arch | chain | dom | combo | fullchain | mutate | giftcombo | package | version | alias | historyrefill | hints | giftqty | hintlayout | giftfill | giftfillui
 #
 # 退出码: 0 全通过 / 1 有套件失败
 set -u
@@ -73,7 +73,7 @@ run_suite() {
 # ── 1. 引擎单元测试 ────────────────────────────────────────────────
 if ! should_skip engine; then
   echo
-  echo "── [1/18] 引擎单元测试 test-engine.js ─────────────────────────"
+  echo "── [1/19] 引擎单元测试 test-engine.js ─────────────────────────"
   if [ -z "$VERSION" ]; then
     echo "  ✗ 无法从 index.html 解析 APP_VERSION"
     run_suite engine "引擎单元测试" 1 "无法解析版本号"
@@ -93,7 +93,7 @@ fi
 # tools/build-inline-chunks.js 生成。这道防线盯「有人改了 src 却忘了重新生成」。
 if ! should_skip chunk; then
   echo
-  echo "── [2/18] 内联 chunk 源码一致性 build-inline-chunks.js --check ──"
+  echo "── [2/19] 内联 chunk 源码一致性 build-inline-chunks.js --check ──"
   out=$(node tools/build-inline-chunks.js --check 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -118,7 +118,7 @@ fi
 # 显式更新基线，从而迫使改动者回答「这个增删是有意的吗」。
 if ! should_skip arch; then
   echo
-  echo "── [3/18] 架构边界快照 arch-snapshot.js ─────────────────────"
+  echo "── [3/19] 架构边界快照 arch-snapshot.js ─────────────────────"
   out=$(node tests/arch-snapshot.js 2>&1)
   rc=$?
   echo "$out" | tail -8
@@ -128,7 +128,7 @@ fi
 # ── 3. 喂入链路 ────────────────────────────────────────────────────
 if ! should_skip chain; then
   echo
-  echo "── [4/18] 喂入链路 project-chain.js ───────────────────────────"
+  echo "── [4/19] 喂入链路 project-chain.js ───────────────────────────"
   out=$(node tests/project-chain.js "$HTML" "$OUT/project-chain.json" 2>&1)
   rc=$?
   echo "$out" | tail -4
@@ -139,7 +139,7 @@ fi
 # ── 3. DOM 全链路 ──────────────────────────────────────────────────
 if ! should_skip dom; then
   echo
-  echo "── [5/18] DOM 全链路 dom-full.js ──────────────────────────────"
+  echo "── [5/19] DOM 全链路 dom-full.js ──────────────────────────────"
   out=$(node tests/dom-full.js "$HTML" "$OUT/domfull.json" 2>&1)
   rc=$?
   echo "$out" | tail -3
@@ -149,7 +149,7 @@ fi
 # ── 4. 组合联动 ────────────────────────────────────────────────────
 if ! should_skip combo; then
   echo
-  echo "── [6/18] 组合联动 combo.js ───────────────────────────────────"
+  echo "── [6/19] 组合联动 combo.js ───────────────────────────────────"
   out=$(node tests/combo.js "$HTML" "$OUT/combo.json" 2>&1)
   rc=$?
   echo "$out" | tail -3
@@ -162,7 +162,7 @@ fi
 FULLCHAIN="tests/码单器8.3_AI可运行全链路测试脚本_8.3架构版.py"
 if ! should_skip fullchain; then
   echo
-  echo "── [7/18] 五段式全链路 $(basename "$FULLCHAIN") ──────────"
+  echo "── [7/19] 五段式全链路 $(basename "$FULLCHAIN") ──────────"
   if [ ! -f "$FULLCHAIN" ]; then
     run_suite fullchain "五段式全链路" 1 "脚本不存在: $FULLCHAIN"
   else
@@ -177,10 +177,10 @@ fi
 if ! should_skip mutate; then
   if [ $FAST -eq 1 ]; then
     echo
-    echo "── [8/18] 变异测试 mutate-chain.py  （--fast 已跳过）────────────"
+    echo "── [8/19] 变异测试 mutate-chain.py  （--fast 已跳过）────────────"
   else
     echo
-    echo "── [9/18] 变异测试 mutate-chain.py  （约 4 分钟）──────────────"
+    echo "── [9/19] 变异测试 mutate-chain.py  （约 4 分钟）──────────────"
     out=$(python3 tests/mutate-chain.py 2>&1)
     rc=$?
     echo "$out" | tail -25
@@ -201,7 +201,7 @@ fi
 #   ⑤ 礼物码单里禁用了「软提示抢字」—— 否则用户打不出数字和加号。
 if ! should_skip giftcombo; then
   echo
-  echo "── [10/18] 礼物组合与按模式隐藏 gift-combo.js ─────────────────"
+  echo "── [10/19] 礼物组合与按模式隐藏 gift-combo.js ─────────────────"
   out=$(node tests/gift-combo.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -216,7 +216,7 @@ fi
 # 这道防线专门盯「包内 index.html 是否引用了包外不存在的资源」。
 if ! should_skip package; then
   echo
-  echo "── [11/18] OTA 包自包含性 check-package-selfcontained.py ──────"
+  echo "── [11/19] OTA 包自包含性 check-package-selfcontained.py ──────"
   # 找当前版本对应的 zip；找不到就跳过（例如只改代码、尚未打包）
   ZIP=""
   for f in "$ROOT"/madan-*.zip; do
@@ -256,7 +256,7 @@ fi
 # 只允许版本号出现在白名单的 2 个位置，并交叉校验 title↔APP_VERSION↔version.json↔zip。
 if ! should_skip version; then
   echo
-  echo "── [12/18] 版本号单一真源 version-single-source.js ────────────"
+  echo "── [12/19] 版本号单一真源 version-single-source.js ────────────"
   # --release-flow：发版脚本刚打完包、尚未 git add 时调用，
   # 此时「zip 未被跟踪」是预期中间态（git add 由人在收到提示后执行），
   # 不该据此判失败 —— 否则发版流程会自锁。
@@ -278,7 +278,7 @@ fi
 # 否则它只会是一堆恒真的假断言。
 if ! should_skip alias; then
   echo
-  echo "── [13/18] 精确项目多别名 price-alias.js ─────────────────────"
+  echo "── [13/19] 精确项目多别名 price-alias.js ─────────────────────"
   out=$(node tests/price-alias.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -294,7 +294,7 @@ fi
 # 否则它只是一堆恒真的假断言（项目历史上踩过这个坑，见 tests/README.md）。
 if ! should_skip historyrefill; then
   echo
-  echo "── [14/18] 历史编辑回填详情同步 history-refill.js ────────────"
+  echo "── [14/19] 历史编辑回填详情同步 history-refill.js ────────────"
   out=$(node tests/history-refill.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -313,7 +313,7 @@ fi
 # 并带反向验证（拆文案 / 删转发 / 误用 this.currentMode 三种改坏方式都必须变红）。
 if ! should_skip hints; then
   echo
-  echo "── [15/18] 辅助提示动态化 hint-dynamic.js ────────────────────"
+  echo "── [15/19] 辅助提示动态化 hint-dynamic.js ────────────────────"
   out=$(node tests/hint-dynamic.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -334,7 +334,7 @@ fi
 # 不再有 display 切换规则，并附 5 种反向改坏方式必须变红。
 if ! should_skip giftqty; then
   echo
-  echo "── [16/18] 礼物单价×个数 gift-quantity.js ────────────────────"
+  echo "── [16/19] 礼物单价×个数 gift-quantity.js ────────────────────"
   out=$(node tests/gift-quantity.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -354,7 +354,7 @@ fi
 # 纯字符串检查抓不住。含反向验证（改回 classname 后真的会丢 class）。
 if ! should_skip hintlayout; then
   echo
-  echo "── [17/18] 提示文案与控件类名 hint-layout.js ─────────────────"
+  echo "── [17/19] 提示文案与控件类名 hint-layout.js ─────────────────"
   out=$(node tests/hint-layout.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -374,13 +374,34 @@ fi
 # 正式发行时对照仓库已发行版顺位，不占正式版本序列。
 if ! should_skip giftfill; then
   echo
-  echo "── [18/18] 逐项补价与纯数字候选 gift-fill.js ─────────────────"
+  echo "── [18/19] 逐项补价与纯数字候选 gift-fill.js ─────────────────"
   out=$(node tests/gift-fill.js 2>&1)
   rc=$?
   echo "$out" | tail -6
   line=$(echo "$out" | grep -oE "失败 [0-9]+ 项" | tail -1)
   [ -z "$line" ] && line=$(echo "$out" | grep -oE "全部通过.*" | tail -1)
   run_suite giftfill "逐项补价与纯数字候选" $rc "${line:-无输出}"
+fi
+
+# ── 19. 补价那一排的宽度与按钮可见性 ──────────────────────────────
+# 背景：8.3.43 修了用户附截图报上来的界面缺陷，以及修它时连带发现的两个更深的问题 ——
+#   ① 「确定·换XX」按钮的文字被裁掉一截：那一排装不下五样东西，而按钮是固定宽度
+#      （52px），文字要 59~79px。现在改成补价期间数量框主动让位、宽度转给按钮。
+#   ② 按钮只在「填了单价之后」才出现：礼物码单下服务类型框的输入处理直接 return，
+#      不刷新那一排。提示行已经在说「正在补第 1 个」，按钮却还是收起的。
+#   ③ 记忆库已有价的礼物仍被要求再补一遍：补价判据只看价格表，而结算看的是
+#      「记忆库 + 价格表」并集 —— 两者打架，总价都算出来了还要求继续补。
+# 本套跑在**真实浏览器**里：宽度、可见性、文字是否被裁，只有渲染出来才知道。
+# 三处修复各配一条反向验证（改回错误写法必须变红），实测分别报红 21/4/13 项。
+if ! should_skip giftfillui; then
+  echo
+  echo "── [19/19] 补价那一排的宽度与按钮可见性 gift-fill-ui.js ──────"
+  out=$(node tests/gift-fill-ui.js 2>&1)
+  rc=$?
+  echo "$out" | tail -6
+  line=$(echo "$out" | grep -oE "失败 [0-9]+ 项" | tail -1)
+  [ -z "$line" ] && line=$(echo "$out" | grep -oE "全部通过.*" | tail -1)
+  run_suite giftfillui "补价排宽度与按钮可见性" $rc "${line:-无输出}"
 fi
 
 # ── 汇总 ───────────────────────────────────────────────────────────
