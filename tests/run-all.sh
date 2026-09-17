@@ -10,7 +10,7 @@
 #   bash tests/run-all.sh --require-package # 当前版本没有对应 zip 即判失败（CI/发版用）
 #   bash tests/run-all.sh --release-flow   # 发版流程中调用：允许「zip 刚生成尚未 git add」
 #
-# 可用 --only 值: engine | chunk | arch | chain | dom | combo | fullchain | mutate | package | version | alias | historyrefill | hints
+# 可用 --only 值: engine | chunk | arch | chain | dom | combo | fullchain | mutate | giftcombo | package | version | alias | historyrefill | hints | giftqty | hintlayout
 #
 # 退出码: 0 全通过 / 1 有套件失败
 set -u
@@ -73,7 +73,7 @@ run_suite() {
 # ── 1. 引擎单元测试 ────────────────────────────────────────────────
 if ! should_skip engine; then
   echo
-  echo "── [1/16] 引擎单元测试 test-engine.js ─────────────────────────"
+  echo "── [1/17] 引擎单元测试 test-engine.js ─────────────────────────"
   if [ -z "$VERSION" ]; then
     echo "  ✗ 无法从 index.html 解析 APP_VERSION"
     run_suite engine "引擎单元测试" 1 "无法解析版本号"
@@ -93,7 +93,7 @@ fi
 # tools/build-inline-chunks.js 生成。这道防线盯「有人改了 src 却忘了重新生成」。
 if ! should_skip chunk; then
   echo
-  echo "── [2/16] 内联 chunk 源码一致性 build-inline-chunks.js --check ──"
+  echo "── [2/17] 内联 chunk 源码一致性 build-inline-chunks.js --check ──"
   out=$(node tools/build-inline-chunks.js --check 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -118,7 +118,7 @@ fi
 # 显式更新基线，从而迫使改动者回答「这个增删是有意的吗」。
 if ! should_skip arch; then
   echo
-  echo "── [3/16] 架构边界快照 arch-snapshot.js ─────────────────────"
+  echo "── [3/17] 架构边界快照 arch-snapshot.js ─────────────────────"
   out=$(node tests/arch-snapshot.js 2>&1)
   rc=$?
   echo "$out" | tail -8
@@ -128,7 +128,7 @@ fi
 # ── 3. 喂入链路 ────────────────────────────────────────────────────
 if ! should_skip chain; then
   echo
-  echo "── [4/16] 喂入链路 project-chain.js ───────────────────────────"
+  echo "── [4/17] 喂入链路 project-chain.js ───────────────────────────"
   out=$(node tests/project-chain.js "$HTML" "$OUT/project-chain.json" 2>&1)
   rc=$?
   echo "$out" | tail -4
@@ -139,7 +139,7 @@ fi
 # ── 3. DOM 全链路 ──────────────────────────────────────────────────
 if ! should_skip dom; then
   echo
-  echo "── [5/16] DOM 全链路 dom-full.js ──────────────────────────────"
+  echo "── [5/17] DOM 全链路 dom-full.js ──────────────────────────────"
   out=$(node tests/dom-full.js "$HTML" "$OUT/domfull.json" 2>&1)
   rc=$?
   echo "$out" | tail -3
@@ -149,7 +149,7 @@ fi
 # ── 4. 组合联动 ────────────────────────────────────────────────────
 if ! should_skip combo; then
   echo
-  echo "── [6/16] 组合联动 combo.js ───────────────────────────────────"
+  echo "── [6/17] 组合联动 combo.js ───────────────────────────────────"
   out=$(node tests/combo.js "$HTML" "$OUT/combo.json" 2>&1)
   rc=$?
   echo "$out" | tail -3
@@ -162,7 +162,7 @@ fi
 FULLCHAIN="tests/码单器8.3_AI可运行全链路测试脚本_8.3架构版.py"
 if ! should_skip fullchain; then
   echo
-  echo "── [7/16] 五段式全链路 $(basename "$FULLCHAIN") ──────────"
+  echo "── [7/17] 五段式全链路 $(basename "$FULLCHAIN") ──────────"
   if [ ! -f "$FULLCHAIN" ]; then
     run_suite fullchain "五段式全链路" 1 "脚本不存在: $FULLCHAIN"
   else
@@ -177,10 +177,10 @@ fi
 if ! should_skip mutate; then
   if [ $FAST -eq 1 ]; then
     echo
-    echo "── [8/16] 变异测试 mutate-chain.py  （--fast 已跳过）────────────"
+    echo "── [8/17] 变异测试 mutate-chain.py  （--fast 已跳过）────────────"
   else
     echo
-    echo "── [8/16] 变异测试 mutate-chain.py  （约 4 分钟）──────────────"
+    echo "── [9/17] 变异测试 mutate-chain.py  （约 4 分钟）──────────────"
     out=$(python3 tests/mutate-chain.py 2>&1)
     rc=$?
     echo "$out" | tail -25
@@ -189,13 +189,34 @@ if ! should_skip mutate; then
   fi
 fi
 
+# ── 10. 礼物码单的组合语法与按模式隐藏 ───────────────────────────
+# 背景：8.3.41 让礼物码单支持「5满天星+3同心结」这种多礼物写法，
+#   并顺手把礼物码单下没意义的「服务时长」那一组藏掉。这两件事都直接
+#   关系到钱和「点不点得到」，必须钉死：
+#   ① 组合解析的数量在前/在后、没写数量按 1 个、名称里的数字不当作数量；
+#   ② 查不到单价的礼物绝不给总价（宁可让用户看到 ⚠ 提示，也不能算半个数）；
+#   ③ 「按模式隐藏」是规则不是偏好 —— 不能退化成写进 hiddenModules，
+#      否则用户动过一次布局偏好就可能把时长框勾回来；
+#   ④ 服务类型提示分两套文案，且单子码单那条长文案有字号兜底不被截断；
+#   ⑤ 礼物码单里禁用了「软提示抢字」—— 否则用户打不出数字和加号。
+if ! should_skip giftcombo; then
+  echo
+  echo "── [10/17] 礼物组合与按模式隐藏 gift-combo.js ─────────────────"
+  out=$(node tests/gift-combo.js 2>&1)
+  rc=$?
+  echo "$out" | tail -6
+  line=$(echo "$out" | grep -oE "失败 [0-9]+ 项" | tail -1)
+  [ -z "$line" ] && line=$(echo "$out" | grep -oE "全部通过.*" | tail -1)
+  run_suite giftcombo "礼物组合与按模式隐藏" $rc "${line:-无输出}"
+fi
+
 # ── 7. OTA 包自包含性（8.3.30 新增）────────────────────────────────
 # 背景：8.3.26~8.3.29 的包只打了 index.html，而 index.html 仍引用
 # update-checker.js / analytics.js，包内却没有 → 安卓端无限重载。
 # 这道防线专门盯「包内 index.html 是否引用了包外不存在的资源」。
 if ! should_skip package; then
   echo
-  echo "── [9/16] OTA 包自包含性 check-package-selfcontained.py ──────"
+  echo "── [11/17] OTA 包自包含性 check-package-selfcontained.py ──────"
   # 找当前版本对应的 zip；找不到就跳过（例如只改代码、尚未打包）
   ZIP=""
   for f in "$ROOT"/madan-*.zip; do
@@ -235,7 +256,7 @@ fi
 # 只允许版本号出现在白名单的 2 个位置，并交叉校验 title↔APP_VERSION↔version.json↔zip。
 if ! should_skip version; then
   echo
-  echo "── [10/16] 版本号单一真源 version-single-source.js ────────────"
+  echo "── [12/17] 版本号单一真源 version-single-source.js ────────────"
   # --release-flow：发版脚本刚打完包、尚未 git add 时调用，
   # 此时「zip 未被跟踪」是预期中间态（git add 由人在收到提示后执行），
   # 不该据此判失败 —— 否则发版流程会自锁。
@@ -257,7 +278,7 @@ fi
 # 否则它只会是一堆恒真的假断言。
 if ! should_skip alias; then
   echo
-  echo "── [11/16] 精确项目多别名 price-alias.js ─────────────────────"
+  echo "── [13/17] 精确项目多别名 price-alias.js ─────────────────────"
   out=$(node tests/price-alias.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -273,7 +294,7 @@ fi
 # 否则它只是一堆恒真的假断言（项目历史上踩过这个坑，见 tests/README.md）。
 if ! should_skip historyrefill; then
   echo
-  echo "── [12/16] 历史编辑回填详情同步 history-refill.js ────────────"
+  echo "── [14/17] 历史编辑回填详情同步 history-refill.js ────────────"
   out=$(node tests/history-refill.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -292,7 +313,7 @@ fi
 # 并带反向验证（拆文案 / 删转发 / 误用 this.currentMode 三种改坏方式都必须变红）。
 if ! should_skip hints; then
   echo
-  echo "── [13/16] 辅助提示动态化 hint-dynamic.js ────────────────────"
+  echo "── [15/17] 辅助提示动态化 hint-dynamic.js ────────────────────"
   out=$(node tests/hint-dynamic.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -313,7 +334,7 @@ fi
 # 不再有 display 切换规则，并附 5 种反向改坏方式必须变红。
 if ! should_skip giftqty; then
   echo
-  echo "── [15/16] 礼物单价×个数 gift-quantity.js ────────────────────"
+  echo "── [16/17] 礼物单价×个数 gift-quantity.js ────────────────────"
   out=$(node tests/gift-quantity.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -333,7 +354,7 @@ fi
 # 纯字符串检查抓不住。含反向验证（改回 classname 后真的会丢 class）。
 if ! should_skip hintlayout; then
   echo
-  echo "── [16/16] 提示文案与控件类名 hint-layout.js ─────────────────"
+  echo "── [17/17] 提示文案与控件类名 hint-layout.js ─────────────────"
   out=$(node tests/hint-layout.js 2>&1)
   rc=$?
   echo "$out" | tail -6

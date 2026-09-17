@@ -279,8 +279,11 @@
  .app-form-grid--compact { grid-template-columns: 1fr 1fr auto; gap: 8px; }
  .app-list-actions { display: flex; gap: var(--spacing-xs); }
  .app-list-note { font-size: var(--font-size-sm); color: var(--color-text-lighter); margin-top: 2px; }
- /* 8.3.26：单价小计提示需要把「混用结算单位说明」换行显示在第二行。 */
- .app-list-note.price-subtotal-note { white-space: pre-line; line-height: 1.45; }
+/* 8.3.26：单价小计提示需要把「混用结算单位说明」换行显示在第二行。 */
+.app-list-note.price-subtotal-note { white-space: pre-line; line-height: 1.45; }
+/* 【8.3.41】礼物组合说明行（「共 8 个礼物 · 满天星×5=50 同心结×3=75」）。
+   走的是服务类型框下方那条提示位，但内容可能比一行长，允许折行。 */
+.app-list-note.gift-combo-note { white-space: normal; line-height: 1.45; word-break: break-word; }
  .app-empty-state { text-align: center; color: var(--color-text-light); font-style: italic; }
  .app-empty-state--panel {
  padding: var(--spacing-2xl) var(--spacing-xl); background: var(--color-bg-light);
@@ -3291,6 +3294,25 @@ h1 { margin-bottom: 4px; }
 #primaryFieldsContainer .field-type > input,
 #primaryFieldsContainer .field-note > textarea {
  padding-right: calc(var(--field-action-edge) * 2 + var(--field-action-size)) !important;
+}
+
+/* 【8.3.41】服务类型的长示例（「例如：1h+2局星耀包c+1h23min鹅鸭杀」，15 个字
+   外加「例如：」共 19 字宽）在手机窄屏放不下。这里的做法是让字号随屏幕宽度
+   连续缩小，而不是砍文案 —— 用户要的是文案本身传达的「小时和局数可以混着写」，
+   砍掉就没了。
+   算式：可用宽度 ≈ 100vw − 页面左右留白 − 输入框内边距 − 右侧清除按钮。
+   19 个字符里含 3 个 ASCII（1h+2 局 …），混排取 1 字符 ≈ 1em 保守估算，
+   再乘 0.95 留一点安全余量，最后夹在 11.5px（再小就看不清）到 15px（正常字号）之间。
+   宽度够时算出来大于 15px，被 max() 夹回 15px，外观与从前完全一致。 */
+#primaryFieldsContainer .field-type > input {
+ font-size: clamp(11.5px, calc((100vw - 132px) * 0.95 / 18.5), 15px);
+}
+/* 礼物码单的示例「例如：同心结+6满天星」只有 11 个字宽，窄屏也放得下，
+   但它是同一个输入框，字号会跟着上面那条一起缩，缩了也没必要 ——
+   这里按模式给一个更宽松的下限，礼物码单下字号尽量保持原样。
+   模式标记由 LayoutFeature 在切模式时写到 <html> 上（见 markModeOnRoot）。 */
+html[data-order-mode="2"] #primaryFieldsContainer .field-type > input {
+ font-size: clamp(13px, calc((100vw - 132px) * 0.95 / 12), 15px);
 }
 
 #primaryFieldsContainer .discount-combo-field .input-clear-btn {
@@ -6971,6 +6993,161 @@ class GiftMemoryEngine {
 }
 
 
+// 礼物组合表达式引擎（GiftComboEngine）· 纯静态工具类
+// 职责：把礼物码单服务类型框里的「1 个礼物」「多个同种礼物」「多种礼物混合」这几种
+//       写法统一解析成带数量的条目，再依据礼物记忆库算出总价。
+//
+// 支持的写法（大小写、全角「＋」、中文逗号都归一处理）：
+//   同心结                  → 1 个同心结
+//   6满天星                 → 6 个满天星
+//   满天星6                 → 6 个满天星（数量写在后面也认）
+//   5满天星+3同心结          → 两种礼物混合
+//   同心结+6满天星           → 前一项没写数字，按 1 个算
+//
+// 设计取舍：
+//  · 只处理「+」作为分隔符。逗号不参与切分 —— 礼物名里带逗号是合理的
+//    （「玫瑰,红」），错误切分会算出离谱的总价，宁可少认不可认错。
+//  · 数量必须紧贴礼物名（中间只允许空格），不扫全串找数字。同理，
+//    避免把礼物名里的数字（「AWM 98K」）当成数量。
+class GiftComboEngine {
+ // 全角加号、全角数字、全角空格统一成半角，避免用户从微信里粘过来的文本解析不了。
+ static normalizeSource(value) {
+ let text = String(value ?? '');
+ try { if (typeof text.normalize === 'function') text = text.normalize('NFKC'); } catch (error) { appLogSilent(error); }
+ return text.replace(/＋/g, '+').trim();
+ }
+
+ static normalizeQuantity(value) {
+ const number = Number(value);
+ if (!Number.isFinite(number) || number <= 0) return null;
+ return number;
+ }
+
+ // 解析一条「数量 + 名称」或「名称 + 数量」的片段；没有数字时数量为 1。
+ static parseItem(segment) {
+ const raw = String(segment ?? '').trim();
+ if (!raw) return null;
+ // 前导数量：「6满天星」「6 满天星」「x6 满天星」「6×满天星」
+ const leading = raw.match(/^[x×*]?\s*(\d+(?:\.\d+)?)\s*[x×*]?\s*(.+)$/i);
+ if (leading) {
+ const name = PriceRuleEngine.normalizeServiceDisplay(leading[2]);
+ const quantity = this.normalizeQuantity(leading[1]);
+ if (name && quantity !== null) return { name, quantity, raw };
+ }
+ // 后置数量：「满天星6」「满天星 x6」「满天星×6」—— 名称本身不能是纯数字
+ const trailing = raw.match(/^(.+?)\s*[x×*]?\s*(\d+(?:\.\d+)?)$/i);
+ if (trailing) {
+ const name = PriceRuleEngine.normalizeServiceDisplay(trailing[1]);
+ const quantity = this.normalizeQuantity(trailing[2]);
+ if (name && quantity !== null) return { name, quantity, raw };
+ }
+ const name = PriceRuleEngine.normalizeServiceDisplay(raw);
+ if (!name) return null;
+ return { name, quantity: 1, raw };
+ }
+
+ // 把整串拆成条目。空串返回空数组；任何一段解析不出名字就整体判为「还不成句」，
+ // 由调用方决定是等用户打完还是提示 —— 这里只老实报告解析结果。
+ static parse(value) {
+ const source = this.normalizeSource(value);
+ if (!source) return { ok: false, source, items: [], reason: 'empty' };
+ const segments = source.split('+').map(part => part.trim()).filter(Boolean);
+ if (!segments.length) return { ok: false, source, items: [], reason: 'empty' };
+ const items = [];
+ for (const segment of segments) {
+ const item = this.parseItem(segment);
+ if (!item) return { ok: false, source, items: [], reason: 'unparsed', failedSegment: segment };
+ items.push(item);
+ }
+ return { ok: true, source, items, reason: '' };
+ }
+
+ // 是不是「像礼物组合」的写法 —— 用来决定要不要接管服务类型框。
+ // 只要有「+」就直接算组合（多个礼物才需要组合语法）；
+ // 单个礼物没有「+」时，只有当它能在记忆库里查到、或它带数字时才算，
+ // 否则用户打个「王者荣耀」不该被礼物逻辑接管（那是服务名）。
+ static looksLikeCombo(value, memories = []) {
+ const source = this.normalizeSource(value);
+ if (!source) return false;
+ if (source.includes('+')) return true;
+ const item = this.parseItem(source);
+ if (!item) return false;
+ if (item.quantity > 1) return true;
+ return this.findMemory(item.name, memories).status === 'found';
+ }
+
+ /* 在礼物记忆库里找一条记录。做三级匹配，从严格到宽松：
+      found  —— 名字完全一致（忽略大小写/空格），且带固定单价
+      no-price —— 名字对得上，但不是固定单价（是「随机金额」礼物，只有名字没价格）
+      missing —— 记忆库里根本没有这个礼物 */
+ static findMemory(name, memories = []) {
+ const query = PriceRuleEngine.buildServiceKey(name);
+ if (!query) return { status: 'missing', record: null };
+ const list = GiftMemoryEngine.normalize(Array.isArray(memories) ? memories : []);
+ const exact = list.find(item => item.serviceKey === query);
+ if (exact) return exact.mode === 'fixed' && exact.unitPrice !== null
+ ? { status: 'found', record: exact }
+ : { status: 'no-price', record: exact };
+ // 退一步做包含匹配，容忍「满天星礼盒」写成「满天星」这类简称。
+ // 但只有唯一命中时才认 —— 多个候选时宁可报缺失让用户自己确认，不能猜。
+ const fuzzy = list.filter(item => item.serviceKey.includes(query) || query.includes(item.serviceKey));
+ if (fuzzy.length === 1) {
+ const only = fuzzy[0];
+ return only.mode === 'fixed' && only.unitPrice !== null
+ ? { status: 'found', record: only }
+ : { status: 'no-price', record: only };
+ }
+ return { status: 'missing', record: null };
+ }
+
+ /* 结算组合。返回结构：
+      ok        —— 所有礼物都查到了单价，total 可信
+      items     —— 逐条：名称、数量、单价、小计、匹配状态
+      total     —— 所有条目的总数量（不是钱，是「几个礼物」）
+      totalPrice—— 全部查到单价时为金额，否则 null
+      missing   —— 查不到的礼物名列表（用于给用户一行提示）
+      noPrice   —— 有名字但没固定单价的礼物名列表 */
+ static resolve(value, memories = []) {
+ const parsed = this.parse(value);
+ if (!parsed.ok) return { ok: false, reason: parsed.reason, items: [], total: 0, totalPrice: null, missing: [], noPrice: [], failedSegment: parsed.failedSegment || '' };
+ const items = parsed.items.map(item => {
+ const match = this.findMemory(item.name, memories);
+ const unitPrice = match.status === 'found' ? match.record.unitPrice : null;
+ return {
+ name: item.name,
+ raw: item.raw,
+ quantity: item.quantity,
+ unitPrice,
+ subtotal: unitPrice === null ? null : ProjectSettlementEngine.roundThree(unitPrice * item.quantity),
+ status: match.status
+ };
+ });
+ const missing = items.filter(item => item.status === 'missing').map(item => item.name);
+ const noPrice = items.filter(item => item.status === 'no-price').map(item => item.name);
+ const total = items.reduce((sum, item) => sum + item.quantity, 0);
+ const ok = items.length > 0 && missing.length === 0 && noPrice.length === 0;
+ const totalPrice = ok ? ProjectSettlementEngine.roundThree(items.reduce((sum, item) => sum + (item.subtotal || 0), 0)) : null;
+ return { ok, reason: ok ? '' : 'price_missing', items, total, totalPrice, missing, noPrice, failedSegment: '' };
+ }
+
+ /* 服务类型框该显示什么、总价该怎么写，统一由这里给出建议。
+    返回 { text, total, totalPrice, note }
+      · text        —— 服务类型框应显示的规范文本（把「6满天星」补成「6满天星」这种统一形态）
+      · total       —— 礼物总数量，礼物码单下填进订单模板「时长：」后面
+      · totalPrice  —— 可为 null（有礼物查不到价）
+      · note        —— 给用户看的一行提示，空串表示不需要提示 */
+ static buildSuggestion(value, memories = []) {
+ const result = this.resolve(value, memories);
+ if (!result.ok && result.reason === 'empty') return { text: '', total: 0, totalPrice: null, note: '' };
+ const text = result.items.map(item => `${ProjectSettlementEngine.formatNumber(item.quantity)}${item.name}`).join('+');
+ if (result.ok) return { text, total: result.total, totalPrice: result.totalPrice, note: '' };
+ const unknown = [...result.missing, ...result.noPrice];
+ const note = unknown.length ? `${unknown.join('、')} 还没有单价` : '';
+ return { text, total: result.total, totalPrice: null, note };
+ }
+}
+
+
 // 项目表达式引擎（ProjectExpressionEngine）· 纯静态工具类
 // 职责：解析「多项目表达式」文本与项目别名来源归一化，为结算与价格匹配提供结构化输入。
 class ProjectExpressionEngine {
@@ -10121,10 +10298,15 @@ class AppShellRenderer {
  label: '服务类型',
  type: 'input',
  inputType: 'text',
- /* 8.3.40：原示例「例如：1h+2局星耀包c+1h23min鹅鸭杀」在 360~430px 下全部截断
-    （15px 字号要 258px，360px 屏只有 242px）。砍掉最后一个示例项，
-    保留「1h+2局」这个最关键的复合写法演示 —— 让人看出小时和局数可以混着填。 */
- placeholder: '例如：1h+2局',
+ /* 【8.3.41】两种码单两套示例：单子码单教「小时和局数怎么混着写」，
+    礼物码单教「多个礼物怎么用 + 串起来」。
+    长文案在 360px 窄屏放不下的问题，交给 .field-type input 的分档字号规则解决
+    （见样式表里 .field-type 那几条），不靠砍字。 */
+ modePlaceholders: {
+ 1: '例如：1h+2局星耀包c+1h23min鹅鸭杀',
+ 2: '例如：同心结+6满天星'
+ },
+ placeholder: '例如：1h+2局星耀包c+1h23min鹅鸭杀',
  auxBlocks: [
  '<div class="type-suggest-list" id="typeSuggestList"></div>'
  ]
@@ -10158,7 +10340,7 @@ class AppShellRenderer {
 
  renderFieldControl(config) {
  if (config.type === 'textarea') {
- const attrs = this.renderAttributes({ id: config.id, placeholder: config.placeholder, ...config.attrs });
+ const attrs = this.renderAttributes({ id: config.id, placeholder: this.resolveFieldPlaceholder(config), ...config.attrs });
  return `<textarea ${attrs}></textarea>`;
  }
 
@@ -10169,10 +10351,24 @@ class AppShellRenderer {
  const attrs = this.renderAttributes({
  id: config.id,
  type: config.inputType || 'text',
- placeholder: config.placeholder,
+ placeholder: this.resolveFieldPlaceholder(config),
  ...config.attrs
  });
  return `<input ${attrs}>`;
+ }
+
+ /* 【8.3.41】同一个输入框在两种码单下要说的话不一样，所以 placeholder 改成
+    「按当前码单类型挑一条」：config.modePlaceholders = { 1: '…', 2: '…' }。
+    没配 modePlaceholders 的字段照旧用 config.placeholder，行为完全不变。
+    模式由调用方显式传入（mode 参数），本渲染器不持有 app —— 渲染器的构造参数
+    只有 uiRender，读 app 会拿到 undefined 而静默失效（踩过一次）。
+    省略 mode 时（比如首次渲染）用 config.placeholder 这条默认值。 */
+ resolveFieldPlaceholder(config = {}, mode = null) {
+ const byMode = config.modePlaceholders;
+ if (!byMode || typeof byMode !== 'object') return config.placeholder;
+ const key = mode === null || mode === undefined ? '' : String(Number(mode));
+ const picked = key ? byMode[key] : undefined;
+ return picked === undefined ? config.placeholder : picked;
  }
 
  renderPrimaryField(config) {
@@ -10609,6 +10805,21 @@ class EventDelegationFeature {
  }
  }
 
+ /* 【8.3.41】礼物码单：这次一共几个礼物。
+    从服务类型框现算，而不是读某个缓存字段 —— 用户可能刚改完字就点了生成，
+    现算能保证订单模板里的数字和他眼睛看到的一致。
+    解析不出数量（比如礼物名还没打完）时返回空串：订单模板里那一行就是空的，
+    不写 0 也不写别的占位，避免看起来像真的买了 0 个。 */
+ getGiftTotalCount() {
+ try {
+ const raw = String(this.app.el.inputs.type?.value ?? '').trim();
+ if (!raw) return '';
+ const result = GiftComboEngine.resolve(raw, this.app.giftMemoryFeature?.getMemories?.() || []);
+ if (!result.items?.length) return '';
+ return ProjectSettlementEngine.formatNumber(result.total);
+ } catch (error) { appLogSilent(error); return ''; }
+ }
+
  buildCalculationContext() {
  const app = this.app;
  const totalPriceValue = String(app.el.inputs.totalPrice.value ?? '').trim();
@@ -10636,7 +10847,14 @@ class EventDelegationFeature {
  const peiPei = app.el.inputs.peiPei.value || '';
  const boss = app.el.inputs.boss.value || '';
  const type = hasStructuredProjects ? projectSummary.typeText : (app.el.inputs.type.value || '');
- const duration = hasStructuredProjects ? projectSummary.durationText : (app.el.inputs.duration.value || '');
+ /* 【8.3.41】礼物码单没有「时长」这回事 —— 时长输入框本身已被隐藏。
+    订单模板「时长：」后面改填这次一共拍下几个礼物，这样下游看到数字就能
+    直接对上数量，而不是一个空着或串进上个模式的旧值。
+    取值只认服务类型里解析得出来的部分（单个礼物也算一个），解析不出就留空，
+    不猜也不填 0 —— 留空代表「没填」，填 0 会看起来像「买了 0 个」。 */
+ const duration = hasStructuredProjects
+ ? projectSummary.durationText
+ : (Number(app.currentMode) === 2 ? this.getGiftTotalCount() : (app.el.inputs.duration.value || ''));
  const noteRaw = app.el.inputs.note.value || '';
  const surchargeRaw = String(app.el.inputs.surcharge?.value ?? '');
  const noteDisplayBase = app.surchargeFeature?.buildNoteDisplayBase?.() ?? noteRaw;
@@ -11164,6 +11382,7 @@ class LayoutFeature {
  }
 
  get el() { return this.app.el; }
+ get currentMode() { return this.app.currentMode; }
  get hiddenModules() { return this.app.hiddenModules; }
  set hiddenModules(value) { this.app.hiddenModules = value; }
  get layoutTemplates() { return this.app.layoutTemplates; }
@@ -11234,6 +11453,30 @@ class LayoutFeature {
  { id: 'historySection', label: '历史记录区', selector: '[data-layout-module="historySection"]' },
  { id: 'floatingActionBar', label: '浮动按钮区', selector: '[data-layout-module="floatingActionBar"]' }
  ];
+ }
+
+ /* 【8.3.41】「按码单类型强制隐藏」的模块清单。
+    与 hiddenModules（用户自己勾的布局偏好）是两回事：
+      · hiddenModules 是偏好，用户随时能勾回来，跨模式通用；
+      · 这里是规则，由当前是单子码单还是礼物码单决定，用户勾不掉。
+    两者统一在 applyLayoutVisibility 里取并集再落 class，这样
+    样式钩子、防闪烁样式、复合模块联动全都自动复用同一条链路。 */
+ getModeForcedHiddenConfigs() {
+ return [
+ /* 礼物码单下「服务时长」和「时长计算器」都没有意义：
+    礼物是按个数算钱，时长既不参与结算、也不会写进订单模板。
+    留着一个填了不生效的框，只会让人以为漏填了东西。（需求 1） */
+ { id: 'duration', selector: '[data-layout-module="duration"]', modes: [2] },
+ { id: 'durationCalcBtn', selector: '[data-layout-module="durationCalcBtn"]', modes: [2] },
+ { id: 'durationSubtotalNote', selector: '[data-layout-module="durationSubtotalNote"]', modes: [2] }
+ ];
+ }
+
+ getModeForcedHiddenIds() {
+ const mode = Number(this.currentMode);
+ return this.getModeForcedHiddenConfigs()
+ .filter(config => Array.isArray(config.modes) && config.modes.includes(mode))
+ .map(config => config.id);
  }
 
  normalizeHiddenModules(list) {
@@ -11366,8 +11609,53 @@ class LayoutFeature {
  }
  }
 
+ /* 【8.3.41】码单类型一变，带 modePlaceholders 的输入框要换提示文案
+    （服务类型：单子码单教「1h+2局星耀包c+1h23min鹅鸭杀」的写法，
+    礼物码单教「同心结+6满天星」的写法）。
+    只改 placeholder 属性，不重渲染整块表单 —— 重渲染会丢掉用户已经敲进去的
+    内容、也会打断正在进行的输入。
+    注意取值来源：字段配置表和渲染器都在 AppShellRenderer 上（appShellRenderer），
+    不是 UiRenderHelper（uiRender）—— 两者名字相近，写错会静默不生效。 */
+ syncModePlaceholders() {
+ try {
+ const renderer = this.app.appShellRenderer;
+ if (!renderer?.getPrimaryFieldConfigs) return false;
+ const mode = Number(this.currentMode);
+ const fields = (renderer.getPrimaryFieldConfigs() || []).filter(config => config?.modePlaceholders);
+ fields.forEach(config => {
+ const el = document.getElementById(config.id);
+ if (!el) return;
+ const want = renderer.resolveFieldPlaceholder(config, mode);
+ if (want && el.getAttribute('placeholder') !== want) el.setAttribute('placeholder', want);
+ });
+ return true;
+ } catch (error) { appLogSilent(error); return false; }
+ }
+
+ /* 【8.3.41】把当前码单类型写到 <html> 上，供纯 CSS 规则分流使用
+    （例如服务类型输入框的字号上限，单子码单和礼物码单的示例长度差很多）。
+    放在根节点而不是输入框上，是为了让「用哪个选择器」这件事保持静态可读 —— 
+    输入框本身是动态注入的，写 class 会散落在多处。 */
+ syncModeAttribute() {
+ try {
+ const value = String(Number(this.currentMode) || 1);
+ if (document.documentElement.dataset.orderMode !== value) {
+ document.documentElement.dataset.orderMode = value;
+ }
+ return true;
+ } catch (error) { appLogSilent(error); return false; }
+ }
+
  applyLayoutVisibility() {
- const hidden = new Set(this.normalizeHiddenModules(this.hiddenModules));
+ this.syncModeAttribute();
+ this.syncModePlaceholders();
+ const hidden = this.effectiveHiddenModules();
+ // 【8.3.41】按模式强制隐藏的模块不在 getLayoutModuleConfigs 里（那张表是给用户勾选用的），
+ //   所以这里先把它们自己落一遍 class，再走通用清单。
+ this.getModeForcedHiddenConfigs().forEach(config => {
+ const shouldHide = hidden.has(config.id);
+ document.querySelectorAll(config.selector).forEach(node => node.classList.toggle('layout-hidden', shouldHide));
+ });
  this.getLayoutModuleConfigs().forEach(config => {
  const nodes = document.querySelectorAll(config.selector);
  nodes.forEach(node => node.classList.toggle('layout-hidden', hidden.has(config.id)));
@@ -11378,13 +11666,22 @@ class LayoutFeature {
  this.updateFloatingActionBar?.();
  }
 
+ /* 【8.3.41】实际生效的隐藏集合 = 用户布局偏好 ∪ 当前码单类型强制隐藏。
+    所有读 hiddenModules 的下游（复合模块联动、防闪烁样式）都必须走这里，
+    否则会出现「class 藏了但 early-layout-style 又把它显示回来」这类撕裂。 */
+ effectiveHiddenModules() {
+ const hidden = new Set(this.normalizeHiddenModules(this.hiddenModules));
+ this.getModeForcedHiddenIds().forEach(id => hidden.add(id));
+ return hidden;
+ }
+
  // 【修复DIY布局保存不生效】启动时防闪烁脚本按当时 hiddenModules 生成过一条
  // display:none!important 的 style，之后永不更新——会话内取消隐藏的模块会被
  // 旧规则继续压制，必须重启才能生效。这里在每次应用布局时同步重建该 style，
  // 使其与 .layout-hidden class 机制始终一致。
  syncEarlyLayoutStyle(hiddenSet) {
  try {
- const hidden = hiddenSet instanceof Set ? [...hiddenSet] : this.normalizeHiddenModules(this.hiddenModules);
+ const hidden = hiddenSet instanceof Set ? [...hiddenSet] : [...this.effectiveHiddenModules()];
  let style = document.getElementById('early-layout-style');
  if (!hidden.length) {
  if (style) style.remove();
@@ -11401,7 +11698,7 @@ class LayoutFeature {
  }
 
  syncLayoutCompositeVisibility(hiddenSet = new Set()) {
- const hidden = hiddenSet instanceof Set ? hiddenSet : new Set(this.normalizeHiddenModules(this.hiddenModules));
+ const hidden = hiddenSet instanceof Set ? hiddenSet : this.effectiveHiddenModules();
  const setHidden = (selector, shouldHide) => document.querySelectorAll(selector).forEach(node => node.classList.toggle('layout-hidden', shouldHide));
  setHidden('[data-layout-module="discountCombo"]', hidden.has('discount') && hidden.has('discountOverlay'));
  setHidden('[data-layout-module="memoryEntryRow"]', ['bossMemoryEntry', 'priceMemoryEntry', 'dataPortabilityEntry'].every(id => hidden.has(id)));
@@ -12058,6 +12355,14 @@ class LayoutFeature {
  const input = this.el.inputs.type;
  const value = String(serviceType ?? '').trim();
  if (!input || !value) return false;
+ /* 【8.3.41】礼物码单下禁用「软提示自动补全」。
+    软提示的机制是：你在打字，它发现价格库里只有一个候选，就直接把整段
+    替换成那个候选名。单子码单里这么做很省事，但礼物码单的组合语法
+    （「5满天星+3同心结」）必须能让用户亲手打出数字和加号 ——
+    实测「5满天星+3未知礼物」会被软提示改写成「满天星未知礼物」，
+    数字和加号全被吃掉，总价自然也算不出来。
+    礼物码单改用显式的候选面板（点一下才填），把打字权完整还给用户。 */
+ if (Number(this.currentMode) === 2) return false;
  if (!this.canReplaceSoftTypeSuggestion()) {
  this.clearSoftTypeSuggestion({ keepValue: true });
  return false;
@@ -12236,6 +12541,13 @@ class PriceQuickPickFeature {
  this._giftAutoPrice = '';
  this._giftAutoType = '';
  this._giftLinking = false;
+ /* 【8.3.41】多礼物组合的记账位：
+    _giftComboSignature  —— 上次结算过的组合内容指纹，避免每按一个键就重写输入框；
+    _giftComboComputedTotal —— 组合算出来的那个总价，用于判断现在挂在总价框上的
+                               数字是不是「组合给的」（是的话，组合失效时要清掉，
+                               不是的话可能是用户手填的，不能动）。 */
+ this._giftComboSignature = '';
+ this._giftComboComputedTotal = null;
  this._eventScope = new FeatureEventScope();
  this._quickListEventRoot = null;
  }
@@ -12269,6 +12581,12 @@ class PriceQuickPickFeature {
  try {
  this._eventScope.on(totalPriceInput, 'input', () => this.handleGiftPriceInput());
  this._eventScope.on(typeInput, 'input', () => this.handleGiftServiceInput());
+ /* 【8.3.41】点一下服务类型框（哪怕还没开始打字）就把候选亮出来。
+    礼物码单下这一步特别有用：用户往往只记得「买过满天星」，未必记得全名，
+    看到候选点一下就填对了，不用先猜一个词去触发联想。
+    只在礼物码单且框里没内容时做 —— 已经有半截内容时交给 input 那条链路，
+    避免聚焦瞬间用候选覆盖用户正在编辑的文本。 */
+ this._eventScope.on(typeInput, 'focus', () => this.showGiftSuggestionsOnFocus());
  // 【修复#22 方向键跳项】type 输入框的 keydown 已由 ServiceSuggestionFeature.handleTypeSuggestionKeydown
  // 统一接手并在价格速选持有面板时委托给本类；若在此重复绑定，一次方向键会被处理两次导致选中跳两格。
  // totalPrice 输入框没有那条委托链路，仍需在此绑定。
@@ -12416,6 +12734,7 @@ class PriceQuickPickFeature {
  if (!this.ownsSuggestionElement(item)) return false;
  const sourceKey = this._suggestionSourceKey || fallbackSourceKey;
  if (item.dataset.quickKind === 'gift-name') this.applyGiftNameSuggestion(item.dataset.type || '');
+ else if (item.dataset.quickKind === 'gift-combo-pick') this.applyGiftComboPickSuggestion(item.dataset.type || '');
  else if (item.dataset.quickKind === 'gift-fixed' || item.dataset.price) this.applyGiftPriceSuggestion(item.dataset.price, item.dataset.type || '');
  else this.serviceSuggestionFeature?.applyTypeSuggestion(item.dataset.type || '', { emitInput: false });
  if (focusNext && sourceKey) this.focusNextInputFlowField(sourceKey, { defer: true });
@@ -12521,6 +12840,12 @@ if (!box) return false;
  if (this._giftLinking || Number(this.currentMode) !== 2) return false;
  const input = this.el.inputs.type;
  if (String(input?.value ?? '').trim() !== String(this._giftAutoType ?? '').trim()) this._giftAutoType = '';
+ /* 【8.3.41】多礼物组合优先：服务类型里一旦写成「5满天星+3同心结」这种带
+    「+」的组合，就由 GiftComboEngine 整串接管 —— 逐项查单价、求和写进总价，
+    并顺手把「礼物单价 × 个数」那一排改成组合的第一项（用户确认过：算式优先）。
+    单个礼物（不带 +）只在记忆库里查得到时才走组合，否则继续走下面原有的
+    「一个礼物名 → 推一个单价」那条老路，老行为完全不变。 */
+ if (this.handleGiftComboInput(input)) return true;
  const exactMatches = this.giftMemoryFeature?.findByService?.(input?.value, { exact: true }) || [];
  const fixedExact = exactMatches.filter(item => item.mode === 'fixed');
  if (fixedExact.length === 1 && this.canReplaceGiftLinkedValue(this.el.inputs.totalPrice, this._giftAutoPrice)) { this.setGiftLinkedValue(this.el.inputs.totalPrice, fixedExact[0].unitPrice, 'price'); this.hideSharedSuggestions({ force: true }); return true; }
@@ -12531,9 +12856,222 @@ if (!box) return false;
  applyGiftNameSuggestion(serviceType) { if (serviceType) this.setGiftLinkedValue(this.el.inputs.type, serviceType, 'type'); this.hideSharedSuggestions({ force: true }); return true; }
  applyGiftPriceSuggestion(price, serviceType) { this.setGiftLinkedValue(this.el.inputs.totalPrice, price, 'price'); if (serviceType) this.setGiftLinkedValue(this.el.inputs.type, serviceType, 'type'); this.hideSharedSuggestions({ force: true }); return true; }
  resetGiftLinkedValue(kind) { if (kind === 'price') this._giftAutoPrice = ''; if (kind === 'type') this._giftAutoType = ''; }
- resetGiftState({ hideSuggestions = false } = {}) { this._giftAutoPrice = ''; this._giftAutoType = ''; this._giftLinking = false; if (hideSuggestions) this.hideSharedSuggestions({ force: true }); }
- refreshAfterLibraryChange() { this._quickListRenderSignature = ''; this.hideSharedSuggestions({ force: true }); return this.updateAutoPriceQuickList(); }
- handleOrderModeChanged() { this.resetGiftState({ hideSuggestions: true }); this.updateAutoPriceQuickList(); }
+ resetGiftState({ hideSuggestions = false } = {}) { this._giftAutoPrice = ''; this._giftAutoType = ''; this._giftLinking = false; this._giftComboSignature = ''; if (hideSuggestions) this.hideSharedSuggestions({ force: true }); }
+ refreshAfterLibraryChange() { this._quickListRenderSignature = ''; this._giftComboSignature = ''; this.hideSharedSuggestions({ force: true }); return this.updateAutoPriceQuickList(); }
+ handleOrderModeChanged() { this.resetGiftState({ hideSuggestions: true }); this.clearGiftComboNote(); this.updateAutoPriceQuickList(); }
+
+ /* ================= 【8.3.41】多礼物组合 =================
+    用户在服务类型里写「5满天星+3同心结」这类组合时，本组方法负责：
+      ① 逐项查礼物记忆库的单价，全部查到才算得出总价；
+      ② 算出的总价直接写进总价框（用户定的规则：算式优先）；
+      ③ 顺手把「礼物单价 × 个数」那一排改成组合第一项，让那一排和算式说同一件事；
+      ④ 有礼物查不到单价时，不高声报错，只在服务类型框下方留一行提示。
+    为什么是「停留一行提示」而不是弹窗：单子码单遇到查不到价的写法时，
+    也是在服务类型下方留一行 ⚠ 文字并等用户补完输入，两种码单表现一致时
+    用户不必学两套心智。 */
+
+ getGiftMemories() { return this.giftMemoryFeature?.getMemories?.() || []; }
+
+ /* 【8.3.41】点进服务类型框就亮候选（只在礼物码单、且框还空着时）。
+    候选直接列记忆库里「有固定单价」的礼物 —— 能一次点出「名字 + 单价」，
+    比让用户先打两个字再挑更省事。 */
+ showGiftSuggestionsOnFocus() {
+ try {
+ if (Number(this.currentMode) !== 2) return false;
+ const input = this.el.inputs?.type;
+ if (!input || String(input.value ?? '').trim()) return false;
+ const fixed = this.getGiftMemories().filter(item => item.mode === 'fixed' && item.unitPrice !== null);
+ if (!fixed.length) return false;
+ return this.renderGiftPriceSuggestions(fixed);
+ } catch (error) { appLogSilent(error); return false; }
+ }
+
+ /* 多礼物组合是否正在管事。判定不是看「有没有写过那一排」，而是现算一次：
+    服务类型框此刻的内容还像不像一条能解析的礼物组合。
+    这样用户在组合与单个礼物之间来回改时，不需要额外的状态开关来同步。 */
+ isGiftComboActive() {
+ if (Number(this.currentMode) !== 2) return false;
+ const raw = String(this.el?.inputs?.type?.value ?? '').trim();
+ if (!raw) return false;
+ return GiftComboEngine.looksLikeCombo(raw, this.getGiftMemories());
+ }
+
+ // 组合是否已经在界面上生效过 —— 用签名避免每次按键都重写一遍输入框和总价框。
+ buildGiftComboSignature(result) {
+ if (!result?.items?.length) return '';
+ return result.items.map(item => `${item.name}~${item.quantity}~${item.unitPrice ?? ''}~${item.status}`).join('|');
+ }
+
+ handleGiftComboInput(input) {
+ const raw = String(input?.value ?? '').trim();
+ const memories = this.getGiftMemories();
+ // 空串或不像组合：交还给老逻辑，并把组合提示收掉。
+ if (!raw || !GiftComboEngine.looksLikeCombo(raw, memories)) {
+ this._giftComboSignature = '';
+ this.clearGiftComboNote();
+ return false;
+ }
+ const result = GiftComboEngine.resolve(raw, memories);
+ const signature = this.buildGiftComboSignature(result);
+ if (signature && signature === this._giftComboSignature) {
+ // 内容没实质变化：只刷新提示与候选，不重写输入框（否则光标会跳到末尾）。
+ this.renderGiftComboNote(result);
+ this.renderGiftComboSuggestions(raw);
+ return true;
+ }
+ this._giftComboSignature = signature;
+ this.renderGiftComboNote(result);
+ this.syncGiftComboPanelWriteback(result);
+ /* 需求里要的「输入数字和 + 都可以有候选」：组合模式下每敲一次都刷新候选，
+    候选跟着正在写的那一段走。放在重算之后 —— 重算负责钱和提示，候选负责名字，
+    两件事互不阻塞。 */
+ this.renderGiftComboSuggestions(raw);
+ if (!result.ok) {
+ // 有礼物查不到单价：不动总价，也不擅自改写用户打的字。
+ // 若总价正是上一轮组合算出来的，则清掉，避免留下一个已经算不出来的数字。
+ this.clearStaleGiftComboTotal();
+ return true;
+ }
+ /* 全部查到价：写总价。走 _giftTotalUserEdited 的既有门禁 ——
+    用户手填过总价时，组合也不抢，与「单价 × 个数」那一排的规矩保持一致。 */
+ if (!this._giftTotalUserEdited) {
+ const text = ProjectSettlementEngine.formatNumber(result.totalPrice);
+ if (String(this.el.inputs.totalPrice?.value ?? '') !== text) {
+ this.app.inputFlowFeature?.setInputValue?.('totalPrice', text, { source: 'giftCombo' });
+ }
+ this._lastGiftComputedTotal = text;
+ this._giftComboComputedTotal = text;
+ } else {
+ this._giftComboComputedTotal = null;
+ }
+ this.app.updateGiftDiscountNote?.(true);
+ return true;
+ }
+
+ /* 【8.3.41】组合模式下的候选：每段都可能是「数量 + 礼物名」，所以候选
+    要跟着「正在写的这一段」给，而不是给整串。
+    规则（对应需求里「点击输入框和输入数字和 + 都可以有候选」）：
+      · 光标所在段还没有礼物名 → 列全部有固定单价的礼物，点了就补到该段；
+      · 光标所在段已经写了礼物名但记不住全名 → 按该段内容模糊筛；
+      · 已经写好名字的段不再出候选，避免挡住下一段的输入。
+    候选一律「填名字」，数量由用户自己写或不写（不写按 1 个）——
+    数量不该由候选决定，那是用户这一单的事实。 */
+ renderGiftComboSuggestions(raw) {
+ const memories = this.getGiftMemories().filter(item => item.mode === 'fixed' && item.unitPrice !== null);
+ if (!memories.length) { this.hideSharedSuggestions({ force: true }); return false; }
+ const segments = String(raw ?? '').split('+');
+ const typing = String(segments[segments.length - 1] ?? '').trim();
+ // 去掉用户已经写好的数量前缀，只看礼物名那部分做匹配
+ const namePart = this.extractGiftComboNamePart(typing);
+ const matches = namePart
+ ? memories.filter(item => PriceRuleEngine.buildServiceKey(item.serviceType).includes(PriceRuleEngine.buildServiceKey(namePart))
+ || PriceRuleEngine.buildServiceKey(namePart).includes(PriceRuleEngine.buildServiceKey(item.serviceType)))
+ : memories;
+ if (!matches.length) { this.hideSharedSuggestions({ force: true }); return false; }
+ return this.renderGiftComboSuggestionItems(matches, namePart);
+ }
+
+ // 从「6满天星」里剥出「满天星」；没有数量前缀就原样返回。
+ extractGiftComboNamePart(segment) {
+ const text = String(segment ?? '').trim();
+ const leading = text.match(/^[x×*]?\s*\d+(?:\.\d+)?\s*[x×*]?\s*(.+)$/i);
+ return leading ? String(leading[1]).trim() : text;
+ }
+
+ renderGiftComboSuggestionItems(matches, namePart) {
+ const list = this.el.typeSuggestList;
+ if (!list || !matches.length) { this.hideSharedSuggestions({ force: true }); return false; }
+ const uniqueMatches = [...new Map(matches.map(item => [item.serviceType.toLowerCase(), item])).values()];
+ const signature = `giftcombo|${namePart}|${uniqueMatches.map(item => `${item.unitPrice}~${item.serviceType}~${item.usageCount}`).join('|')}`;
+ if (this.ownsSuggestionSurface() && this._suggestionRenderSignature === signature && list.classList.contains('show')) return true;
+ this.claimSuggestionSurface('type');
+ this._suggestionRenderSignature = signature;
+ this._suggestionActiveIndex = -1;
+ this.setRenderedHtml(list, uniqueMatches.map((item, index) => `<div class="type-suggest-item service-rule" data-suggestion-owner="price-quick" data-quick-kind="gift-combo-pick" data-suggest-index="${index}" data-type="${this.escapeHtml(item.serviceType)}" data-price="${this.escapeHtml(String(item.unitPrice))}" title="${this.escapeHtml(item.serviceType)}"><span class="type-suggest-name">${this.escapeHtml(item.serviceType)}</span><span class="type-suggest-meta">固定金额 ¥${this.escapeHtml(String(item.unitPrice))}</span></div>`).join(''));
+ list.classList.add('show', 'compact-grid');
+ return true;
+ }
+
+ /* 把候选里的礼物名补进「正在写的那一段」，保留用户已经打好的数量前缀。
+    例：框里是「5满天星+3」，点了「同心结」 → 「5满天星+3同心结」。 */
+ applyGiftComboPickSuggestion(serviceType) {
+ if (!serviceType) return false;
+ const input = this.el.inputs?.type;
+ if (!input) return false;
+ const current = String(input.value ?? '');
+ const segments = current.split('+');
+ const last = String(segments[segments.length - 1] ?? '');
+ const leading = last.match(/^\s*[x×*]?\s*(\d+(?:\.\d+)?)\s*[x×*]?\s*/i);
+ const prefix = leading ? leading[0] : '';
+ segments[segments.length - 1] = `${prefix}${serviceType}`;
+ const next = segments.join('+');
+ this.setGiftLinkedValue(input, next, 'type');
+ this.hideSharedSuggestions({ force: true });
+ // 补完这一段顺手把整串重算一遍，用户可以立刻在提示行看到新的小计。
+ this.handleGiftServiceInput();
+ return true;
+ }
+
+ /* 组合算式与「礼物单价 × 个数」那一排同时存在时，以算式为准：
+    把那一排改写成组合的第一项（数量用组合里的数量、单价用查到的单价）。
+    这样用户看到的两处说的是同一件事，不会出现「一排说 6×3、算式说 5×10+3×25」的分裂。 */
+ syncGiftComboPanelWriteback(result) {
+ const first = result?.items?.[0];
+ if (!first) return false;
+ const unitEl = this.el?.inputs?.autoUnitPrice || document.getElementById('autoUnitPrice');
+ const qtyEl = this.el?.giftQuantity || document.getElementById('giftQuantity');
+ if (!unitEl || !qtyEl) return false;
+ // 把「一排」标记为算式在管，用户后续若手动改这一排，会由 syncGiftUnitPriceTotal 交还控制权。
+ this._giftComboOwnsPanel = true;
+ this.app.inputFlowFeature?.setInputValue?.('giftQuantity', ProjectSettlementEngine.formatNumber(first.quantity), { source: 'giftCombo' });
+ if (first.unitPrice !== null) {
+ this.app.inputFlowFeature?.setInputValue?.('autoUnitPrice', ProjectSettlementEngine.formatNumber(first.unitPrice), { source: 'giftCombo' });
+ }
+ return true;
+ }
+
+ // 组合算出的总价已失效（比如用户又删掉了一个礼物名）时，清掉它，不留假数字。
+ clearStaleGiftComboTotal() {
+ const totalEl = this.el.inputs.totalPrice;
+ const computed = this._giftComboComputedTotal;
+ if (!totalEl || !computed) return false;
+ if (String(totalEl.value) !== String(computed)) return false;
+ this.app.inputFlowFeature?.setInputValue?.('totalPrice', '', { source: 'giftCombo' });
+ this._giftComboComputedTotal = null;
+ this._lastGiftComputedTotal = null;
+ this.app.updateGiftDiscountNote?.(true);
+ return true;
+ }
+
+ /* 服务类型框下方那一行组合说明。用独立节点 #giftComboNote ——
+    蹭「时长小计提示」那一行是不行的：服务时长整组在礼物码单下都被隐藏，
+    提示会写进去却永远看不见（踩过一次）。 */
+ renderGiftComboNote(result) {
+ const el = this.app.autoPriceFeature?.getElement?.('giftComboNote') || document.getElementById('giftComboNote');
+ if (!el) return false;
+ if (!result?.items?.length) { this.clearGiftComboNote(); return false; }
+ let text = '';
+ if (result.ok) {
+ const detail = result.items.map(item => `${item.name}×${ProjectSettlementEngine.formatNumber(item.quantity)}=${ProjectSettlementEngine.formatNumber(item.subtotal)}`).join('  ');
+ text = `共 ${ProjectSettlementEngine.formatNumber(result.total)} 个礼物 · ${detail}`;
+ } else {
+ const unknown = [...result.missing, ...result.noPrice];
+ text = unknown.length
+ ? `⚠ ${unknown.join('、')} 在礼物单价里还没有记录，补齐后会自动算出总价`
+ : '⚠ 礼物组合暂时无法结算';
+ }
+ el.textContent = text;
+ el.style.display = 'block';
+ return true;
+ }
+
+ clearGiftComboNote() {
+ const el = this.app.autoPriceFeature?.getElement?.('giftComboNote') || document.getElementById('giftComboNote');
+ if (!el) return false;
+ el.textContent = '';
+ el.style.display = 'none';
+ return true;
+ }
 }
 
  // 价格规则编辑 Feature
@@ -15508,6 +16046,10 @@ class PriceMemoryFeature {
  this.updatePercentageDisplay();
  this.updateModeIndicator();
  this.updateDiscountModeHint();
+ /* 【8.3.41】码单类型一变，「按模式强制隐藏」的模块集合就变了
+    （礼物码单要藏掉服务时长那一组）。必须立即重算布局，
+    否则会看到上一模式的长相一直挂到下次刷新。 */
+ this.app.layoutFeature?.applyLayoutVisibility?.();
  this.priceMemoryFeature.handleOrderModeChanged(mode);
  this.priceQuickPickFeature?.handleOrderModeChanged?.(mode);
  this.autoPriceFeature?.handleOrderModeChanged?.(mode);
@@ -15650,6 +16192,13 @@ class PriceMemoryFeature {
  const qtyEl = this.el?.giftQuantity || document.getElementById('giftQuantity');
  const totalEl = this.el?.inputs?.totalPrice;
  if (!unitEl || !qtyEl || !totalEl) return false;
+ /* 【8.3.41】多礼物组合生效期间（服务类型里写着「5满天星+3同心结」），
+    总价的唯一来源是那条组合算式。那一排的单价/个数只是算式第一项的投影，
+    是「显示」不是「输入」——它们的变化不得反过来改写总价，否则算式算完
+    又被这一排乘一遍，用户会看到总价在两个数之间来回跳。
+    来源标记为 giftCombo 的写入（由 syncGiftComboPanelWriteback 发出）同样跳过。 */
+ if (options.source === 'giftCombo') return false;
+ if (this.priceQuickPickFeature?.isGiftComboActive?.()) return false;
  // 由总价框自己触发时，说明用户正在手填总价 → 交出控制权，不再用算式覆盖它
  if (options.source === 'totalPrice') {
  this._giftTotalUserEdited = true;
@@ -17187,6 +17736,14 @@ class AutoPriceFeature {
  const durationGroup = duration?.closest('.input-group') || duration?.parentNode;
  if (durationGroup && !this.getElement('durationSubtotalNote')) {
  durationGroup.insertAdjacentHTML('afterend', '<div id="durationSubtotalNote" class="app-list-note duration-subtotal-note" data-layout-module="durationSubtotalNote" style="display:none;margin-top:3px;"></div>');
+ }
+ /* 【8.3.41】礼物组合说明行（「共 8 个礼物 · 满天星×5=50 同心结×3=75」）。
+    刻意做成独立节点，不去蹭「时长小计提示」那一行 ——
+    时长那行本身在礼物码单下是隐藏的（服务时长整组都不显示），
+    蹭它会写进去却看不见。挂在服务类型那一组下面，位置也正好在用户输入的地方。 */
+ const typeGroup = this.getElement('type')?.closest('.input-group');
+ if (typeGroup && !this.getElement('giftComboNote')) {
+ typeGroup.insertAdjacentHTML('afterend', '<div id="giftComboNote" class="app-list-note gift-combo-note" style="display:none;margin-top:3px;"></div>');
  }
  if (!this.getElement('autoPricePanel')) {
  const anchor = this.getElement('priceSubtotalNote') || group;
