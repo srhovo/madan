@@ -1902,6 +1902,17 @@
  .calculate-btn:hover, .boss-memory-btn:hover { background: var(--gradient-primary); }
  .clear-all-btn:hover { background: var(--gradient-danger); }
 
+ /* 【8.3.39】「复制并跳转」按钮里的微信图标：跟文字排成一行、与字高相称。
+    按钮本身已经是 flex（.app-btn），这里只约束图标尺寸与间距，
+    避免 SVG 默认按 1em 撑大或与文字贴死。 */
+ .calculate-btn__icon {
+ width: 17px;
+ height: 17px;
+ flex: 0 0 auto;
+ margin-right: 6px;
+ display: block;
+ }
+
  .paste-btn {
  background: var(--gradient-secondary);
  gap: var(--spacing-xs);
@@ -2784,6 +2795,51 @@ h1 { margin-bottom: 4px; }
 }
 .ap-mode-btn:hover:not(.active) { background: var(--color-border-light); }
 
+/* 【8.3.39】礼物码单专用：「礼物单价 × 个数」。
+   问题背景：这一排在礼物码单下原本照常显示，但填了完全不算钱 —— 用户看到
+   「局数单价 / 小时单价」以为能用，填完发现总价纹丝不动。
+   处理：礼物模式下把两个模式按钮换成「×」连接符 + 个数输入框，
+   让「单价 × 个数 = 总价」这件事在界面上直接成立。
+   默认（单子码单）下这两个新控件必须不显示。
+
+   ★ 显隐为什么不用 CSS：这两个控件是「按模式切换显隐」的，用 CSS 类控制时，
+   优先级会被后面一堆 .ap-* 的尺寸规则反复盖回来（本文件里 @media 与
+   html.android-phone 区块有十几条 .auto-price-row 后代规则）。
+   改用 hidden 属性做唯一真源 —— 见 ModeFlowFeature.updateGiftPriceRow()，
+   样式表里只保留「可显示时的样子」，不再写任何 display 切换规则。 */
+
+/* :not([hidden]) 让尺寸规则不参与 hidden 元素的优先级争夺 */
+.ap-times:not([hidden]),
+.gift-quantity-input:not([hidden]) { display: flex !important; }
+
+.gift-mode-panel .ap-label { color: var(--gift-accent, #9b59b6); }
+/* 礼物模式：隐藏给服务项目用的结算方式按钮 */
+.gift-mode-panel .ap-mode-btn { display: none !important; }
+
+.ap-times {
+ flex: 0 0 auto;
+ width: 16px;
+ height: var(--ap-height);
+ align-items: center;
+ justify-content: center;
+ font-size: 15px;
+ font-weight: var(--font-weight-bold);
+ color: var(--color-text-light);
+}
+
+.gift-quantity-input {
+ flex: 0 0 62px;
+ width: 62px;
+ min-width: 0;
+ height: var(--ap-height);
+ padding: 9px 6px;
+ text-align: center;
+ box-sizing: border-box;
+ font-size: 17px;
+ font-weight: var(--font-weight-bold);
+ line-height: 1.2;
+}
+
 #addPriceProject {
  flex: 0 0 var(--ap-add-width);
  width: var(--ap-add-width);
@@ -3573,6 +3629,9 @@ h1 { margin-bottom: 4px; }
       「精简布局」= 3 条横线（收敛、内容少）。图标随当前方案切换，作状态提示。 -->
  <symbol id="app-icon-layout-full" viewBox="0 0 448 512"><path d="M64 80h128v128H64zM256 80h128v128H256zM64 304h128v128H64zM256 304h128v128H256z" fill="none" stroke="currentColor" stroke-width="40" stroke-linejoin="round"/></symbol>
  <symbol id="app-icon-layout-simple" viewBox="0 0 448 512"><path d="M64 128h320M64 256h320M64 384h320" fill="none" stroke="currentColor" stroke-width="44" stroke-linecap="round"/></symbol>
+ <!-- 【8.3.39】微信图标：给「生成并复制」按钮用。
+      路径取自联系弹窗里那个微信图标，保证同一 App 内图形风格一致。 -->
+ <symbol id="app-icon-wechat" viewBox="0 0 24 24"><path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178A1.17 1.17 0 0 1 4.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178 1.17 1.17 0 0 1-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 0 1 .598.082l1.584.926a.272.272 0 0 0 .14.047c.134 0 .24-.111.24-.247 0-.06-.023-.12-.038-.177l-.327-1.233a.582.582 0 0 1-.023-.156.49.49 0 0 1 .201-.398C23.024 18.48 24 16.82 24 14.98c0-3.21-2.931-5.837-6.656-6.088V8.89c-.135-.01-.27-.027-.407-.03zm-2.53 3.274c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982zm4.844 0c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.969-.982z"/></symbol>
  </defs>
  </svg>
  <!-- 码单器 8.2.21：修正局数单价时长换算；单项目时长原样输出，多项目按小时/分钟或小时/余局规范汇总 -->
@@ -3914,7 +3973,7 @@ h1 { margin-bottom: 4px; }
  </div>
 
  <div class="floating-action-bar" id="floatingActionBar" aria-hidden="true" data-layout-module="floatingActionBar">
- <button class="floating-calculate-btn app-btn app-btn--primary" id="floatingCalculateBtn" type="button">生成并复制</button>
+ <button class="floating-calculate-btn app-btn app-btn--primary" id="floatingCalculateBtn" type="button"><svg class="app-icon calculate-btn__icon" aria-hidden="true"><use href="#app-icon-wechat"></use></svg>复制并跳转</button>
  <button class="floating-clear-btn app-btn app-btn--danger" id="floatingClearAllBtn" type="button">清空</button>
  <button class="floating-more-btn app-btn app-btn--secondary" id="floatingMoreBtn" type="button">更多</button>
  </div>
@@ -10171,7 +10230,11 @@ class AppShellRenderer {
 
  getMainActionConfigs() {
  return [
- { id: 'calculateBtn', className: 'calculate-btn app-btn app-btn--primary app-btn--md app-btn--grow', label: '生成并复制订单', attrs: { 'data-layout-module': 'calculateBtn' } },
+ /* 【8.3.39】按钮名由「生成并复制订单」改为「复制并跳转 + 微信图标」。
+    改名理由：点它会复制订单并直接唤起微信，用户真正要的是「复制完跳过去」，
+    「生成并复制」只说了前半截。图标用同一 App 内已有的微信图形，风格一致。
+    注意 labelHtml 走的是不转义通道（与其它带图标的按钮一致），文案是写死的常量。 */
+ { id: 'calculateBtn', className: 'calculate-btn app-btn app-btn--primary app-btn--md app-btn--grow', labelHtml: '<svg class="app-icon calculate-btn__icon" aria-hidden="true"><use href="#app-icon-wechat"></use></svg>复制并跳转', label: '复制并跳转', attrs: { 'data-layout-module': 'calculateBtn' } },
  { id: 'clearAllBtn', className: 'clear-all-btn app-btn app-btn--danger app-btn--md app-btn--grow', label: '全部清除', attrs: { 'data-layout-module': 'clearAllBtn' } }
  ];
  }
@@ -10405,10 +10468,15 @@ class EventDelegationFeature {
  app.priceMemoryFeature.autoWritePriceMemory();
 
  const success = await this.copyToClipboard(app.el.orderOutput.textContent);
- app.showMessage(success ? 'success' : 'error', success ? '订单已生成并复制！' : '订单已生成，复制失败，请手动复制');
-
+ /* 【8.3.39】成功时不再弹「订单已生成并复制！」浮层 ——
+    复制成功后马上就会跳微信，那个浮层根本来不及看，反而像卡了一下。
+    失败时仍然必须提示：否则用户以为复制好了，粘贴出来却是空的。 */
+ if (!success) {
+ app.showMessage('error', '复制失败，请手动复制');
+ return;
+ }
  // 复制成功后尝试唤起微信（微信内置浏览器中不再重复跳转）
- if (success) this.openWechatAfterCopy();
+ this.openWechatAfterCopy();
  } catch (error) {
  app.handleError('orderFlow.generateOrder', error, '生成失败，请检查输入数据');
  }
@@ -14789,8 +14857,16 @@ class PriceMemoryFeature {
  });
  Object.keys(this.el.inputs || {}).forEach(key => {
  const input = this.el.inputs[key];
+ if (!input) return; // 懒加载/动态注入的元素此刻可能还不存在，见下方补绑
+ if (input.dataset?.inputFlowBound === 'true') return;
+ input.dataset.inputFlowBound = 'true';
  this._eventScope.on(input, 'input', event => this.handleMainInput(key, event.target, event));
  });
+ /* 【8.3.39】补绑「初始不存在、后来才注入」的输入框。
+    典型是礼物个数框 giftQuantity —— 它由 AutoPriceFeature.mountPanel() 动态插入，
+    而 this.el.inputs 是更早的 cacheElements() 一次性抓的，那时拿到的是 null。
+    不补绑的后果：在框里敲字完全不触发重算（表现为「填了单价和个数，总价不出来」）。 */
+ this.bindLateInjectedInputs();
  [this.el.inputs?.discount, this.el.inputs?.discountOverlay].forEach(input => {
  this._eventScope.on(input, 'blur', event => {
  this.normalizeDiscountInputField(event.target);
@@ -14840,11 +14916,38 @@ class PriceMemoryFeature {
  if (key === 'totalPrice' || key === 'discount' || key === 'discountOverlay') {
  this.app.updateGiftDiscountNote?.();
  }
+ /* 【8.3.39】礼物模式「单价 × 个数」：单价、个数、总价任一变化都重算一次。
+    总价也要算 —— 用户可能改了单价又直接改总价，那时以最后动的那个为准。
+    把按键传进去：总价这一路要识别出「是用户在亲手填总价」，从而交出控制权
+    （否则用户填的数字会被算式结果盖回去，等于程序擅自动了用户的钱）。
+    非礼物模式或无关键位时该方法立即返回，成本可忽略。 */
+ if (key === 'totalPrice' || key === 'autoUnitPrice' || key === 'giftQuantity') {
+ this.app.syncGiftUnitPriceTotal?.({ source: key });
+ }
  if (key === 'peiPei') {
  this.updatePeiPeiCount();
  this.syncPeiPeiScroll(input, { followCaret: true });
  }
  if (key === 'note') this.fitNoteTextarea(input);
+ }
+
+ /* 【8.3.39】补绑动态注入的输入框。
+    this.el.inputs 是 cacheElements() 一次性抓的，而部分输入框（礼物个数框等）
+    由 AutoPriceFeature.mountPanel() 在更晚的时候插入 DOM，抓取时拿到 null。
+    这里在元素就位后补上事件与元素引用，否则「在框里敲字」完全不触发处理。
+    幂等：已绑过的元素用 data 标记跳过。 */
+ bindLateInjectedInputs() {
+ let bound = 0;
+ Object.keys(this.el.inputs || {}).forEach(key => {
+ const input = this.el.inputs[key] || document.getElementById(key);
+ if (!input) return;
+ this.el.inputs[key] = input; // 回填引用，让 clearAll / validateInput 等也能找到它
+ if (input.dataset?.inputFlowBound === 'true') return;
+ input.dataset.inputFlowBound = 'true';
+ this._eventScope.on(input, 'input', event => this.handleMainInput(key, event.target, event));
+ bound += 1;
+ });
+ return bound;
  }
 
  // 备注框高度与加价框对齐后为单行高度：文字超出时自动缩小字号确保完整显示，缩短后字号自动恢复
@@ -15422,8 +15525,137 @@ class PriceMemoryFeature {
  //   ② 填了折数但还没填总价 → 说明折数不会影响接下来填的总价；
  //   ③ 什么都没填 → 保持原来那句最短的说明即可。
  this.updateGiftDiscountNote(isGiftMode);
+ // 【8.3.39】礼物码单下把「自定义单价」那排切成「礼物单价 × 个数」，
+ //   让它真的参与算钱（原先这一排在礼物模式下填了不算，容易让人以为坏了）。
+ this.updateGiftPriceRow(isGiftMode);
  } catch (error) {
  appLogSilent(error);
+ }
+ }
+
+ // 【8.3.39】礼物码单：把「自定义单价」那一排切换到礼物专用形态。
+ //   切换只动表现与标签（加/去 .gift-mode-panel、改标记文字、换 placeholder），
+ //   结算由 giftPrice 那套逻辑接管（见 updateGiftUnitPriceTotal）。
+ //   参数可省略时自行判断模式，调用方不必关心。
+ updateGiftPriceRow(isGiftMode) {
+ const panel = this.el?.autoPricePanel || document.getElementById('autoPricePanel');
+ if (!panel) return false;
+ const giftMode = typeof isGiftMode === 'boolean' ? isGiftMode : this.currentMode === 2;
+ panel.classList.toggle('gift-mode-panel', giftMode);
+ const label = panel.querySelector('.ap-label');
+ if (label && label.children.length === 2) {
+ const first = label.children[0];
+ const second = label.children[1];
+ // 礼物：礼物 / 单价；单子：自定义 / 单价（原样）
+ const want1 = giftMode ? '礼物' : '自定义';
+ const want2 = '单价';
+ if (first.textContent !== want1) first.textContent = want1;
+ if (second.textContent !== want2) second.textContent = want2;
+ }
+ const unit = this.el?.inputs?.autoUnitPrice || document.getElementById('autoUnitPrice');
+ if (unit) {
+ const wantPh = giftMode ? '礼物单价' : '单价';
+ if (unit.getAttribute('placeholder') !== wantPh) unit.setAttribute('placeholder', wantPh);
+ }
+ /* 【8.3.39】「×」与个数框的显隐由这里独家决定（hidden 属性 = 唯一真源）。
+     不用 CSS 类是因为这两个控件的显隐会被样式表里十几条同名字号/尺寸规则
+     轮流盖回来，最终到底显示不显示很难一眼看出来。写成属性就一句话能读明白。 */
+ [panel.querySelector('.ap-times'),
+ this.el?.giftQuantity || document.getElementById('giftQuantity')].forEach(el => {
+ if (el && el.hidden === giftMode) el.hidden = !giftMode;
+ });
+ /* 【8.3.39】离开礼物模式时必须把礼物专用的残留清掉，否则会串到单子码单：
+      · 个数框清空（它的语义只属于礼物）
+      · 若当前总价正是「单价 × 个数」算出来的，一并清掉 —— 不能让它冒充单子码单的总价。
+      · 若总价是用户自己手填的（与算式结果不符），那是用户的钱，必须原样留着。 */
+ if (!giftMode) {
+ const qtyEl = this.el?.giftQuantity || document.getElementById('giftQuantity');
+ const totalEl = this.el?.inputs?.totalPrice;
+ if (qtyEl && qtyEl.value) {
+ const wasGiftComputed = totalEl && this._lastGiftComputedTotal !== null
+ && String(totalEl.value) === String(this._lastGiftComputedTotal);
+ this.app.inputFlowFeature?.setInputValue?.('giftQuantity', '', { source: 'giftPrice' });
+ if (wasGiftComputed) {
+ this.app.inputFlowFeature?.setInputValue?.('totalPrice', '', { source: 'giftPrice' });
+ }
+ }
+ this._lastGiftComputedTotal = null;
+ // 离开礼物模式，「用户手填过总价」这件事随之作废：下次进礼物模式应重新听算式的
+ this._giftTotalUserEdited = false;
+ } else {
+ // 进入礼物模式时，把已有的单价/个数组合重新算一次（比如从精简布局切回来）
+ // 注意：这里不带 source —— 切模式的触发本身不是「用户在填总价」
+ this.syncGiftUnitPriceTotal?.();
+ }
+ return true;
+ }
+
+ // 【8.3.39】礼物码单「单价 × 个数 = 总价」。
+ //   只在礼物模式下生效；单价或个数任一为空则不写总价（避免把 0 塞进输入框）。
+ //   单价用自定义单价框（autoUnitPrice），个数用 giftQuantity。
+ //   记下「这次总价是算式算出来的」，供离开礼物模式时判断该不该清（见 updateGiftPriceRow）。
+ //
+ //   ★ 用户手填的总价优先级最高（_giftTotalUserEdited）：
+ //   用户填总价这个动作本身就说明他不认可上面那个算式 —— 也许有额外的减免、
+ //   或者个数其实不是整数。此后除非用户自己再动单价/个数，否则一律不覆盖、不清除。
+ //   踩过的坑：填 5×10=50 后手动改成 999，再点模式按钮时输入框 blur 触发一次重算，
+ //   999 被算式结果盖回去 —— 用户的钱被程序改掉了。
+ syncGiftUnitPriceTotal(options = {}) {
+ try {
+ if (this.currentMode !== 2) return false;
+ const unitEl = this.el?.inputs?.autoUnitPrice || document.getElementById('autoUnitPrice');
+ const qtyEl = this.el?.giftQuantity || document.getElementById('giftQuantity');
+ const totalEl = this.el?.inputs?.totalPrice;
+ if (!unitEl || !qtyEl || !totalEl) return false;
+ // 由总价框自己触发时，说明用户正在手填总价 → 交出控制权，不再用算式覆盖它
+ if (options.source === 'totalPrice') {
+ this._giftTotalUserEdited = true;
+ return false;
+ }
+ // 用户回头去动单价或个数，说明他要重新用算式 —— 交还控制权
+ if (options.source === 'autoUnitPrice' || options.source === 'giftQuantity') {
+ this._giftTotalUserEdited = false;
+ }
+ const unitRaw = String(unitEl.value ?? '').trim();
+ const qtyRaw = String(qtyEl.value ?? '').trim();
+ if (!unitRaw || !qtyRaw) {
+ /* 任一为空：不再能算「单价 × 个数」。
+    此时要区分两种总价 ——
+      · 上一轮正是由算式算出来的（_lastGiftComputedTotal 与当前值一致）
+        → 必须清掉，否则它挂在那里冒充一个「还算得出来」的结果；
+      · 用户自己手填的 → 那是用户的钱，原样留着，不能擅自清。 */
+ const totalEl2 = this.el?.inputs?.totalPrice;
+ if (totalEl2 && this._lastGiftComputedTotal !== null
+ && String(totalEl2.value) === String(this._lastGiftComputedTotal)) {
+ this.app.inputFlowFeature?.setInputValue?.('totalPrice', '', { source: 'giftUnitPrice' });
+ }
+ this._lastGiftComputedTotal = null;
+ this.updateGiftDiscountNote(true);
+ return false;
+ }
+ const unit = Number(unitRaw);
+ const qty = Number(qtyRaw);
+ if (!Number.isFinite(unit) || !Number.isFinite(qty) || unit < 0 || qty <= 0) {
+ this._lastGiftComputedTotal = null;
+ return false;
+ }
+ // 用户手填过总价：单价/个数的变化不再自动改写总价，尊重用户填的那个数
+ if (this._giftTotalUserEdited) {
+ this.updateGiftDiscountNote(true);
+ return false;
+ }
+ const total = unit * qty;
+ const text = ProjectSettlementEngine.formatNumber(total);
+ if (totalEl.value !== text) {
+ this.app.inputFlowFeature?.setInputValue?.('totalPrice', text, { source: 'giftUnitPrice' });
+ }
+ this._lastGiftComputedTotal = text;
+ // 总价变了，礼物折数那句提示里的金额要跟着刷新
+ this.updateGiftDiscountNote(true);
+ return true;
+ } catch (error) {
+ appLogSilent(error);
+ return false;
  }
  }
 
@@ -16915,7 +17147,12 @@ class AutoPriceFeature {
  }
  if (!this.getElement('autoPricePanel')) {
  const anchor = this.getElement('priceSubtotalNote') || group;
- anchor.insertAdjacentHTML('afterend', `<div id="autoPricePanel" class="auto-price-panel" data-layout-module="autoPricePanel"><div class="auto-price-row"><span class="ap-label"><span>自定义</span><span>单价</span></span><input ${this.renderAttributes({ id: 'autoUnitPrice', type: 'number', step: '0.001', max: '999999', placeholder: '单价' })}>${this.renderButtonMarkup({ id: 'apModeRound', className: 'ap-mode-btn active', labelHtml: '<span>局数</span><span>单价</span>' })}${this.renderButtonMarkup({ id: 'apModeHour', className: 'ap-mode-btn', labelHtml: '<span>小时</span><span>单价</span>' })}<button type="button" id="addPriceProject" title="加入下一项" aria-label="加入下一项" hidden><span>加入</span><span>下一项</span></button></div></div><div id="manualProjectStatus" class="manual-project-status" data-layout-module="autoPricePanel"><span>已加入 <strong id="manualProjectCount">0</strong> 项</span><button type="button" id="undoLastProject">撤销上一项</button></div><div id="autoPriceQuickPanel" class="auto-price-quick-panel" data-layout-module="autoPriceQuickPanel" aria-label="候选单价名片模块"><div id="autoPriceQuickList" class="ap-quick-list" aria-label="常用单价候选"></div></div>`);
+ /* 【8.3.39】礼物码单专用的「单价 × 个数」。
+    礼物模式下这一排原本照常显示，但填了不参与计算 —— 用户看到「局数单价/小时单价」
+    这两个按钮会以为能用，填完却发现总价纹丝不动。现在礼物模式把它改成真正干活的
+    「礼物单价 × 个数」：填两个数就把总价算出来，并支持多个相同礼物。
+    单子模式下这两个礼物专用控件不显示，原有两个按钮也不显示给礼物用。 */
+ anchor.insertAdjacentHTML('afterend', `<div id="autoPricePanel" class="auto-price-panel" data-layout-module="autoPricePanel"><div class="auto-price-row"><span class="ap-label"><span>自定义</span><span>单价</span></span><input ${this.renderAttributes({ id: 'autoUnitPrice', type: 'number', step: '0.001', max: '999999', placeholder: '单价' })}>${this.renderButtonMarkup({ id: 'apModeRound', className: 'ap-mode-btn active', labelHtml: '<span>局数</span><span>单价</span>' })}${this.renderButtonMarkup({ id: 'apModeHour', className: 'ap-mode-btn', labelHtml: '<span>小时</span><span>单价</span>' })}<span class="ap-times" aria-hidden="true" hidden>×</span><input ${this.renderAttributes({ id: 'giftQuantity', type: 'number', step: '1', min: '1', max: '9999', className: 'ap-input gift-quantity-input', placeholder: '个数', 'aria-label': '礼物个数', hidden: '' })}><button type="button" id="addPriceProject" title="加入下一项" aria-label="加入下一项" hidden><span>加入</span><span>下一项</span></button></div></div><div id="manualProjectStatus" class="manual-project-status" data-layout-module="autoPricePanel"><span>已加入 <strong id="manualProjectCount">0</strong> 项</span><button type="button" id="undoLastProject">撤销上一项</button></div><div id="autoPriceQuickPanel" class="auto-price-quick-panel" data-layout-module="autoPriceQuickPanel" aria-label="候选单价名片模块"><div id="autoPriceQuickList" class="ap-quick-list" aria-label="常用单价候选"></div></div>`);
  }
  this.priceQuickPickFeature?.bindQuickListEvents?.();
  this.scheduleUiTask('autoPriceQuickList', () => {
@@ -16939,7 +17176,13 @@ class AutoPriceFeature {
  this.syncUI();
  this.emitPriceInputChange();
  if (!this.syncing) this.priceMemoryFeature.handleAutoPriceManualChange();
+ // 【8.3.39】礼物模式下，这个框是「礼物单价」，填完要和个数一起算总价。
+ //   放在最后，避免被上面的 syncUI 覆盖。
+ this.app.syncGiftUnitPriceTotal?.();
  });
+ /* 【8.3.39】礼物个数不在本 Feature 单独绑 input —— 它已登记进 app.el.inputs，
+    由 InputFlowFeature 统一绑定并走 handleMainInput（那里会调 syncGiftUnitPriceTotal）。
+    这里再绑一次会导致每次输入算了两次总价。 */
  this.bind('duration', 'input', () => {
  if (!this.syncing && this._expressionActive) {
  this.suppressCurrentExpression();
@@ -16999,6 +17242,9 @@ class AutoPriceFeature {
  this.bind('undoLastProject', 'click', () => this.undoLastProject());
  window.addEventListener('app-auto-price-reset', this.resetState);
  this.inputFlowFeature.bindInputFlowAdvance();
+ /* 【8.3.39】这一排的控件刚注入 DOM（含礼物个数框），此时才能补绑输入流。
+    不补绑则礼物个数框敲字不触发重算。 */
+ this.inputFlowFeature.bindLateInjectedInputs?.();
  this.syncUI();
  this.emitPriceInputChange();
  return true;
@@ -18301,7 +18547,7 @@ this.scheduleLazyFeatureLoad();
  'pmRangeManager', 'pmRangeToggleBtn', 'pmRangeCount', 'pmRangeBody', 'pmRangeType', 'pmRangeLabel', 'pmRangeAlias', 'pmRangeStarBoundary', 'pmRangeNamedBoundary', 'pmRangeLowerBoundary', 'pmRangeMinStar', 'pmRangeMaxStar', 'pmRangeNamedRanks', 'pmRangeNormalRound', 'pmRangeNormalHour', 'pmRangeCarryRound', 'pmRangeCarryHour', 'pmRangeStarRound', 'pmRangeStarHour', 'pmRangeSaveBtn', 'pmRangeCancelBtn', 'pmRangeList',
  'pmSurchargeManager', 'pmSurchargeToggleBtn', 'pmSurchargeCount', 'pmSurchargeBody', 'pmSurchargeName', 'pmSurchargeKeywords', 'pmSurchargeRound', 'pmSurchargeHour', 'pmSurchargeEnabled', 'pmSurchargeSaveBtn', 'pmSurchargeCancelBtn', 'pmSurchargeList',
  'pmGiftManager', 'pmGiftToggleBtn', 'pmGiftCount', 'pmGiftBody', 'pmGiftName', 'pmGiftMode', 'pmGiftPrice', 'pmGiftSaveBtn', 'pmGiftCancelBtn', 'pmGiftList', 'surchargeStatus', 'giftDiscountNote',
- 'pmUnitPrice', 'pmSettleType', 'pmServiceType', 'pmServiceAliases', 'pmAddBtn', 'pmSearchInput', 'pmUndoBtn', 'pmList', 'pmTabs', 'pmTabExact', 'pmTabRange', 'pmTabSurcharge', 'pmTabGift',
+ 'pmUnitPrice', 'pmSettleType', 'pmServiceType', 'pmServiceAliases', 'pmAddBtn', 'pmSearchInput', 'pmUndoBtn', 'pmList', 'pmTabs', 'pmTabExact', 'pmTabRange', 'pmTabSurcharge', 'pmTabGift', 'giftQuantity', 'autoPricePanel',
  'dataPortabilityBtn', 'dpTabs', 'dpPanelImport', 'dpPanelExport', 'dpExportModules', 'dpExportBtn', 'dpCopyBtn',
  'dpDownloadBtn', 'dpShareBtn', 'dpExportText', 'dpImportText', 'dpFileInput', 'dpSelectFileBtn', 'dpSelectClubBtn',
  'dpImportMerge', 'dpImportOverwrite', 'dpPreview', 'dpApplyImportBtn', 'dpUndoImportBtn',
@@ -18314,10 +18560,12 @@ this.scheduleLazyFeatureLoad();
  // 延迟注入元素：以下元素在 cacheElements() 之后才由对应模块动态写入 DOM，
  // 初始同步缓存必然取不到，属预期行为，不计入缺失诊断（否则每次启动都刷假错误）。
  // - autoUnitPrice/apModeRound/apModeHour/autoPriceQuickList/autoPriceQuickPanel：AutoPriceFeature.mountPanel() 生成
+ // - giftQuantity/autoPricePanel：同上（8.3.39 礼物「单价 × 个数」新增）
  // - dcFillSection/dcFillOptions：懒加载 durationCalculator chunk 生成
  // getElement() 对未命中项会实时回退 document.getElementById，故延迟元素不影响功能。
  const deferredIds = new Set([
  'autoUnitPrice', 'apModeRound', 'apModeHour', 'autoPriceQuickList', 'autoPriceQuickPanel',
+ 'giftQuantity', 'autoPricePanel',
  'dcFillSection', 'dcFillOptions',
  ]);
  const missing = [];
@@ -18341,7 +18589,12 @@ this.scheduleLazyFeatureLoad();
  type: this.el.type || document.getElementById('type'),
  duration: this.el.duration || document.getElementById('duration'),
  note: this.el.note || document.getElementById('note'),
- surcharge: this.el.surcharge || document.getElementById('surcharge')
+ surcharge: this.el.surcharge || document.getElementById('surcharge'),
+ /* 【8.3.39】礼物个数：参与「全部清除」与输入流。
+    它是礼物模式专用控件（元素由 AutoPriceFeature 动态注入），
+    但清除时不能漏掉它 —— 否则上一条礼物单的个数会带到下一条。
+    注意：它不进 getInputFlowFieldOrder()，避免 Enter 键跳转序列被打乱。 */
+ giftQuantity: this.el.giftQuantity || document.getElementById('giftQuantity')
  };
 
  // 输入框清除按钮（历史/危险操作按钮不参与输入初始化）
@@ -18764,6 +19017,10 @@ scheduleLazyFeatureLoad() {
     输入流（handleMainInput）与礼物价格联动（handleGiftPriceInput）都通过 app 调用它，
     这样 feature 之间不必互相持有引用。 */
  updateGiftDiscountNote(...args) { return this.modeFlowFeature.updateGiftDiscountNote(...args); }
+ /* 【8.3.39】礼物模式「单价 × 个数」：切换到礼物专用形态 / 重算总价，
+    同样从 app 门面转发，输入流与模式切换都经这里调用。 */
+ updateGiftPriceRow(...args) { return this.modeFlowFeature.updateGiftPriceRow(...args); }
+ syncGiftUnitPriceTotal(...args) { return this.modeFlowFeature.syncGiftUnitPriceTotal(...args); }
  getCurrentRatio(...args) { return this.modeFlowFeature.getCurrentRatio(...args); }
 
  // ============================================

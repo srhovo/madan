@@ -73,7 +73,7 @@ run_suite() {
 # ── 1. 引擎单元测试 ────────────────────────────────────────────────
 if ! should_skip engine; then
   echo
-  echo "── [1/14] 引擎单元测试 test-engine.js ─────────────────────────"
+  echo "── [1/15] 引擎单元测试 test-engine.js ─────────────────────────"
   if [ -z "$VERSION" ]; then
     echo "  ✗ 无法从 index.html 解析 APP_VERSION"
     run_suite engine "引擎单元测试" 1 "无法解析版本号"
@@ -93,7 +93,7 @@ fi
 # tools/build-inline-chunks.js 生成。这道防线盯「有人改了 src 却忘了重新生成」。
 if ! should_skip chunk; then
   echo
-  echo "── [2/14] 内联 chunk 源码一致性 build-inline-chunks.js --check ──"
+  echo "── [2/15] 内联 chunk 源码一致性 build-inline-chunks.js --check ──"
   out=$(node tools/build-inline-chunks.js --check 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -118,7 +118,7 @@ fi
 # 显式更新基线，从而迫使改动者回答「这个增删是有意的吗」。
 if ! should_skip arch; then
   echo
-  echo "── [3/14] 架构边界快照 arch-snapshot.js ─────────────────────"
+  echo "── [3/15] 架构边界快照 arch-snapshot.js ─────────────────────"
   out=$(node tests/arch-snapshot.js 2>&1)
   rc=$?
   echo "$out" | tail -8
@@ -128,7 +128,7 @@ fi
 # ── 3. 喂入链路 ────────────────────────────────────────────────────
 if ! should_skip chain; then
   echo
-  echo "── [4/14] 喂入链路 project-chain.js ───────────────────────────"
+  echo "── [4/15] 喂入链路 project-chain.js ───────────────────────────"
   out=$(node tests/project-chain.js "$HTML" "$OUT/project-chain.json" 2>&1)
   rc=$?
   echo "$out" | tail -4
@@ -139,7 +139,7 @@ fi
 # ── 3. DOM 全链路 ──────────────────────────────────────────────────
 if ! should_skip dom; then
   echo
-  echo "── [5/14] DOM 全链路 dom-full.js ──────────────────────────────"
+  echo "── [5/15] DOM 全链路 dom-full.js ──────────────────────────────"
   out=$(node tests/dom-full.js "$HTML" "$OUT/domfull.json" 2>&1)
   rc=$?
   echo "$out" | tail -3
@@ -149,7 +149,7 @@ fi
 # ── 4. 组合联动 ────────────────────────────────────────────────────
 if ! should_skip combo; then
   echo
-  echo "── [6/14] 组合联动 combo.js ───────────────────────────────────"
+  echo "── [6/15] 组合联动 combo.js ───────────────────────────────────"
   out=$(node tests/combo.js "$HTML" "$OUT/combo.json" 2>&1)
   rc=$?
   echo "$out" | tail -3
@@ -162,7 +162,7 @@ fi
 FULLCHAIN="tests/码单器8.3_AI可运行全链路测试脚本_8.3架构版.py"
 if ! should_skip fullchain; then
   echo
-  echo "── [7/14] 五段式全链路 $(basename "$FULLCHAIN") ──────────"
+  echo "── [7/15] 五段式全链路 $(basename "$FULLCHAIN") ──────────"
   if [ ! -f "$FULLCHAIN" ]; then
     run_suite fullchain "五段式全链路" 1 "脚本不存在: $FULLCHAIN"
   else
@@ -177,10 +177,10 @@ fi
 if ! should_skip mutate; then
   if [ $FAST -eq 1 ]; then
     echo
-    echo "── [8/14] 变异测试 mutate-chain.py  （--fast 已跳过）────────────"
+    echo "── [8/15] 变异测试 mutate-chain.py  （--fast 已跳过）────────────"
   else
     echo
-    echo "── [8/14] 变异测试 mutate-chain.py  （约 4 分钟）──────────────"
+    echo "── [8/15] 变异测试 mutate-chain.py  （约 4 分钟）──────────────"
     out=$(python3 tests/mutate-chain.py 2>&1)
     rc=$?
     echo "$out" | tail -25
@@ -195,7 +195,7 @@ fi
 # 这道防线专门盯「包内 index.html 是否引用了包外不存在的资源」。
 if ! should_skip package; then
   echo
-  echo "── [9/14] OTA 包自包含性 check-package-selfcontained.py ──────"
+  echo "── [9/15] OTA 包自包含性 check-package-selfcontained.py ──────"
   # 找当前版本对应的 zip；找不到就跳过（例如只改代码、尚未打包）
   ZIP=""
   for f in "$ROOT"/madan-*.zip; do
@@ -235,7 +235,7 @@ fi
 # 只允许版本号出现在白名单的 2 个位置，并交叉校验 title↔APP_VERSION↔version.json↔zip。
 if ! should_skip version; then
   echo
-  echo "── [10/14] 版本号单一真源 version-single-source.js ────────────"
+  echo "── [10/15] 版本号单一真源 version-single-source.js ────────────"
   # --release-flow：发版脚本刚打完包、尚未 git add 时调用，
   # 此时「zip 未被跟踪」是预期中间态（git add 由人在收到提示后执行），
   # 不该据此判失败 —— 否则发版流程会自锁。
@@ -257,7 +257,7 @@ fi
 # 否则它只会是一堆恒真的假断言。
 if ! should_skip alias; then
   echo
-  echo "── [11/14] 精确项目多别名 price-alias.js ─────────────────────"
+  echo "── [11/15] 精确项目多别名 price-alias.js ─────────────────────"
   out=$(node tests/price-alias.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -273,7 +273,7 @@ fi
 # 否则它只是一堆恒真的假断言（项目历史上踩过这个坑，见 tests/README.md）。
 if ! should_skip historyrefill; then
   echo
-  echo "── [12/14] 历史编辑回填详情同步 history-refill.js ────────────"
+  echo "── [12/15] 历史编辑回填详情同步 history-refill.js ────────────"
   out=$(node tests/history-refill.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -292,13 +292,34 @@ fi
 # 并带反向验证（拆文案 / 删转发 / 误用 this.currentMode 三种改坏方式都必须变红）。
 if ! should_skip hints; then
   echo
-  echo "── [13/14] 辅助提示动态化 hint-dynamic.js ────────────────────"
+  echo "── [13/15] 辅助提示动态化 hint-dynamic.js ────────────────────"
   out=$(node tests/hint-dynamic.js 2>&1)
   rc=$?
   echo "$out" | tail -6
   line=$(echo "$out" | grep -oE "失败 [0-9]+ 项" | tail -1)
   [ -z "$line" ] && line=$(echo "$out" | grep -oE "全部通过.*" | tail -1)
   run_suite hints "辅助提示动态化" $rc "${line:-无输出}"
+fi
+
+# ── 15. 礼物码单「单价 × 个数 = 总价」 ────────────────────────────
+# 背景：8.3.39 让礼物码单下「自定义单价」那一排真的参与算钱。
+# 这条链路上有三个隐性坑，本套逐一钉住：
+#   ① 个数框是动态注入的，抓元素时还不存在 → 绑不上事件。
+#      症状是「先填单价再填个数不出结果，反过来却出」——看顺序的 bug，极难复现。
+#   ② 清空个数后总价残留。
+#   ③ 切回单子码单时礼物残留串过去；但用户手填的总价绝不能被当礼物结果清掉。
+# 另有显隐控制：这两个控件曾被样式表里十几条同名字号/尺寸规则轮流盖回来，
+# 单子模式下个数框照样显示；现在唯一真源是 hidden 属性，本套断言样式表里
+# 不再有 display 切换规则，并附 5 种反向改坏方式必须变红。
+if ! should_skip giftqty; then
+  echo
+  echo "── [15/15] 礼物单价×个数 gift-quantity.js ────────────────────"
+  out=$(node tests/gift-quantity.js 2>&1)
+  rc=$?
+  echo "$out" | tail -6
+  line=$(echo "$out" | grep -oE "失败 [0-9]+ 项" | tail -1)
+  [ -z "$line" ] && line=$(echo "$out" | grep -oE "全部通过.*" | tail -1)
+  run_suite giftqty "礼物单价×个数" $rc "${line:-无输出}"
 fi
 
 # ── 汇总 ───────────────────────────────────────────────────────────
