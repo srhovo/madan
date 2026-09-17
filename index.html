@@ -2816,6 +2816,29 @@ h1 { margin-bottom: 4px; }
 /* 礼物模式：隐藏给服务项目用的结算方式按钮 */
 .gift-mode-panel .ap-mode-btn { display: none !important; }
 
+/* 【8.3.40】礼物模式下这一排的宽度分配。
+   单子模式下 #autoUnitPrice 是 flex:1「吃掉剩余空间」，因为右边两个模式按钮
+   尺寸固定；但礼物模式下按钮被藏起来了，剩余空间全被单价框吸走 ——
+   实测 430px 屏上单价框从 168px 撑到 220px，比例失衡、显得空荡。
+   这里改为「两个框按比例分摊整排」：
+     · 单价框 : 个数框 = 3 : 2 —— 单价通常是 6.5 这类带小数的数，
+       位数比个数（一般 1~3 位）多，理应宽一些；
+     · 两者一起把可用宽度分完，不留死白（试过留白，视觉上像「没对齐」）；
+     · min-width 兜住窄屏，避免挤到看不见字。 */
+.gift-mode-panel #autoUnitPrice {
+ flex: 3 1 0;
+ min-width: 74px;
+}
+.gift-mode-panel .gift-quantity-input {
+ flex: 2 1 0;
+ min-width: 56px;
+}
+/* 「×」两侧留出呼吸感，不再紧贴 */
+.gift-mode-panel .ap-times {
+ margin: 0 2px;
+ font-size: 16px;
+}
+
 .ap-times {
  flex: 0 0 auto;
  width: 16px;
@@ -2839,6 +2862,8 @@ h1 { margin-bottom: 4px; }
  font-weight: var(--font-weight-bold);
  line-height: 1.2;
 }
+/* 礼物模式下个数框的行高与其他框对齐，避免文字视觉上偏上 */
+.gift-mode-panel .gift-quantity-input { line-height: var(--ap-height); }
 
 #addPriceProject {
  flex: 0 0 var(--ap-add-width);
@@ -9868,8 +9893,20 @@ class UiRenderHelper {
  return this.renderIconActions([{ ...shared, className: `${baseClass}-edit`, title: '编辑', label: '✏️' }, { ...shared, className: `${baseClass}-delete`, title: '删除', label: '×' }], options.containerClass || 'app-list-actions');
  }
 
+ /* 【8.3.40】把 className 归一成 class。
+    踩过的坑：这里按字面拼属性名，调用方习惯性写 className（React 肌肉记忆），
+    结果输出了 `classname="..."` —— 一个浏览器不认识的属性，元素上就没有 class，
+    所有靠 class 的选择器全部静默失效（礼物个数框的尺寸规则就是这样整批死掉的，
+    界面上表现为「改了 CSS 却毫无反应」，极难排查）。
+    在源头接住：className → class，并且小写归一再查一次，杜绝同一形状再犯。 */
  renderAttributes(attributes = {}) {
- return Object.entries(attributes)
+ const normalized = {};
+ Object.entries(attributes).forEach(([key, value]) => {
+ const k = String(key).toLowerCase() === 'classname' ? 'class' : key;
+ // 同一元素既给 class 又给 className 时以 class 为准，避免互相覆盖
+ if (normalized[k] === undefined) normalized[k] = value;
+ });
+ return Object.entries(normalized)
  .filter(([, value]) => value !== undefined && value !== null && value !== false)
  .map(([key, value]) => value === true ? key : `${key}="${this.escapeHtml(value)}"`)
  .join(' ');
@@ -10013,9 +10050,10 @@ class AppShellRenderer {
  label: '派单昵称',
  type: 'input',
  inputType: 'text',
- /* 8.3.38：原 placeholder「例如：下雪」等于没说 —— 标签已写明是昵称，填过一次就懂。
-    留空占位，靠标签本身表达即可（清除按钮与锁定逻辑不受影响）。 */
- placeholder: ' ',
+ /* 8.3.40：8.3.38 把这里删成空白（理由：标签已写明是昵称，示例算废话）。
+    但实测下来空白框让人不知道能不能点、要不要填 —— 一个完全没有文字的输入框
+    比一句「例如：下雪」更难理解。恢复示例，与陪陪框保持一致。 */
+ placeholder: '例如：下雪',
  lockId: 'PaiDan',
  lockLabel: '已锁定派单：',
  lockedNameId: 'lockedPaiDanName',
@@ -10027,9 +10065,8 @@ class AppShellRenderer {
  label: '陪陪昵称',
  type: 'input',
  inputType: 'text',
- /* 8.3.38：同派单框，「例如：下雪」是重复标签信息，留空即可。
-    多人时的填写规则（空格/逗号/顿号分隔）已在使用说明上层交代，不在这里堆叠。 */
- placeholder: ' ',
+ /* 8.3.40：同派单框，恢复示例（8.3.38 删空后框里一个字都没有，反而更难理解）。 */
+ placeholder: '例如：下雪',
  wrapperClass: 'peipei-group',
  lockId: 'PeiPei',
  lockLabel: '已锁定陪陪：',
@@ -10068,11 +10105,11 @@ class AppShellRenderer {
  label: '服务时长',
  type: 'input',
  inputType: 'text',
- /* 8.3.38：原来写「例如：1小时」，与隔壁「服务类型」的复合示例（1h+2局…）互相打架，
-    让人以为是两套填法。实际上填了服务类型且价格库认得该项目时，这里会自动算出时长，
-    所以提示改为描述这个框的作用：多数情况不用自己算。
-    措辞刻意不说「一定会自动填」—— 项目不在价格库里时会算不出来，那时仍需手填。 */
- placeholder: '填了服务类型，这里多半会自动算'
+ /* 8.3.40：8.3.38 改成「填了服务类型，这里多半会自动算」，语义对但太长 ——
+    15px 字号下要 225px，360px 窄屏只剩 17px 余量，一旦系统字体放大就截断。
+    压到「多数自动算」：保留「不用自己算」这个真正看不出来的信息，
+    去掉「填了服务类型」「多半会」这类可从上下文推断的词。实测 360px 下余量 118px。 */
+ placeholder: '多数自动算'
  },
  {
  id: 'durationCalcBtn',
@@ -10084,7 +10121,10 @@ class AppShellRenderer {
  label: '服务类型',
  type: 'input',
  inputType: 'text',
- placeholder: '例如：1h+2局星耀包c+1h23min鹅鸭杀',
+ /* 8.3.40：原示例「例如：1h+2局星耀包c+1h23min鹅鸭杀」在 360~430px 下全部截断
+    （15px 字号要 258px，360px 屏只有 242px）。砍掉最后一个示例项，
+    保留「1h+2局」这个最关键的复合写法演示 —— 让人看出小时和局数可以混着填。 */
+ placeholder: '例如：1h+2局',
  auxBlocks: [
  '<div class="type-suggest-list" id="typeSuggestList"></div>'
  ]
@@ -10093,7 +10133,10 @@ class AppShellRenderer {
  id: 'note',
  label: '备注（可选）',
  type: 'textarea',
- placeholder: '选填，内容将原样显示在订单详情备注中',
+ /* 8.3.40：原「选填，内容将原样显示在订单详情备注中」超出 142px 被截断，
+    而且与标签上的「（可选）」重复。改为说清这个框填的东西会去哪 —— 订单里。
+    实测 390px 下余量 88px。 */
+ placeholder: '会显示在订单里',
  auxBlocks: [
  '<div class="surcharge-status" id="surchargeStatus" role="status" aria-live="polite"></div>'
  ]
@@ -10105,10 +10148,10 @@ class AppShellRenderer {
  inputType: 'text',
  /* 8.3.20：placeholder 退为透明占位（供 :placeholder-shown 判定），实际提示由两行内联提示承载，形式与折数输入框一致 */
  placeholder: ' ',
- /* 8.3.38：原来两行写「直接输入 / 关键词/数字」，是并列的两个名词，看不出差别在哪。
-    改成把两种填法各自的**效果**说清楚：敲数字＝即时加一笔，敲关键词＝套用价格库里
-    配好的加价规则（那才是「关键词」存在的意义）。 */
- inlineHint: ['填数字直接加', '填关键词套用规则']
+ /* 8.3.40：回到参考版两行。8.3.38 的「填数字直接加 / 填关键词套用规则」信息更全，
+    但每行 6~7 个字，在这个只有 106px 宽的框里会被挤成三行、文字压扁 ——
+    提示再准，看不清也没用。「直接输入 / 关键词/数字」两行各 4~5 字，稳。 */
+ inlineHint: ['直接输入', '关键词/数字']
  }
  ];
  }
@@ -17152,7 +17195,7 @@ class AutoPriceFeature {
     这两个按钮会以为能用，填完却发现总价纹丝不动。现在礼物模式把它改成真正干活的
     「礼物单价 × 个数」：填两个数就把总价算出来，并支持多个相同礼物。
     单子模式下这两个礼物专用控件不显示，原有两个按钮也不显示给礼物用。 */
- anchor.insertAdjacentHTML('afterend', `<div id="autoPricePanel" class="auto-price-panel" data-layout-module="autoPricePanel"><div class="auto-price-row"><span class="ap-label"><span>自定义</span><span>单价</span></span><input ${this.renderAttributes({ id: 'autoUnitPrice', type: 'number', step: '0.001', max: '999999', placeholder: '单价' })}>${this.renderButtonMarkup({ id: 'apModeRound', className: 'ap-mode-btn active', labelHtml: '<span>局数</span><span>单价</span>' })}${this.renderButtonMarkup({ id: 'apModeHour', className: 'ap-mode-btn', labelHtml: '<span>小时</span><span>单价</span>' })}<span class="ap-times" aria-hidden="true" hidden>×</span><input ${this.renderAttributes({ id: 'giftQuantity', type: 'number', step: '1', min: '1', max: '9999', className: 'ap-input gift-quantity-input', placeholder: '个数', 'aria-label': '礼物个数', hidden: '' })}><button type="button" id="addPriceProject" title="加入下一项" aria-label="加入下一项" hidden><span>加入</span><span>下一项</span></button></div></div><div id="manualProjectStatus" class="manual-project-status" data-layout-module="autoPricePanel"><span>已加入 <strong id="manualProjectCount">0</strong> 项</span><button type="button" id="undoLastProject">撤销上一项</button></div><div id="autoPriceQuickPanel" class="auto-price-quick-panel" data-layout-module="autoPriceQuickPanel" aria-label="候选单价名片模块"><div id="autoPriceQuickList" class="ap-quick-list" aria-label="常用单价候选"></div></div>`);
+ anchor.insertAdjacentHTML('afterend', `<div id="autoPricePanel" class="auto-price-panel" data-layout-module="autoPricePanel"><div class="auto-price-row"><span class="ap-label"><span>自定义</span><span>单价</span></span><input ${this.renderAttributes({ id: 'autoUnitPrice', type: 'number', step: '0.001', max: '999999', placeholder: '单价' })}>${this.renderButtonMarkup({ id: 'apModeRound', className: 'ap-mode-btn active', labelHtml: '<span>局数</span><span>单价</span>' })}${this.renderButtonMarkup({ id: 'apModeHour', className: 'ap-mode-btn', labelHtml: '<span>小时</span><span>单价</span>' })}<span class="ap-times" aria-hidden="true" hidden>×</span><input ${this.renderAttributes({ id: 'giftQuantity', type: 'number', step: '1', min: '1', max: '9999', class: 'ap-input gift-quantity-input', placeholder: '个数', 'aria-label': '礼物个数', hidden: '' })}><button type="button" id="addPriceProject" title="加入下一项" aria-label="加入下一项" hidden><span>加入</span><span>下一项</span></button></div></div><div id="manualProjectStatus" class="manual-project-status" data-layout-module="autoPricePanel"><span>已加入 <strong id="manualProjectCount">0</strong> 项</span><button type="button" id="undoLastProject">撤销上一项</button></div><div id="autoPriceQuickPanel" class="auto-price-quick-panel" data-layout-module="autoPriceQuickPanel" aria-label="候选单价名片模块"><div id="autoPriceQuickList" class="ap-quick-list" aria-label="常用单价候选"></div></div>`);
  }
  this.priceQuickPickFeature?.bindQuickListEvents?.();
  this.scheduleUiTask('autoPriceQuickList', () => {

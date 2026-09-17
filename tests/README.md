@@ -13,12 +13,13 @@
 | `price-alias.js` | **新增** | 精确项目「其他名字」（多别名）专项，含反向验证 |
 | `history-refill.js` | **新增** | 历史记录「编辑回填」详情同步专项，含反向验证 |
 | `hint-dynamic.js` | **新增** | 辅助提示随实际情况变化专项（重点守刷新链路），含反向验证 |
-| `gift-quantity.js` | **新增** | 礼物码单「单价 × 个数 = 总价」专项（重点守动态注入元素的绑定与显隐），含 5 种反向验证 |
+| `gift-quantity.js` | **新增** | 礼物码单「单价 × 个数 = 总价」专项（重点守动态注入元素的绑定与显隐），含 6 种反向验证 |
+| `hint-layout.js` | **新增** | 输入框提示文案 + 动态控件类名专项（**真实浏览器**；守提示消失/截断/折行与 classname 这类无效属性），含反向验证 |
 | `version-single-source.js` | **新增** | 版本号单一真源：title ↔ APP_VERSION ↔ version.json ↔ zip 交叉校验 |
 | `arch-snapshot.js` | **新增** | 架构边界快照：app 方法 / state 键 / feature 顺序不得越界 |
 | `check-package-selfcontained.py` | **新增** | OTA 包自包含性：包内 index.html 必须与仓库根逐字节一致 |
 | `inline-integrity.js` | **新增** | 内联完整性：`__INLINE_CHUNKS_RAW__` 与 `src/chunks/` 源码一致 |
-| `run-all.sh` | **新增** | 统一测试入口，一次跑完 15 套防线并给出汇总退出码 |
+| `run-all.sh` | **新增** | 统一测试入口，一次跑完 16 套防线并给出汇总退出码 |
 
 ## 依赖
 
@@ -35,7 +36,7 @@ npm install jsdom     # 所有 JS 侧测试需要
 bash tests/run-all.sh              # 全量（含约 4 分钟变异测试）
 bash tests/run-all.sh --fast       # 跳过变异测试（日常提交用）
 bash tests/run-all.sh --only=chain # 只跑某一套
-# --only 可选: engine | chunk | arch | chain | dom | combo | fullchain | mutate | package | version | alias | historyrefill | hints | giftqty
+# --only 可选: engine | chunk | arch | chain | dom | combo | fullchain | mutate | package | version | alias | historyrefill | hints | giftqty | hintlayout
 ```
 
 退出码 `0` 全通过 / `1` 有套件失败。可直接挂 CI。

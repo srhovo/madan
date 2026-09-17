@@ -193,13 +193,31 @@ console.log('\n⑤ 文案落地：其余提示的改动');
     const m = html.match(new RegExp(`id: '${id}'[\\s\\S]{0,600}?placeholder: '([^']*)'`));
     return m ? m[1] : null;
   };
-  ck('服务时长提示改为指向「自动算」', ph('duration') === '填了服务类型，这里多半会自动算', String(ph('duration')));
-  ck('服务时长不再出现「例如：1小时」误导示例', ph('duration') !== '例如：1小时');
-  ck('派单框「例如：下雪」已移除', ph('paiDan') === ' ', JSON.stringify(ph('paiDan')));
-  ck('陪陪框「例如：下雪」已移除', ph('peiPei') === ' ', JSON.stringify(ph('peiPei')));
-  ck('老板框提示改为点出「自动带出派单折数」', ph('boss') === '填过自动带出派单折数', String(ph('boss')));
+  /* 8.3.40：本组原先钉的是 8.3.38 的具体措辞（「填了服务类型，这里多半会自动算」、
+     派单/陪陪留空、加价「填数字直接加/填关键词套用规则」）。
+     8.3.40 按用户要求回到参考版的形式后措辞变了，所以这里改为钉**意图**而不是字面：
+       · 服务时长 —— 仍要传达「多数不用自己算」这层意思，且不得退回「例如：1小时」
+       · 派单/陪陪 —— 必须有可见提示（不许空白）
+       · 加价 —— 仍要两行，且能区分「数字」与「关键词」两种填法
+     这样将来再改措辞时，只要意图还在就不会误报，意图丢了才会红。 */
+  const dur = ph('duration');
+  ck('服务时长提示仍传达「自动算」这层意思', /自动算|会自动/.test(String(dur)), String(dur));
+  ck('服务时长不得退回「例如：1小时」误导示例', dur !== '例如：1小时');
+
+  // 8.3.40：派单/陪陪恢复示例（8.3.38 曾留空，实测空框更难看懂）
+  ck('派单框有可见提示（不许空白）', String(ph('paiDan')).trim().length > 0, JSON.stringify(ph('paiDan')));
+  ck('陪陪框有可见提示（不许空白）', String(ph('peiPei')).trim().length > 0, JSON.stringify(ph('peiPei')));
+
+  ck('老板框提示仍点出「自动带出派单折数」', ph('boss') === '填过自动带出派单折数', String(ph('boss')));
+
+  // 8.3.40：加价框回到两行短文案（长文案在 106px 宽的框里会被折成三行、压扁）
   const sur = html.match(/inlineHint: \[([^\]]*)\]/g) || [];
-  ck('加价框提示改为说效果', sur.some(s => s.includes('填数字直接加') && s.includes('填关键词套用规则')), sur.join(' / '));
+  const surLines = sur.map(s => (s.match(/'([^']*)'/g) || []).map(x => x.replace(/'/g, '')));
+  const surFlat = surLines.flat();
+  ck('加价框仍是两行提示', surLines.some(l => l.length === 2), JSON.stringify(surLines));
+  ck('加价框两行分别指向「数字」与「关键词」两种填法',
+    surFlat.some(t => /数字/.test(t)) && surFlat.some(t => /关键词/.test(t)), JSON.stringify(surFlat));
+  ck('加价框每行不超过 6 个字（窄框里不折行）', surFlat.every(t => t.length <= 6), JSON.stringify(surFlat));
 }
 
 console.log('\n⑥ 反向验证：把功能拆掉后，断言必须变红');
