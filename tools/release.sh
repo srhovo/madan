@@ -212,29 +212,69 @@ CUR_VER_RAW="$(grep -oE "APP_VERSION[[:space:]]*=[[:space:]]*'[0-9]+\.[0-9]+\.[0
 if [ -z "$CUR_VER_RAW" ]; then
   die "无法从 $HTML 解析 APP_VERSION"
 fi
-CUR_VER="${CUR_VER_RAW%%-test.*}"
+# 【8.3.45】测试版不能拿主段去比。测试版号（8.3.45-test.3）表示「8.3.45 这一版
+#        还没交付、正在本地验证」，它的存在**不是**「8.3.45 已经发布过」的证据。
+#        若拿主段比较，会得到 8.3.45 不大于 8.3.45 的结论，把正式发行自锁在门外
+#        —— 表现就是「明明没发过，却提示版本号必须大于当前版本」。
+#        例外只有一个：两个都是干净正式号（8.3.44 → 8.3.45）时，主段比较才是对的。
+# 【8.3.45】送进 ver_gt 时要把「原始号」连后缀一起给 —— 剥后缀和加时赛是
+#        互相抵消的两件事：ver_gt 内部已能处理 -test.N（见其加时赛那段），
+#        在外面先剥掉反而让两个参数变成同一个号，永远判「不大于」。
+BLOCK_VER="$CUR_VER_RAW"
 case "$CUR_VER_RAW" in
-  *-test.*) ok "当前版本：$CUR_VER_RAW（测试版，主段 $CUR_VER）→ 目标版本：$VER" ;;
-  *)        ok "当前版本：$CUR_VER → 目标版本：$VER" ;;
+  *-test.*) ok "当前版本：$CUR_VER_RAW（测试版）→ 目标版本：$VER" ;;
+  *)        ok "当前版本：$CUR_VER_RAW → 目标版本：$VER" ;;
 esac
 
 # 1.4 版本号必须递增（逐段数值比较，避免字符串比较把 8.3.10 判小于 8.3.9）
 ver_gt() {
   local a1 a2 a3 b1 b2 b3
-  a1="$(printf '%s' "$1" | cut -d. -f1)"; a2="$(printf '%s' "$1" | cut -d. -f2)"; a3="$(printf '%s' "$1" | cut -d. -f3)"
-  b1="$(printf '%s' "$2" | cut -d. -f1)"; b2="$(printf '%s' "$2" | cut -d. -f2)"; b3="$(printf '%s' "$2" | cut -d. -f3)"
+  # 逐段取「数字」，把 -test.N 后缀一并吃掉 —— cut -d. 在 8.3.45-test.3 上
+  # 会切出第三段 "45-test"，而 [ 整数字 ] 在 bash 里是**按算术求值**的，
+  # "45-test" 会被当成 45 - test（变量 test 未定义即 0）→ 得 45，
+  # 于是 8.3.45 与 8.3.45-test.3 被判成相等，正式发行被误挡。
+  a1="$(printf '%s' "$1" | sed -n 's/^\([0-9]*\).*/\1/p')"
+  a2="$(printf '%s' "$1" | sed -n 's/^[0-9]*\.\([0-9]*\).*/\1/p')"
+  a3="$(printf '%s' "$1" | sed -n 's/^[0-9]*\.[0-9]*\.\([0-9]*\).*/\1/p')"
+  b1="$(printf '%s' "$2" | sed -n 's/^\([0-9]*\).*/\1/p')"
+  b2="$(printf '%s' "$2" | sed -n 's/^[0-9]*\.\([0-9]*\).*/\1/p')"
+  b3="$(printf '%s' "$2" | sed -n 's/^[0-9]*\.[0-9]*\.\([0-9]*\).*/\1/p')"
+  [ -z "$a1" ] && a1=0; [ -z "$a2" ] && a2=0; [ -z "$a3" ] && a3=0
+  [ -z "$b1" ] && b1=0; [ -z "$b2" ] && b2=0; [ -z "$b3" ] && b3=0
   [ "$a1" -gt "$b1" ] && return 0
   [ "$a1" -lt "$b1" ] && return 1
   [ "$a2" -gt "$b2" ] && return 0
   [ "$a2" -lt "$b2" ] && return 1
   [ "$a3" -gt "$b3" ] && return 0
+  [ "$a3" -lt "$b3" ] && return 1
+  # 主段三段全等时的加时赛。走到这里只可能是「同主段、后缀不同」，
+  # 例如 8.3.45（正式）对 8.3.45-test.3（测试）。约定：同一主段里
+  # **没有后缀的正式号最大**（排在最后，下一个就该发它），测试号之间比 N。
+  # 少了这段，8.3.45 会被判成「不大于 8.3.45-test.3」把正式发行挡在门外
+  # —— 这正是 8.3.45 发版时踩到的真实故障。
+  local a3n b3n
+  case "$1" in *-test.*) a3n="${1##*-test.}";; *) a3n=999999;; esac
+  case "$2" in *-test.*) b3n="${2##*-test.}";; *) b3n=999999;; esac
+  [ "$a3n" -gt "$b3n" ] && return 0
   return 1
 }
-if ! ver_gt "$VER" "$CUR_VER"; then
+if ! ver_gt "$VER" "$BLOCK_VER"; then
   echo "    拒绝相等或倒退：这会造成设备端「永久有新版本」或版本错位。"
-  die "版本号必须大于当前版本（当前 $CUR_VER，目标 $VER）"
+  die "版本号必须大于当前版本（当前 $CUR_VER_RAW，目标 $VER）"
 fi
 ok "版本号递增校验通过"
+
+# 1.4.1 正式号必须高于「仓库已发行最新版」
+# 【8.3.45】工作区里可能正带着一个更高的测试号（8.3.45-test.3 的 APP_VERSION）。
+#        上面 1.4 放行之后，还要对照 git 里最后一次 release 提交记录的号 ——
+#        那才是「用户真正拿到过哪一版」。漏掉这道检查会出现：测试版号跳到
+#        8.3.46-test.1，然后发行时就地发一个 8.3.45，用户端版本号倒退。
+CUR_RELEASED="$(node tools/next-version.js --current 2>/dev/null || echo '')"
+if [ -n "$CUR_RELEASED" ] && ! ver_gt "$VER" "$CUR_RELEASED"; then
+  echo "    仓库已发行最新版：$CUR_RELEASED"
+  die "版本号必须大于仓库已发行版（已发行 $CUR_RELEASED，目标 $VER）"
+fi
+[ -n "$CUR_RELEASED" ] && ok "高于已发行版（已发行 $CUR_RELEASED → $VER）"
 
 # 1.5 防重复发布
 if [ -f "madan-${VER}.zip" ]; then
@@ -253,8 +293,12 @@ fi
 ok "CHANGELOG 中无该版本条目"
 
 # 1.6 上一条 CHANGELOG 是否完整（历史欠账预警，不阻塞）
-if ! grep -qE "^## ${CUR_VER}([^0-9.]|$)" "$CL"; then
-  warn "CHANGELOG 里没有当前版本 $CUR_VER 的条目 —— 上一个版本可能漏记了变更日志"
+# 【8.3.45】这里比对的是「应该已经发过的上一版」，用已发行版（git 里的
+#        release 提交号），不用工作区 APP_VERSION —— 后者可能是个还没发出去的
+#        测试号，拿它去查 CHANGELOG 会得到一条无意义的欠账警告。
+CUR_CHANGELOG_VER="$CUR_RELEASED"
+if [ -n "$CUR_CHANGELOG_VER" ] && ! grep -qE "^## ${CUR_CHANGELOG_VER}([^0-9.]|$)" "$CL"; then
+  warn "CHANGELOG 里没有已发行版 $CUR_CHANGELOG_VER 的条目 —— 上一个版本可能漏记了变更日志"
 fi
 
 # 1.7 工作区必须干净
