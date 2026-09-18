@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.44</title>
+ <title>码单器8.3.45-test.3</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -717,14 +717,9 @@
  margin-bottom: 14px; padding-bottom: 14px;
  border-bottom: 1px solid var(--color-border-light);
 }
-.pm-toolbar .pm-library-select {
- flex: 1 1 auto; min-width: 140px; width: auto;
- padding: 9px 28px 9px 12px;
- appearance: none; -webkit-appearance: none;
- background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236c757d' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
- background-repeat: no-repeat; background-position: right 10px center;
- background-color: var(--color-white);
-}
+/* 【8.3.46】下拉框（.pm-library-select）已换成库清单 .pm-library-list，
+   原来那条下拉框专用样式（箭头图标、右侧留白给箭头）随之作废，一并删掉。
+   留着的话后来人看见「有个 select 样式」会去找那个不存在的元素。 */
 .pm-toolbar .pm-library-count {
  color: var(--color-text-light); font-size: var(--font-size-sm); white-space: nowrap;
 }
@@ -770,10 +765,59 @@
  padding: 8px 10px; font-size: var(--font-size-md);
 }
 
+/* 【8.3.46】库清单：一行一个库。
+   左边圆点 = 当前库（新增/改/删写进它，唯一）；
+   右边方块 = 参不参与查价（可多个）。
+   整行可点 = 切当前库 —— 命中范围做到整行，避免只点小圆点（手机上难点准）。
+   勾选框单独 stopPropagation，点它不会顺带把当前库也切了。 */
+.pm-library-list {
+ flex: 1 1 100%;
+ display: grid; gap: 4px;
+ min-width: 0;
+}
+.pm-library-row {
+ display: flex; align-items: center; gap: 8px;
+ padding: 7px 10px; min-height: 38px;
+ border: 1px solid var(--color-border-light); border-radius: var(--border-radius-md);
+ background: var(--color-white);
+ cursor: pointer; text-align: left; font: inherit;
+ transition: border-color var(--transition-base), background var(--transition-base);
+}
+.pm-library-row:hover { border-color: var(--color-primary-light); background: var(--color-bg-info); }
+.pm-library-row.is-active {
+ border-color: var(--color-primary); background: var(--color-bg-info);
+}
+.pm-library-row .pm-library-dot {
+ flex: 0 0 auto; width: 11px; height: 11px; border-radius: 50%;
+ border: 2px solid var(--color-border); background: var(--color-white);
+}
+.pm-library-row.is-active .pm-library-dot { border-color: var(--color-primary); background: var(--color-primary); }
+.pm-library-row .pm-library-row-name {
+ flex: 1 1 auto; min-width: 0;
+ font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); color: var(--color-text);
+ overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pm-library-row.is-active .pm-library-row-name { color: var(--color-primary-dark); }
+.pm-library-row .pm-library-row-meta {
+ flex: 0 0 auto; font-size: var(--font-size-xs); color: var(--color-text-light); white-space: nowrap;
+}
+.pm-library-row .pm-library-merge {
+ flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px;
+ padding: 3px 6px; border-radius: var(--border-radius-sm);
+ font-size: var(--font-size-xs); color: var(--color-text-light); white-space: nowrap;
+ cursor: pointer;
+}
+.pm-library-row .pm-library-merge input { width: 15px; height: 15px; margin: 0; accent-color: var(--color-primary); cursor: pointer; }
+.pm-library-row.is-merged .pm-library-merge { color: var(--color-primary-dark); font-weight: var(--font-weight-semibold); }
+/* 当前库一定参与查价：勾选框显示为已勾且禁用，避免用户以为"取消了当前库"却又发现它还在查 */
+.pm-library-row.is-active .pm-library-merge input { cursor: default; }
+
 /* 响应式：工具栏与 Tab 在窄屏下自动折行/滚动，避免字体被截断 */
 @media (max-width: 767px) {
  .pm-toolbar { gap: 8px; }
- .pm-toolbar .pm-library-select { flex: 1 1 100%; min-width: 0; max-width: 100%; }
+ /* 【8.3.46】原来这里是 .pm-library-select（单选下拉框）的窄屏规则。
+    下拉框已换成库清单（.pm-library-list 自带 `flex: 1 1 100%`，
+    本来就占满整行），这条规则跟着失效，留着会让人以为还有个 select。 */
  .pm-toolbar .pm-library-name { flex: 1 1 100%; }
  .pm-toolbar .pm-library-count { margin-left: auto; }
  .pm-toolbar-actions { flex: 1 1 100%; justify-content: flex-end; }
@@ -854,7 +898,6 @@
  border-radius: var(--border-radius-lg); background: var(--color-bg-light);
  }
  .pm-library-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
- .pm-library-select { width: 100%; min-width: 0; font-weight: var(--font-weight-semibold); }
  .pm-library-count { min-width: 54px; color: var(--color-text-light); font-size: var(--font-size-sm); text-align: right; white-space: nowrap; }
  .pm-library-actions { display: grid; grid-template-columns: minmax(120px, 1fr) repeat(4, auto); gap: 6px; }
  .pm-library-name { width: 100%; min-width: 0; }
@@ -987,6 +1030,12 @@
  }
  .type-suggest-list.show { display: block; animation: fadeIn 0.15s ease; }
  .type-suggest-list.show.compact-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 6px; }
+ /* 【8.3.46】只有一个候选时让它独占整行。
+   原因：候选行第二行（那串说明）是 nowrap + 省略号，两栏并排时每栏只有约
+   一半宽度。多库同用之后这句说明尾部多了「来自「XX价」」，两栏排不下就会被
+   截成「精确项目 · 局数¥25 · 来自…」—— 来源正好是被切掉的那截，等于白标。
+   只剩一个候选时本来就没什么可并排的，让它占满整行，说明就能完整显示。 */
+ .type-suggest-list.show.compact-grid.is-single { grid-template-columns: minmax(0, 1fr); }
  .type-suggest-item {
  min-width: 0; padding: 9px 12px; cursor: pointer; border: 1px solid var(--color-border-light); border-radius: var(--border-radius-md);
  transition: background var(--transition-fast), border-color var(--transition-fast); display: flex; align-items: center; justify-content: center;
@@ -997,7 +1046,13 @@
  .type-suggest-meta, .type-suggest-label { display: none; }
 .type-suggest-item.service-rule { flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px; }
 .type-suggest-item.service-rule .type-suggest-name { text-align: left; }
-.type-suggest-item.service-rule .type-suggest-meta { display: block; width: 100%; color: var(--color-text-light); font-size: var(--font-size-xs); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 【8.3.46】候选说明允许折成两行，不再单行截断。
+   原因：多库同用后这句尾部多了来源标注（〔XX价〕），两栏并排时半宽放不下，
+   而原样式是 nowrap + 省略号 —— 正好把来源截成「〔默…」，等于白标。
+   改成最多两行、超出才省略：常见长度（含来源）都能完整显示，
+   真遇到超长区间名也只是多占一行，不会横向溢出。
+   行数上限用 -webkit-line-clamp，配 overflow: hidden。 */
+.type-suggest-item.service-rule .type-suggest-meta { display: -webkit-box; width: 100%; color: var(--color-text-light); font-size: var(--font-size-xs); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; -webkit-box-orient: vertical; -webkit-line-clamp: 2; word-break: keep-all; }
  #type.type-soft-fill {
  color: var(--color-text-light);
  border-color: rgba(106, 17, 203, 0.45);
@@ -3852,8 +3907,16 @@ html[data-order-mode="2"] #primaryFieldsContainer .field-type > input {
  <div class="mem-panel-body">
  <div class="pm-library-box" id="pmLibraryBox">
  <!-- 工具栏：库选择 + 计数 + 名称输入 + 管理操作 -->
+ <!-- 【8.3.46】库选择由「单选下拉框」换成「库清单」。
+   为什么必须换：原生 select 从根上只认一个值；多选的下拉框在手机上
+   要长按、易误触（撞工程指令「少点击、少误触」），而且它同时承担着
+   「查价用哪些库」和「新增的价写进哪个库」两件事，改多选后就分不清了。
+   现在拆成两栏，各管一件事：
+     · 点库名那一行 → 设为「当前库」（新增/修改/删除写进它，永远只有一个）
+     · 右侧方块     → 这个库参不参与查价（可以多个）
+   清单由 JS 渲染（renderPriceLibraryList），因为条目要跟着库增减重建。 -->
  <div class="pm-toolbar">
- <select id="pmLibrarySelect" class="pm-input pm-library-select" aria-label="当前价格库"></select>
+ <div class="pm-library-list" id="pmLibraryList" role="radiogroup" aria-label="价格库"></div>
  <span id="pmLibraryCount" class="pm-library-count">1/6库</span>
  <input type="text" id="pmLibraryName" class="pm-input pm-library-name" maxlength="18" placeholder="价格库名称">
  <div class="pm-toolbar-actions">
@@ -4247,7 +4310,7 @@ html[data-order-mode="2"] #primaryFieldsContainer .field-type > input {
 
 
  <script>
-const APP_VERSION = '8.3.44';
+const APP_VERSION = '8.3.45-test.3';
 // Release note: 8.3.34 架构拆分第二步（A4+A5）：把「不可读的产物」变成「可读的源码」，并给全部空 catch 补上「为什么可以吞」的说明。零功能改动、零逻辑改动。A4 —— 内联 chunk 源码外置：dataPortability（约1117行）与 durationCalculator（约272行）的源码此前只以 JSON 转义的单行字符串存在于 index.html 的 __INLINE_CHUNKS_RAW__ 中，编辑器无法索引、无法 diff、无法 review，是全项目最大的维护盲区。现将源码落到 src/chunks/*.js（可索引/可 diff/可 review），index.html 里的字符串改由 tools/build-inline-chunks.js 从源文件生成；编码配方经「重新编码结果与现存字符串逐字节比对」验证未漂移。同时补 tools/sync-root-scripts.js 统一 update-checker.js / analytics.js 的内联同步（此前只靠 inline-integrity.js 报错提醒，缺正向同步手段）。A5 —— 空 catch 注释化：全量清点为 9 处（清单原记 6 处，实测多出 3 处），逐一补上「为什么可以吞」的就近注释，其中 loadModeRatios 是唯一有真实用户影响的（静默丢失自定义比例），已改为记 appLogError 便于定位。新增两道常驻防线：tests/arch-snapshot.js（A3 遗留建议 —— 用运行时原型链内省冻结 app 方法集/state 键/featureOrder 三个架构不变量，专防「隐式动态挂载」这类不报错的静默回归，已用注入式反例验证可捕获）；tools/build-inline-chunks.js --check 与 tools/sync-root-scripts.js --check 纳入统一入口。测试防线由 7 套增至 10 套，全部通过（含变异捕捉 9/9）。过程中修正一处自己引入的失误：在 index.html 里直接给 update-checker/analytics 的内联副本加注释，破坏了源文件与副本的逐字节一致性 —— 正确做法是改源文件再同步，已按此纠正并固化为工具。
 // Release note: 8.3.35 优化清单 B1+B2，零功能改动、零逻辑改动。B1（CSS 去重）：删除一处完全重复的响应式媒体查询块 —— 平板竖屏（768–1024px）「恢复单栏」规则整块出现了两遍，字节完全相同，保留带说明注释的那一份（覆盖 iPad Pro 12.9 竖屏 1024px 宽度），删掉前面无注释的早期副本，共减少 12 行 CSS。其余 128 个「多次定义」的选择器经逐条核对属于**不同上下文/不同断点下的有意级联覆盖**，不构成无效声明，一律保留。等价性用真实 Chromium 在 6 种视口下比对 58320 项计算样式（其中 3 种视口该媒体查询实际命中），零差异。B2（版本号单一真源）：核查 index.html 内 165 处 8.3.x 字样，剥离注释并排除标签属性后，真正参与代码的仅 <title> 与 APP_VERSION 两处（其余 163 处均为变更考古注释，按约定保留）；compareVersions 走 CURRENT_VERSION 间接引用，未发现游离字面量，故本项无需改代码。新增 tests/version-single-source.js 作为常驻防线，并交叉校验 <title>↔APP_VERSION↔version.json↔zip sha256，今后任何第二真源会在测试中立刻报红。
 // Release note: 8.3.33 架构拆分第一步（A3）：消除「隐式动态挂载」，把 OrderCalculator 上的冗余转发入口收敛为显式委托。零功能改动、零逻辑改动。背景：OrderCalculator 长期充当「编排队」，历史上为兼容旧调用点，把大量 Feature 方法以 this.xxx(...args) 形式平铺在自身上（133 个方法中 77 个是单行转发），其中 RatioFeature 更是通过 bindToApp() 在运行时把 12 个方法**动态挂到 app 上**——这正是工程边界明令禁止的「隐式动态挂载/全局隐藏状态」。本版处理三件事：① 删除 59 个已无任何调用方的纯转发入口（实现全部原样保留在其所属 Feature 内，仅移除 app 级冗余镜像）；② 移除 RatioFeature.bindToApp() 的隐式动态挂载，改为显式路径调用（ModeFlowFeature → this.app.ratioFeature.handleModeButtonClick(...)）；③ 顺带修复一处因 ① 暴露出来的**既有隐患**：dataPortability 的 refreshAfterImport() 原本用 ['applyLockedDataToUI','applyLayoutVisibility',...] 字符串数组 + this.app[method]() 做动态派发（同属隐式动态挂载），导入数据后的 7 项界面刷新依赖它；现改为显式委托数组，导入后刷新链路恢复可靠。验证：app 可调用方法 159 → 100（移除 59、新增 0），state 键 24/24 与 feature 数 23 完全一致；7 套测试全绿（引擎 126、喂入链路 122、DOM 26、组合 27、五段式、变异捕捉 9/9、包自包含）；并逐一校验 59 项移除均有「实现保留在所属 Feature + 全文无动态字符串访问 + 无 HTML 属性引用 + 无外部调用者」四项证明。保留 clearAll 作为外部可见的「清空全部」公共入口（测试与外部脚本按此复位）。业务逻辑、计算引擎、存储结构、UI 行为完全未改动。
@@ -6506,9 +6569,28 @@ class PriceRuleMatcher {
  if (!priceLibraryData || typeof priceLibraryData !== 'object' || !Array.isArray(priceLibraryData.libraries)) {
  return this.failure('invalid_library', '价格库数据不可用', { parsed: this.parseService(serviceValue), settleType: this.normalizeSettleType(settleValue) });
  }
- const library = priceLibraryData.libraries.find(item => item?.id === priceLibraryData.activeLibraryId) || priceLibraryData.libraries[0] || null;
- return this.matchLibrary(library, serviceValue, settleValue);
+ /* 【8.3.46】多库同用：把所有「参与查价」的库按序逐个匹配，第一个命中为准。
+     顺序由 PriceLibraryStore.getMergedLibraries 保证是「当前库优先」，
+     所以这里只要顺着走并在首个成功处停下，就自动实现了「当前库优先」。
+     单个库时列表长度为 1，行为与改动前逐字一致。
+     传进来的 mergedLibraries 由调用方提供（它才持有 Store）；
+     拿不到时回落到原来的「只看当前库」，保证本方法独立可用、可被单测直接调。 */
+ const ordered = Array.isArray(priceLibraryData.mergedLibraries) && priceLibraryData.mergedLibraries.length
+ ? priceLibraryData.mergedLibraries
+ : [priceLibraryData.libraries.find(item => item?.id === priceLibraryData.activeLibraryId) || priceLibraryData.libraries[0] || null].filter(Boolean);
+ if (!ordered.length) {
+ return this.failure('invalid_library', '价格库数据不可用', { parsed: this.parseService(serviceValue), settleType: this.normalizeSettleType(settleValue) });
  }
+ let firstFailure = null;
+ for (const library of ordered) {
+ const attempt = this.matchLibrary(library, serviceValue, settleValue);
+ if (attempt.ok) return attempt;
+ // 记住「最有信息量」的一次失败：优先保留非「没这条规则」的失败，
+ // 否则用户在主库只看到「没有匹配规则」，而真正原因（如缺价、需要选变体）在副库被吞掉。
+ if (!firstFailure || (firstFailure.code === 'rule_not_found' && attempt.code !== 'rule_not_found')) firstFailure = attempt;
+ }
+ return firstFailure || this.failure('rule_not_found', '当前价格库中没有匹配规则', { parsed: this.parseService(serviceValue), settleType: this.normalizeSettleType(settleValue) });
+}
 }
 
 
@@ -7370,6 +7452,10 @@ class ProjectExpressionEngine {
  : this.getModeCandidates(item?.quantityRaw);
  const failures = [];
  for (const mode of modes) {
+ /* 【8.3.46】多库同用：这里不用改。
+    priceLibraryData 由调用方（OrderCalculator）传入，它已把
+    mergedLibraries（排好序的参与查价库列表）挂在同一对象上，
+    matchActiveLibrary 会自己取用 —— 见那边的说明。 */
  const match = PriceRuleMatcher.matchActiveLibrary(priceLibraryData, item?.serviceRaw, mode);
  if (match.ok) return { ok: true, mode, match, failures };
  failures.push({ mode, match });
@@ -9444,6 +9530,23 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  return (requestedSettle ? matches.find(item => item.settleType === requestedSettle) : null) || matches[0] || null;
  }
 
+ /* 【8.3.46】同上，但范围是「参与查价的所有库」，按当前库优先。
+   用途：判断「这个项目是不是已经有库价了」——决定要不要把它记进记忆库。
+   必须用并集：别的库里已有这个项目时，这边若报「没有」，
+   就会把用户当场填的价又记一遍，甚至把不同库的价混起来。 */
+ findLookupItemByService(data, serviceType, settleType = '') {
+ const key = this.buildServiceKey(serviceType);
+ if (!key) return null;
+ const requestedSettle = String(settleType || '').trim().toLowerCase();
+ for (const library of this.getMergedLibraries(data)) {
+ const matches = (library.items || []).filter(item => this.buildServiceKey(item.serviceType) === key);
+ if (!matches.length) continue;
+ const hit = (requestedSettle ? matches.find(item => item.settleType === requestedSettle) : null) || matches[0];
+ if (hit) return hit;
+ }
+ return null;
+ }
+
  buildItemId(serviceKey, createdAt = 0, settleType = '') { return `price_item_${this.hashText(`${serviceKey}|${settleType}|${Number(createdAt) || 0}`)}`; }
 
  normalizeItem(raw, index = 0, now = Date.now()) {
@@ -9553,9 +9656,22 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  });
  if (!libraries.length) return null;
  const activeLibraryId = libraries.some(library => library.id === raw.activeLibraryId) ? raw.activeLibraryId : libraries[0].id;
+ /* 【8.3.46】多库同用：记录「哪些库参与查价」。
+     语义与 activeLibraryId 完全分开，务必分清：
+       · activeLibraryId —— **编辑目标**。新增/修改/删除写进这个库，永远只有一个。
+       · mergedLibraryIds —— **查询范围**。查价时去哪些库找，可以多个。
+     两者互不干扰：把库 A 设为编辑目标，不影响 B 是否参与查找。
+     这里做三件事：① 只接受真实存在的库 id；② 去掉重复；
+     ③ 若结果为空（用户把勾全取消了 / 老数据没这个字段）则回落到当前库 ——
+     「一个库都不查」不是合法状态，会让整个单价记忆库瞬间失效。
+     老数据没有这个字段，走的就是 ③，得到 [当前库]，
+     行为与加这个功能之前完全一致（只查当前库），因此无需数据迁移。 */
+ const requestedMerge = Array.isArray(raw.mergedLibraryIds) ? raw.mergedLibraryIds : [];
+ const mergedLibraryIds = [...new Set(requestedMerge.map(id => String(id || '')).filter(id => libraries.some(library => library.id === id)))];
  return {
  schemaVersion: this.schemaVersion,
  activeLibraryId,
+ mergedLibraryIds: mergedLibraryIds.length ? mergedLibraryIds : [activeLibraryId],
  libraries,
  createdAt: Number(raw.createdAt) || Math.min(...libraries.map(library => library.createdAt)),
  updatedAt: Number(raw.updatedAt) || Math.max(...libraries.map(library => library.updatedAt)),
@@ -9564,7 +9680,7 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  migrationStats: raw.migrationStats && typeof raw.migrationStats === 'object' ? { ...raw.migrationStats } : undefined,
  _duplicateCount: duplicateCount
  };
- }
+}
 
  createFromLegacy(legacyList) {
  const normalized = this.normalizeItems(this.priceMemoryStore.normalize(legacyList));
@@ -9582,6 +9698,8 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  return {
  schemaVersion: this.schemaVersion,
  activeLibraryId: this.defaultLibraryId,
+ /* 【8.3.46】迁移出的单个默认库：自己就是唯一的查询范围。 */
+ mergedLibraryIds: [this.defaultLibraryId],
  libraries: [{
  id: this.defaultLibraryId,
  name: '默认价格表',
@@ -9608,6 +9726,137 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  const normalized = this.normalizeData(data);
  if (!normalized) return null;
  return normalized.libraries.find(library => library.id === normalized.activeLibraryId) || normalized.libraries[0] || null;
+ }
+
+ /* ============================================================
+    【8.3.46】多库同用 —— 查询范围（与「编辑目标」分开）
+    ============================================================
+    下面三个方法只服务「查价」：把用户勾选的若干个库当成一个并集来查。
+    它们**不**改变 getActiveLibrary 的语义 —— 编辑、删除、界面展示
+    仍然只看当前库，这样「加一条单价会加到哪」始终唯一确定。
+
+    顺序约定（用户已确认）：
+      当前库排最前，其余按用户在列表里的原始顺序（即 libraries 的顺序）。
+      这样「当前库优先」不需要额外的优先级字段，靠位置就表达完了。 */
+
+ // 参与查价的库列表，按「当前库优先」排好序。
+ // 单个库也不特殊处理：返回长度为 1 的数组，调用方无需分支。
+ getMergedLibraries(data) {
+ const normalized = this.normalizeData(data);
+ if (!normalized) return [];
+ const ids = Array.isArray(normalized.mergedLibraryIds) && normalized.mergedLibraryIds.length
+ ? normalized.mergedLibraryIds
+ : [normalized.activeLibraryId];
+ const chosen = normalized.libraries.filter(library => ids.includes(library.id));
+ if (!chosen.length) return normalized.libraries.slice(0, 1);
+ // 当前库提到最前（它可能本来不在勾选里 —— 编辑目标永远参与查价）
+ const active = chosen.find(library => library.id === normalized.activeLibraryId);
+ const rest = chosen.filter(library => library.id !== normalized.activeLibraryId);
+ return active ? [active, ...rest] : [normalized.libraries[0], ...rest].filter(Boolean);
+ }
+
+ // 该库是否参与查价（界面画勾选框用）
+ isLibraryMerged(data, libraryId) {
+ const normalized = this.normalizeData(data);
+ if (!normalized) return false;
+ const ids = Array.isArray(normalized.mergedLibraryIds) && normalized.mergedLibraryIds.length
+ ? normalized.mergedLibraryIds
+ : [normalized.activeLibraryId];
+ return ids.includes(String(libraryId || ''));
+ }
+
+ // 切换某库的「参与查价」开关。
+ // 拒绝把最后一个库取消勾选：一个库都不查 = 单价记忆库整体失效，
+ // 这种状态没有任何界面能表达出来，所以直接挡住并让调用方给个说明。
+ // 另外，取消勾选「当前库」是允许的 —— 当前库始终参与查价，
+ // 勾选框只表达「除当前库之外还要不要用别的库」，见 getMergedLibraries 里的补齐。
+ setLibraryMerged(data, libraryId, merged) {
+ const normalized = this.normalizeData(data);
+ if (!normalized) return { ok: false, reason: 'invalid-data', data };
+ const id = String(libraryId || '');
+ if (!normalized.libraries.some(library => library.id === id)) return { ok: false, reason: 'library-not-found', data };
+ const current = new Set(Array.isArray(normalized.mergedLibraryIds) && normalized.mergedLibraryIds.length
+ ? normalized.mergedLibraryIds
+ : [normalized.activeLibraryId]);
+ if (merged) current.add(id);
+ else current.delete(id);
+ if (!current.size) return { ok: false, reason: 'last-merged', data };
+ // 保持与 libraries 一致的顺序，避免勾选顺序影响候选排序
+ const nextIds = normalized.libraries.map(library => library.id).filter(libraryId2 => current.has(libraryId2));
+ if (nextIds.length === (normalized.mergedLibraryIds || []).length
+ && nextIds.every((value, index) => value === normalized.mergedLibraryIds[index])) {
+ return { ok: true, unchanged: true, data: normalized, activeItems: this.toLegacyItems(this.getActiveLibrary(normalized)?.items || []) };
+ }
+ normalized.mergedLibraryIds = nextIds;
+ normalized.updatedAt = Date.now();
+ return this.persist(normalized, { previousCanonical: data, previousLegacy: this.toLegacyItems(this.getActiveLibrary(data)?.items || []) });
+ }
+
+ // 把参与查价的库各字段并集起来，供查价使用。
+ // 返回结构与单个 library 一致（多带一个 sources 说明来源），
+ // 这样下游（PriceRuleEngine.normalizeRules / SurchargeRuleEngine 等）无需改动。
+ // 冲突处理：按 getMergedLibraries 的顺序合并，**先出现者胜**——
+ // 当前库排最前，所以天然就是「当前库优先」。
+ mergeLibrariesForLookup(data) {
+ const libraries = this.getMergedLibraries(data);
+ if (!libraries.length) return null;
+ if (libraries.length === 1) {
+ return { ...libraries[0], sources: [libraries[0]], merged: false };
+ }
+ const byKey = new Map();
+ const sources = [];
+ libraries.forEach(library => {
+ sources.push(library);
+ (library.items || []).forEach(item => {
+ const key = `${item.serviceKey}|${item.settleType}`;
+ if (!byKey.has(key)) byKey.set(key, item);
+ });
+ });
+ /* 规则（含区间规则）的合并交给 PriceRuleEngine 自己按 rule 唯一键去重，
+    因为区间规则的「冲突」判定比精确项目复杂（同名区间可能真的重叠）。
+    这里只负责把多个库的规则数组按「当前库在前」的顺序拼起来，
+    让它自己那套「先到先得 + 冲突检测」的逻辑继续生效。 */
+ const rules = libraries.flatMap(library => (library.rules || []));
+ const surcharges = libraries.flatMap(library => (library.surcharges || []));
+ const giftMemories = libraries.flatMap(library => (library.giftMemories || []));
+ return {
+ id: libraries.map(library => library.id).join('+'),
+ name: libraries.map(library => library.name).join(' + '),
+ items: [...byKey.values()],
+ rules,
+ surcharges,
+ giftMemories,
+ sources,
+ merged: true
+ };
+ }
+
+ // 已知某个 serviceKey 属于哪个库 —— 候选列表要标「来自「XX价」」时用。
+ // 只在展示层用，不参与任何金额计算，查不到就返回空。
+ findLibraryNameByServiceKey(data, serviceKey, settleType = '') {
+ const key = String(serviceKey || '');
+ if (!key) return '';
+ const libraries = this.getMergedLibraries(data);
+ const settle = String(settleType || '').trim().toLowerCase();
+ for (const library of libraries) {
+ const hit = (library.items || []).find(item => item.serviceKey === key && (!settle || item.settleType === settle))
+ || (library.items || []).find(item => item.serviceKey === key);
+ if (hit) return String(library.name || '');
+ }
+ return '';
+ }
+
+ /* 【8.3.46】按**规则**找它属于哪个库（候选清单要标来源用）。
+     与上面按 serviceKey 找 item 的区别：候选清单列的是「规则」，
+     区间规则没有对应的 item，只能靠规则 id 反查。
+     只在展示层用，不参与任何金额计算，查不到就返回空。 */
+ findLibraryNameByRuleId(data, ruleId) {
+ const id = String(ruleId || '');
+ if (!id) return '';
+ for (const library of this.getMergedLibraries(data)) {
+ if ((library.rules || []).some(rule => String(rule.id || '') === id)) return String(library.name || '');
+ }
+ return '';
  }
 
  toLegacyItems(items) {
@@ -9767,6 +10016,16 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  }));
  normalized.libraries.push({ id, name: finalName, createdAt: now, updatedAt: now, items, rules, surcharges, giftMemories });
  normalized.activeLibraryId = id;
+ /* 【8.3.46】新建的库同时纳入查价范围。
+    否则「新建一个库 → 往里存了东西 → 却查不到」会让人以为功能坏了。
+    它此刻是当前库，无论如何都会参与查价（getMergedLibraries 会补齐），
+    这里显式加进去是为了让勾选框显示成「已勾上」，
+    而不是出现「明明在查、方块却是空的」这种自相矛盾的状态。 */
+ const mergedSet = new Set(Array.isArray(normalized.mergedLibraryIds) && normalized.mergedLibraryIds.length
+ ? normalized.mergedLibraryIds
+ : [normalized.activeLibraryId]);
+ mergedSet.add(id);
+ normalized.mergedLibraryIds = normalized.libraries.map(library => library.id).filter(libraryId => mergedSet.has(libraryId));
  normalized.updatedAt = now;
  const result = this.persist(normalized, { previousCanonical: data, previousLegacy: this.toLegacyItems(active?.items || []) });
  return { ...result, createdName: finalName };
@@ -12086,6 +12345,15 @@ class LayoutFeature {
  scheduleUiTask(...args) { return this.app.scheduleUiTask(...args); }
  isComposing() { return this._serviceTypeComposing; }
  getActiveServiceRules() { return this.app.priceRuleEditorFeature.getActiveServiceRules(); }
+ /* 【8.3.46】多库同用：候选清单要列出查价范围内**所有库**的项目，
+     所以这里要的是「查价用」的规则集（并集），不是「编辑用」的（只当前库）。
+     与 getActiveServiceRules 一样转交给价格规则模块 —— 合并规则只留一处实现。 */
+ getLookupServiceRules() { return this.app.priceRuleEditorFeature.getLookupServiceRules(); }
+ /* 【8.3.46】多库同用：候选列表要按「参与查价的所有库」来匹配。
+     本类只负责展示候选，库的管理与合并范围归 PriceMemoryFeature，
+     所以这里转交给它，而不是自己读 this.app.priceLibraries 再拼一遍 ——
+     同一套合并规则只留一处实现，将来改动不会两边走偏。 */
+ getLookupPriceLibraries() { return this.app.priceMemoryFeature?.getLookupPriceLibraries?.(); }
 
  bindEvents() {
  if (!this._eventScope.begin()) return false;
@@ -12253,7 +12521,7 @@ class LayoutFeature {
  const modes = [preferred, preferred === 'hour' ? 'round' : 'hour'];
  let match = null;
  for (const mode of modes) {
- const candidate = PriceRuleMatcher.matchActiveLibrary(this.priceLibraries, raw, mode);
+ const candidate = PriceRuleMatcher.matchActiveLibrary(this.getLookupPriceLibraries(), raw, mode);
  if (candidate.ok) { match = candidate; break; }
  }
  if (!match) return null;
@@ -12267,6 +12535,13 @@ class LayoutFeature {
  meta = `${relation} · ${settleLabel}¥${match.unitPrice}`;
  } else {
  meta = `${match.matchedBy === 'alias' ? '别名匹配' : '精确项目'} · ${settleLabel}¥${match.unitPrice}`;
+ }
+ /* 【8.3.46】多库同用：只有「同时用了不止一个库」时才标来源。
+     一个库的时候标了是废话（就那一个，谁都知道价从哪来），
+     还会把原本干净的候选行塞长、在手机上更容易折行。
+     标在最后一位，因为前面那段（区间关系 / 匹配方式 + 价格）才是用户先看的。 */
+ if (this.getLookupPriceLibraries()?.mergedLibraries?.length > 1 && match.libraryName) {
+ meta += ` · 〔${match.libraryName}〕`;
  }
  return {
  key: `resolved|${match.matchedRuleId}|${match.matchedVariant}|${match.settleType}`,
@@ -12291,7 +12566,29 @@ class LayoutFeature {
  const suggestions = [];
  const resolved = this.buildResolvedServiceSuggestion(raw);
  if (resolved) suggestions.push(resolved);
- this.getActiveServiceRules().forEach(rule => {
+ /* 【8.3.46】多库同用：候选清单要列出**查价范围内所有库**的项目，
+     不能只列当前库的。
+     理由：用户勾了 B 库一起用，就是希望「不切库也能用 B 库的项目」。
+     如果这里只列当前库的，用户在输入框里根本看不到 B 库有哪些项目，
+     只能靠盲打全名 —— 那和没勾 B 库的体验没有区别，
+     「一起用」这个开关就只兑现了一半。
+     每条候选在下面按来源库不同补一个「来自「XX价」」标记（多库时才有）。
+     注意：这里改的是**候选清单**（给人看/给人点），
+     价格库面板里的「精确单价 / 区间规则」列表仍然是只显示当前库的 ——
+     那是编辑入口，改动会写进当前库，两边不能混。 */
+ const suggestRules = this.getLookupServiceRules();
+ /* 多库时才标来源；单库时标了是废话，还会把候选行塞长、在窄屏更容易折行。 */
+ const suggestMultiLib = (this.getLookupPriceLibraries()?.mergedLibraries?.length || 0) > 1;
+ const sourceTagOf = (ruleId) => {
+ if (!suggestMultiLib) return '';
+ const name = this.priceLibraryStore?.findLibraryNameByRuleId?.(this.app.priceLibraries, ruleId);
+ /* 只写成「〔库名〕」。候选行的说明是单行不换行（nowrap + 省略号），
+    「来自「默认价格表」」这种长写法在两栏并排时会被截成「来自…」——
+    正好把唯一有用的信息截掉。换成方括号短标，多库时才有，一眼能分清来源。 */
+ return name ? `〔${name}〕` : '';
+ };
+ suggestRules.forEach(rule => {
+ const sourceTag = sourceTagOf(rule.id);
  if (rule.kind === 'exact') {
  const displayName = String(rule.serviceName || '').trim();
  if (!displayName) return;
@@ -12307,7 +12604,7 @@ class LayoutFeature {
  ruleId: rule.id,
  settleType: PriceRuleEngine.normalizePositivePrice(rule.prices?.[preferred]) !== null ? preferred : (PriceRuleEngine.normalizePositivePrice(rule.prices?.round) !== null ? 'round' : 'hour'),
  unitPrice: PriceRuleEngine.normalizePositivePrice(rule.prices?.[preferred]) ?? PriceRuleEngine.normalizePositivePrice(rule.prices?.round) ?? PriceRuleEngine.normalizePositivePrice(rule.prices?.hour),
- meta: [aliasText, prices].filter(Boolean).join(' · '),
+ meta: [aliasText, prices, sourceTag].filter(Boolean).join(' · '),
  searchKeys: this.getCachedServiceSuggestionSearch(`exact|${rule.id}|${rule.updatedAt}`, values),
  priority: 0,
  popularity: this.getRulePopularity(rule),
@@ -12338,7 +12635,7 @@ class LayoutFeature {
  ruleId: rule.id,
  settleType: PriceRuleEngine.normalizePositivePrice(prices?.[preferred]) !== null ? preferred : (PriceRuleEngine.normalizePositivePrice(prices?.round) !== null ? 'round' : 'hour'),
  unitPrice: PriceRuleEngine.normalizePositivePrice(prices?.[preferred]) ?? PriceRuleEngine.normalizePositivePrice(prices?.round) ?? PriceRuleEngine.normalizePositivePrice(prices?.hour),
- meta: [`按${rule.rangeLabel}区间`, this.formatServiceSuggestionPrices(prices)].filter(Boolean).join(' · '),
+ meta: [`按${rule.rangeLabel}区间`, this.formatServiceSuggestionPrices(prices), sourceTag].filter(Boolean).join(' · '),
  searchKeys: this.getCachedServiceSuggestionSearch(`range|${rule.id}|${variant.key}|${rule.updatedAt}`, values),
  priority: 0,
  popularity: Math.max(0, Number(rule.updatedAt) || 0) / 1e12,
@@ -12383,6 +12680,10 @@ class LayoutFeature {
  </div>`
  ).join(''));
  list.classList.add('show', 'compact-grid');
+ /* 【8.3.46】一个候选就不要并排了：并排会把说明挤到只剩一半宽，
+   而说明尾部正是「来自「XX价」」—— 来源被省略号吃掉就失去意义。
+   见 CSS 里 .is-single 的说明。 */
+ list.classList.toggle('is-single', matches.length === 1);
  return true;
  }
 
@@ -12944,7 +13245,10 @@ if (!box) return false;
     也是在服务类型下方留一行 ⚠ 文字并等用户补完输入，两种码单表现一致时
     用户不必学两套心智。 */
 
- getGiftMemories() { return this.giftMemoryFeature?.getMemories?.() || []; }
+ /* 【8.3.46】查价用的礼物记忆（跨库并集）。
+   礼物组合结算、礼物候选、补价判据都读这里。
+   记忆库列表管理界面仍用 getMemories（只当前库），两者分工同前。 */
+ getGiftMemories() { return this.giftMemoryFeature?.getLookupMemories?.() || []; }
 
  /* 【8.3.41】点进服务类型框就亮候选（只在礼物码单、且框还空着时）。
     候选直接列记忆库里「有固定单价」的礼物 —— 能一次点出「名字 + 单价」，
@@ -13448,7 +13752,34 @@ class PriceRuleEditorFeature {
 
  const searchHandler = this.app.debounce(() => this.memoryPanelFeature.handlePriceMemorySearchInput(), 80);
  this._eventScope.on(this.el.pmSearchInput, 'input', searchHandler);
- this._eventScope.on(this.el.pmLibrarySelect, 'change', event => this.switchPriceLibrary(event.target.value));
+ /* 【8.3.46】库清单的两类点击。用事件委托挂在容器上：
+       清单内容会随库增减整体重绘，逐个元素绑会在重绘后全部失效 ——
+       这是本项目踩过的老坑（动态 DOM 必须验证绑定数量）。 */
+ this._eventScope.on(this.el.pmLibraryList, 'click', event => {
+ const source = event.target instanceof Element ? event.target : null;
+ if (!source || !this.el.pmLibraryList?.contains(source)) return;
+ /* 勾选框要在它上面停下，不要冒泡到整行去触发「切当前库」。
+       只做拦截，真正的开关切换交给下面的 change —— 见那里的说明。 */
+ if (source.closest('[data-library-merge]')) { event.stopPropagation(); return; }
+ // 其余区域：切当前库
+ const pick = source.closest('[data-library-pick]');
+ if (pick) {
+ event.preventDefault();
+ this.pickPriceLibrary(pick.dataset.libraryPick);
+ }
+ });
+ /* 【8.3.46】勾选框的开关走 change，不能走 click。
+       这是个必须写下来的坑：浏览器是在 click 的默认动作里才把 checked 翻过来，
+       所以在 click 处理器里读 checkbox.checked 拿到的是**点击前**的旧值 ——
+       用它去调开关，勾变取消、取消变勾，每次都正好反着来。
+       change 是在状态已经更新之后才触发的，这里读到的才是用户点完之后的值。 */
+ this._eventScope.on(this.el.pmLibraryList, 'change', event => {
+ const source = event.target instanceof Element ? event.target : null;
+ const mergeBox = source?.closest?.('[data-library-merge]');
+ if (!mergeBox) return;
+ if (mergeBox.disabled) return;
+ this.togglePriceLibraryMerge(mergeBox.dataset.libraryMerge, mergeBox.checked);
+ });
  this._eventScope.on(this.el.pmRangeType, 'change', () => this.updateRangeBoundaryUI());
  this._eventScope.on(this.el.pmLibraryName, 'keydown', event => {
  if (event.isComposing || event.keyCode === 229) return; // 【#24】组合期间 Enter 是上屏
@@ -13892,15 +14223,14 @@ class PriceRuleEditorFeature {
 
  updatePriceLibraryUI({ forceName = false } = {}) {
  const data = this.priceLibraryStore.normalizeData(this.priceLibraries);
- const select = this.el.pmLibrarySelect;
+ const list = this.el.pmLibraryList;
  const nameInput = this.el.pmLibraryName;
  const count = this.el.pmLibraryCount;
  const status = this.el.pmLibraryStatus;
  const controls = [this.el.pmLibraryCreateBtn, this.el.pmLibraryRenameBtn, this.el.pmLibraryCopyBtn, this.el.pmLibraryDeleteBtn];
- if (!select) return false;
+ if (!list) return false;
  if (!data) {
- this.setRenderedHtml(select, '<option value="">默认价格表</option>');
- select.disabled = true;
+ this.setRenderedHtml(list, '<div class="pm-library-row is-active"><span class="pm-library-dot"></span><span class="pm-library-row-name">默认价格表</span></div>');
  controls.forEach(button => { if (button) button.disabled = true; });
  if (nameInput) { nameInput.disabled = true; if (forceName || document.activeElement !== nameInput) nameInput.value = '默认价格表'; }
  if (count) count.textContent = '1/6库';
@@ -13912,13 +14242,7 @@ class PriceRuleEditorFeature {
  return false;
  }
  const active = this.priceLibraryStore.getActiveLibrary(data);
- this.setRenderedHtml(select, data.libraries.map(library => {
- const rangeCount = (library.rules || []).filter(rule => rule.kind === 'rankRange').length;
- const extraCount = (library.surcharges || []).length;
- const title = `${library.name}（${library.items.length}项/${rangeCount}区间/${extraCount}加价）`;
-return `<option value="${this.escapeHtml(library.id)}"${library.id === data.activeLibraryId ? ' selected' : ''} title="${this.escapeHtml(title)}">${this.escapeHtml(library.name)}</option>`;
- }).join(''));
- select.disabled = false;
+ this.renderPriceLibraryList(data);
  if (nameInput) {
  nameInput.disabled = false;
  if (forceName || document.activeElement !== nameInput) nameInput.value = active?.name || '';
@@ -13935,7 +14259,14 @@ return `<option value="${this.escapeHtml(library.id)}"${library.id === data.acti
  if (status) {
  if (conflictState.ok) {
  const name = this.escapeHtml(active?.name || '');
- status.innerHTML = `当前库：${name}<br>${active?.items?.length || 0}个精确项目 · ${rangeCount}条区间规则 · ${surchargeCount}条加价 · ${giftCount}个礼物名称`;
+ const mergedCount = this.priceLibraryStore.getMergedLibraries(data).length;
+ /* 【8.3.46】勾了多个库时要说清「当前在查几个库」——
+       否则用户加了价却发现查不到，会以为是缓存问题。
+       只有 1 个库时保持原来的两行，不多一行噪音。 */
+ const mergedNote = mergedCount > 1
+ ? `<br>查价范围：${mergedCount}个库同时使用（当前库优先）`
+ : '';
+ status.innerHTML = `当前库：${name}<br>${active?.items?.length || 0}个精确项目 · ${rangeCount}条区间规则 · ${surchargeCount}条加价 · ${giftCount}个礼物名称${mergedNote}`;
  status.classList.remove('error');
  } else {
  status.textContent = `当前库存在价格规则冲突：${conflictState.message}`;
@@ -13945,6 +14276,64 @@ return `<option value="${this.escapeHtml(library.id)}"${library.id === data.acti
  this.updateRangeRuleUI();
  this.app.surchargeFeature?.updateUI?.();
  this.app.giftMemoryFeature?.updateUI?.();
+ return true;
+ }
+
+ /* 【8.3.46】渲染库清单。
+   一行一个库，两件事各归各位：
+     · 整行（按钮）→ 切当前库。做成 button 而不是 div 是为了键盘可达，
+       工程指令要求手机端少误触，而原生 button 自带焦点与语义。
+     · 右侧勾选框 → 参不参与查价。它挂在 label 里并 stopPropagation，
+       点它不会顺带触发整行的「切当前库」。
+   当前库的勾选框固定勾上并禁用：当前库永远参与查价（见 getMergedLibraries
+   里会对当前库做补齐），若不置灰，用户取消勾选后会看到「明明没勾却还在查」，
+   那是比直接禁用更让人困惑的状态。 */
+ renderPriceLibraryList(data) {
+ const list = this.el.pmLibraryList;
+ if (!list) return false;
+ const mergedIds = this.priceLibraryStore.getMergedLibraries(data).map(library => library.id);
+ const html = data.libraries.map(library => {
+ const rangeCount = (library.rules || []).filter(rule => rule.kind === 'rankRange').length;
+ const isActive = library.id === data.activeLibraryId;
+ const isMerged = isActive || mergedIds.includes(library.id);
+ const title = `${library.name}（${library.items.length}项/${rangeCount}区间/${(library.surcharges || []).length}加价）`;
+ const metaText = `${library.items.length}项`;
+ return `<div class="pm-library-row${isActive ? ' is-active' : ''}${isMerged ? ' is-merged' : ''}" data-library-id="${this.escapeHtml(library.id)}">
+<button type="button" class="pm-library-row-pick" data-library-pick="${this.escapeHtml(library.id)}" role="radio" aria-checked="${isActive ? 'true' : 'false'}" title="${this.escapeHtml(title)}" style="display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:0;background:none;border:0;padding:0;font:inherit;text-align:left;cursor:pointer;color:inherit">
+<span class="pm-library-dot" aria-hidden="true"></span>
+<span class="pm-library-row-name">${this.escapeHtml(library.name)}</span>
+</button>
+<span class="pm-library-row-meta">${this.escapeHtml(metaText)}</span>
+<label class="pm-library-merge" title="${isActive ? '当前库始终参与查价' : '勾选后这个库也一起参与查价'}">
+<input type="checkbox" data-library-merge="${this.escapeHtml(library.id)}"${isMerged ? ' checked' : ''}${isActive ? ' disabled' : ''}>
+<span>一起用</span>
+</label>
+</div>`;
+ }).join('');
+ this.setRenderedHtml(list, html);
+ return true;
+ }
+
+ /* 【8.3.46】切当前库（点整行）。与原来点下拉框等价。 */
+ pickPriceLibrary(libraryId) {
+ const id = String(libraryId || '');
+ if (!id || id === this.priceLibraries?.activeLibraryId) return false;
+ return this.switchPriceLibrary(id);
+ }
+
+ /* 【8.3.46】切「参与查价」开关。
+   被拒（最后一个库不能取消）时说清为什么，不要让用户以为按钮坏了。 */
+ togglePriceLibraryMerge(libraryId, merged) {
+ const result = this.priceLibraryStore.setLibraryMerged(this.priceLibraries, libraryId, merged === true);
+ if (!result.ok) {
+ if (result.reason === 'last-merged') this.showInfo('至少要有一个库参与查价');
+ else this.showError(this.getPriceLibraryErrorMessage(result.reason));
+ return false;
+ }
+ this.priceLibraries = result.data;
+ this.app.priceMemory = result.activeItems;
+ this.updatePriceMemoryUI();
+ this.refreshServicePriceMatchAfterLibraryChange();
  return true;
  }
 
@@ -14128,6 +14517,20 @@ return `<option value="${this.escapeHtml(library.id)}"${library.id === data.acti
  const active = this.priceLibraryStore.getActiveLibrary(this.priceLibraries);
  return PriceRuleEngine.normalizeRules(active?.rules).rules;
  }
+
+ /* 【8.3.46】多库同用：查价专用的规则集合。
+   与上面 getActiveServiceRules 的区别只有「范围」：
+     · getActiveServiceRules —— **只**当前库。用于编辑、冲突校验、区间规则列表
+       （这些地方必须只认当前库，否则「同名项目冲突」会在不相干的库之间误报）；
+     · 本方法 —— 所有参与查价的库并集。用于候选联想、精确项目查价。
+   合并交给 PriceRuleEngine.normalizeRules 自己按规则唯一键去重，
+   顺序是「当前库在前」（由 getMergedLibraries 保证），先出现者胜。 */
+ getLookupServiceRules() {
+ const merged = this.priceLibraryStore.getMergedLibraries(this.priceLibraries);
+ if (!merged.length) return [];
+ if (merged.length === 1) return PriceRuleEngine.normalizeRules(merged[0].rules).rules;
+ return PriceRuleEngine.normalizeRules(merged.flatMap(library => library.rules || [])).rules;
+ }
 }
 
  // 附加费 Feature
@@ -14258,6 +14661,19 @@ class SurchargeFeature {
  getRules(data = this.priceLibraries) {
  const active = this.priceLibraryStore.getActiveLibrary(data);
  return SurchargeRuleEngine.normalizeRules(active?.surcharges);
+ }
+
+ /* 【8.3.46】多库同用：查价时把各库的加价规则并集起来。
+   与 getRules 的分工同 getActiveServiceRules：列表管理只看当前库，
+   结算查价看全部勾选的库。
+   去重与冲突判定仍旧交给 SurchargeRuleEngine.normalizeRules ——
+   它按规则名去重，同名规则（不同库各有一条）会合并成一条，
+   避免「同一个加价被叠加两次」把钱算多。 */
+ getLookupRules(data = this.priceLibraries) {
+ const merged = this.priceLibraryStore.getMergedLibraries(data);
+ if (!merged.length) return [];
+ const all = merged.length === 1 ? (merged[0].surcharges || []) : merged.flatMap(library => library.surcharges || []);
+ return SurchargeRuleEngine.normalizeRules(all);
  }
 
  toggleManager(force) {
@@ -14444,7 +14860,10 @@ class SurchargeFeature {
  matchSurchargeRule(text) {
  const key = SurchargeRuleEngine.normalizeText(text);
  if (!key) return null;
- return this.getRules().filter(rule => rule.enabled)
+ /* 【8.3.46】用 getLookupRules（跨库并集）而不是 getRules（只当前库）：
+    这里是「判断加价框里打的关键词命中哪条规则」，属于查价，
+    用户在其他库里配的加价规则也要能命中。 */
+ return this.getLookupRules().filter(rule => rule.enabled)
  .find(rule => (rule.keywords || []).some(keyword => key.includes(SurchargeRuleEngine.normalizeText(keyword)))) || null;
  }
 
@@ -14643,7 +15062,7 @@ class SurchargeFeature {
  // 未指定（all=null 且 index=-1）时保持旧行为（裸关键词 + 多项目 → 报错提示指定范围）
  const target = this.resolveSurchargeTarget();
  const result = Number(this.app.currentMode) === 1
- ? SurchargeRuleEngine.apply(this.el.inputs?.note?.value || '', projects, this.getRules(), { surchargeText: this.el.inputs?.surcharge?.value || '', targetIndex: target.index, targetAll: target.all === true })
+ ? SurchargeRuleEngine.apply(this.el.inputs?.note?.value || '', projects, this.getLookupRules(), { surchargeText: this.el.inputs?.surcharge?.value || '', targetIndex: target.index, targetAll: target.all === true })
  : { ok: true, triggered: false, projects, aggregate: ProjectSettlementEngine.aggregateProjects(projects), applications: [], errors: [] };
  if (render) this.renderStatus(result);
  return result;
@@ -14711,6 +15130,16 @@ class GiftMemoryFeature {
  getMemories(data = this.priceLibraries) {
  const active = this.priceLibraryStore.getActiveLibrary(data);
  return GiftMemoryEngine.normalize(active?.giftMemories);
+ }
+
+ /* 【8.3.46】多库同用：查价时把各库的礼物记忆并集起来。
+   礼物记忆是「名字 → 模式/单价」的长期记忆，跨库合并后
+   同一个礼物名在多个库都有价时，取顺序最靠前（即当前库）那条。 */
+ getLookupMemories(data = this.priceLibraries) {
+ const merged = this.priceLibraryStore.getMergedLibraries(data);
+ if (!merged.length) return [];
+ const all = merged.length === 1 ? (merged[0].giftMemories || []) : merged.flatMap(library => library.giftMemories || []);
+ return GiftMemoryEngine.normalize(all);
  }
 
  toggleManager(force) {
@@ -14836,10 +15265,12 @@ class GiftMemoryFeature {
  return true;
  }
 
+ /* 【8.3.46】这两处也走查价范围：用户码单时礼物候选要认得
+    其他勾选库里的礼物名，否则跨库用礼物时联想不出来。 */
  findByService(value, { exact = false } = {}) {
  const query = SurchargeRuleEngine.normalizeText(value);
- if (!query) return this.getMemories().slice(0, 6);
- return this.getMemories().filter(item => {
+ if (!query) return this.getLookupMemories().slice(0, 6);
+ return this.getLookupMemories().filter(item => {
  const key = SurchargeRuleEngine.normalizeText(item.serviceType);
  return exact ? key === query : key.includes(query) || query.includes(key);
  });
@@ -14848,7 +15279,7 @@ class GiftMemoryFeature {
  suggestByPrice(value) {
  const price = PriceRuleEngine.normalizePositivePrice(value);
  if (price === null) return [];
- return this.getMemories().filter(item => item.mode === 'fixed' && item.unitPrice === price);
+ return this.getLookupMemories().filter(item => item.mode === 'fixed' && item.unitPrice === price);
  }
 
  updateUI({ renderList = this._managerOpen } = {}) {
@@ -15255,7 +15686,7 @@ class PriceMemoryFeature {
  const modes = [currentSettleType, currentSettleType === 'hour' ? 'round' : 'hour'];
  let match = null;
  for (const mode of modes) {
- const candidate = PriceRuleMatcher.matchActiveLibrary(this.priceLibraries, serviceValue, mode);
+ const candidate = PriceRuleMatcher.matchActiveLibrary(this.getLookupPriceLibraries(), serviceValue, mode);
  if (candidate.ok) { match = candidate; break; }
  }
  if (!match || !['round', 'hour'].includes(match.settleType)) return false;
@@ -15387,6 +15818,22 @@ class PriceMemoryFeature {
  return this.scheduleServicePriceMatch();
  }
 
+ /* 【8.3.46】多库同用：查价时该看哪些库。
+   返回的是「价格库数据 + 已排好序的参与查价库列表」—— 即原对象加一个
+   mergedLibraries 字段。之所以要包一层而不是直接传 this.priceLibraries，
+   是因为排序（当前库优先）需要 Store 的归一化逻辑，
+   而 PriceRuleMatcher 是纯静态类、拿不到 Store。
+   把排序结果随数据一起递过去，两边各司其职：
+     Store 负责「谁先谁后」，Matcher 负责「按顺序找到第一个命中的」。
+   改名注意：这里是**查询**用的库列表，不要和 getActiveLibrary（**编辑**目标）混用。 */
+ getLookupPriceLibraries() {
+ const data = this.priceLibraries;
+ if (!data || typeof data !== 'object') return data;
+ const merged = this.priceLibraryStore?.getMergedLibraries?.(data);
+ if (!Array.isArray(merged) || !merged.length) return data;
+ return { ...data, mergedLibraries: merged };
+ }
+
  handleOrderModeChanged(mode) {
  this.cancelServicePriceMatch();
  this._servicePriceState.manualOverrideKey = '';
@@ -15424,7 +15871,7 @@ class PriceMemoryFeature {
  : '';
  const candidateName = formalServiceName || String(project.serviceDisplay || project.serviceRaw || '').trim();
  const existing = candidateName && this.app.priceLibraries
- ? this.priceLibraryStore.findActiveItemByService(this.app.priceLibraries, candidateName, settleType)
+ ? this.priceLibraryStore.findLookupItemByService(this.app.priceLibraries, candidateName, settleType)
  : null;
  if (existing && existing.unitPrice === unitPrice) {
  next = this.priceMemoryStore.upsert(next, { unitPrice, settleType, serviceType: existing.serviceType });
@@ -15444,7 +15891,7 @@ class PriceMemoryFeature {
  const unitPrice = this.priceMemoryStore.normalizePrice(this.app.el.autoUnitPrice?.value);
  const settleType = this.getCurrentAutoPriceSettleType();
  if (unitPrice !== null) {
- const existing = this.app.priceLibraries ? this.priceLibraryStore.findActiveItemByService(this.app.priceLibraries, serviceType, settleType) : null;
+ const existing = this.app.priceLibraries ? this.priceLibraryStore.findLookupItemByService(this.app.priceLibraries, serviceType, settleType) : null;
  // 8.3.25：手输单价时即使与库价不同也要记下用户这次的选择；未手输则维持原有「不覆盖已有库价」的保守行为。
  if (!existing || existing.unitPrice === unitPrice || this._servicePriceState.manualPriceActive) {
  next = this.priceMemoryStore.upsert(next, { unitPrice, settleType, serviceType });
@@ -15688,6 +16135,13 @@ class PriceMemoryFeature {
  this.resetAutoPriceState();
  this.inputFlowFeature.initClearButtons();
  this.orderFlow.resetResults();
+ /* 【8.3.45 修】礼物码单折数提示要在「全部清除」后一并归位。
+    上面已经把总价与折数两个框都清了，但折数下方那句
+    「本次折数不影响总价，总价仍为 X」是按清除前的值算出来的，
+    没人通知它就会留在界面上 —— 表现为「清除之后还挂着上一单的金额」。
+    这里补一次刷新，它会读到已清空的值并回到初始那句话。
+    放在 resetResults 之后：那句话要读的正是总价框的值。 */
+ this.app.updateGiftDiscountNote?.();
  this.bossMemoryFeature.hideBossSuggestions();
  this.serviceSuggestionFeature.hideTypeSuggestions();
  this.serviceSuggestionFeature.clearSoftTypeSuggestion({ keepValue: false });
@@ -16106,6 +16560,15 @@ class PriceMemoryFeature {
  }
  if (targetId === 'totalPrice') this.resetAutoPriceState();
  if (targetId === 'totalPrice' || targetId === 'discount' || targetId === 'discountOverlay') this.orderFlow.resetResults();
+ /* 【8.3.45 修】礼物码单折数提示要跟着「清除」一起刷新。
+    折数框下方那句「本次折数不影响总价，总价仍为 X」是根据折数与总价两个框的
+    当前值算出来的 —— 只要这两者之一被清空，这句话就不再成立。
+    原先只在「用户打字」（handleMainInput）时刷新它，走「清除小叉」这条路径时
+    没人通知它，于是清空之后那句提示仍挂着上一单的金额（总价框已经空了，
+    提示里却还写着「总价仍为 280」）。
+    这里补一次刷新即可：updateGiftDiscountNote 自己会读当前值与当前模式，
+    折数已空时它会自动回到初始那句话，非礼物模式则直接返回。 */
+ if (targetId === 'discount' || targetId === 'discountOverlay' || targetId === 'totalPrice') this.app.updateGiftDiscountNote?.();
  if (targetId === 'note' || targetId === 'surcharge') this.surchargeFeature?.refreshOrderPreview?.();
  }
 
@@ -17277,7 +17740,10 @@ class OrderDraftSnapshotCoordinator {
  const feature = this.feature;
  const input = feature.getDraftInputs();
  const activeLibrary = feature.getActiveLibrary();
- const rules = feature.surchargeFeature?.getRules?.() || [];
+ /* 【8.3.46】草稿指纹要跟着「参与查价的库」走：勾选变化会让取到的价变化，
+    指纹不变就不会重算，界面会停在旧价上。所以这里用并集版本，
+    并把 mergedLibraryIds 一起纳入指纹（下面 library 一行）。 */
+ const rules = feature.surchargeFeature?.getLookupRules?.() || [];
  return JSON.stringify({
  generation: this.generation,
  currentMode: Number(this.app.currentMode) || 1,
@@ -17288,7 +17754,7 @@ class OrderDraftSnapshotCoordinator {
  expressionActive: Boolean(feature._expressionActive),
  expressionSource: String(feature._expressionSource || ''),
  expressionSuppressedSource: String(feature._expressionSuppressedSource || ''),
- library: [String(activeLibrary?.id || ''), Number(activeLibrary?.updatedAt) || 0, Number(this.app.priceLibraries?.updatedAt) || 0],
+ library: [String(activeLibrary?.id || ''), Number(activeLibrary?.updatedAt) || 0, Number(this.app.priceLibraries?.updatedAt) || 0, (this.app.priceLibraries?.mergedLibraryIds || []).join(',')],
  surchargeRules: rules.map(rule => [rule.id, rule.updatedAt, rule.enabled, rule.prices?.round ?? '', rule.prices?.hour ?? '', ...(rule.keywords || [])]),
  projects: feature.projects.map((project, index) => this.projectSignature(project, index))
  });
@@ -17715,6 +18181,42 @@ class AutoPriceFeature {
  return data.libraries.find(item => item?.id === data.activeLibraryId) || data.libraries[0] || null;
  }
 
+ /* 【8.3.46】多库同用：查价时该看哪些库（与 getActiveLibrary 的分工见
+    PriceLibraryStore.getMergedLibraries 的说明）。
+    结算取价走这个方法；编辑与草稿指纹里那份「当前库」仍走 getActiveLibrary，
+    这样「勾了别的库」只影响取到的价，不影响「新增的价写进哪个库」。 */
+ getLookupLibrary() {
+ const data = this.app.priceLibraries;
+ if (!data || !Array.isArray(data.libraries)) return null;
+ const merged = this.app.priceLibraryStore?.getMergedLibraries?.(data);
+ if (!Array.isArray(merged) || !merged.length) return this.getActiveLibrary();
+ if (merged.length === 1) return merged[0];
+ /* 多个库时合成一个用于取价的「虚拟库」：各库规则按序拼起来
+    （当前库在前，先到先得），让下游照旧工作、不必感知这是几个库。
+    name 用「A + B」是为了万一界面展示到也有个能读的说明。 */
+ return {
+ id: merged.map(library => library.id).join('+'),
+ name: merged.map(library => library.name).join(' + '),
+ items: merged.flatMap(library => library.items || []),
+ rules: merged.flatMap(library => library.rules || []),
+ surcharges: merged.flatMap(library => library.surcharges || []),
+ giftMemories: merged.flatMap(library => library.giftMemories || []),
+ sources: merged,
+ merged: true
+ };
+ }
+
+ /* 【8.3.46】把「参与查价库列表」随数据一起递给 PriceRuleMatcher。
+    与 PriceMemoryFeature.getLookupPriceLibraries 同一用途，
+    两边各持一份是因为它们访问的是不同的 app 引用（这里是 this.app，那边是 this）。 */
+ getLookupPriceLibraries() {
+ const data = this.app.priceLibraries;
+ if (!data || typeof data !== 'object') return data;
+ const merged = this.app.priceLibraryStore?.getMergedLibraries?.(data);
+ if (!Array.isArray(merged) || !merged.length) return data;
+ return { ...data, mergedLibraries: merged };
+ }
+
  getDraftInputs() {
  return {
  quantityRaw: String(this.getElement('duration')?.value || '').trim(),
@@ -17727,7 +18229,7 @@ class AutoPriceFeature {
  resolveCurrentDraft() {
  const input = this.getDraftInputs();
  const match = input.serviceRaw
- ? PriceRuleMatcher.matchActiveLibrary(this.app.priceLibraries, input.serviceRaw, input.quantityMode)
+ ? PriceRuleMatcher.matchActiveLibrary(this.getLookupPriceLibraries(), input.serviceRaw, input.quantityMode)
  : PriceRuleMatcher.failure('service_empty', '服务项目不能为空', {
  parsed: PriceRuleMatcher.parseService(input.serviceRaw),
  settleType: input.quantityMode,
@@ -17752,7 +18254,7 @@ class AutoPriceFeature {
  matchedVariant: match.ok ? match.matchedVariant : '',
  unitPrice,
  priceSource,
- libraryId: match.ok ? match.libraryId : String(this.getActiveLibrary()?.id || ''),
+ libraryId: match.ok ? match.libraryId : String(this.getLookupLibrary()?.id || ''),
  createdAt: Date.now()
  }, this.projects.length);
  const result = {
@@ -19557,7 +20059,7 @@ this.scheduleLazyFeatureLoad();
  'enhancedCorrectionModal', 'savedNamesModal', 'savedNamesList', 'savedNamesMeta', 'savedNamesTabs',
  'savedNamesSearchInput', 'savedNamesSearchClearBtn', 'savedNamesAddInput', 'savedNamesAddBtn', 'undoLearningData',
 'bossMemTabBtn', 'priceMemTabBtn', 'bossMemPanel', 'priceMemPanel', 'dataPortabilityPanel',
- 'pmLibraryBox', 'pmLibrarySelect', 'pmLibraryCount', 'pmLibraryName', 'pmLibraryCreateBtn', 'pmLibraryRenameBtn', 'pmLibraryCopyBtn', 'pmLibraryDeleteBtn', 'pmLibraryStatus',
+ 'pmLibraryBox', 'pmLibraryList', 'pmLibraryCount', 'pmLibraryName', 'pmLibraryCreateBtn', 'pmLibraryRenameBtn', 'pmLibraryCopyBtn', 'pmLibraryDeleteBtn', 'pmLibraryStatus',
  'pmRangeManager', 'pmRangeToggleBtn', 'pmRangeCount', 'pmRangeBody', 'pmRangeType', 'pmRangeLabel', 'pmRangeAlias', 'pmRangeStarBoundary', 'pmRangeNamedBoundary', 'pmRangeLowerBoundary', 'pmRangeMinStar', 'pmRangeMaxStar', 'pmRangeNamedRanks', 'pmRangeNormalRound', 'pmRangeNormalHour', 'pmRangeCarryRound', 'pmRangeCarryHour', 'pmRangeStarRound', 'pmRangeStarHour', 'pmRangeSaveBtn', 'pmRangeCancelBtn', 'pmRangeList',
  'pmSurchargeManager', 'pmSurchargeToggleBtn', 'pmSurchargeCount', 'pmSurchargeBody', 'pmSurchargeName', 'pmSurchargeKeywords', 'pmSurchargeRound', 'pmSurchargeHour', 'pmSurchargeEnabled', 'pmSurchargeSaveBtn', 'pmSurchargeCancelBtn', 'pmSurchargeList',
  'pmGiftManager', 'pmGiftToggleBtn', 'pmGiftCount', 'pmGiftBody', 'pmGiftName', 'pmGiftMode', 'pmGiftPrice', 'pmGiftSaveBtn', 'pmGiftCancelBtn', 'pmGiftList', 'surchargeStatus', 'giftDiscountNote',

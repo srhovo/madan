@@ -34,6 +34,19 @@ const ck = (name, cond, extra) => {
   if (!cond) fail++;
 };
 
+/* 【8.3.45】判断「全部清除」里那句提示刷新是否排在结果归位之后。
+   必须限定在 clearAll 作用域内：runInputClearSideEffects 里也有一对
+   `resetResults()` + 刷新调用，用全文正则会把顺序错位的 clearAll 误判为正确。
+   提到模块作用域是因为正向断言与反向验证都要用它，写在块里会取不到。 */
+const orderInClearAll = (src) => {
+  const start = src.indexOf('clearAll() {');
+  if (start < 0) return false;
+  const seg = src.slice(start, start + 1400);
+  const reset = seg.indexOf('this.orderFlow.resetResults();');
+  const note = seg.indexOf('this.app.updateGiftDiscountNote?.()');
+  return reset >= 0 && note >= 0 && note > reset;
+};
+
 // ── 抠出 updateGiftDiscountNote 与它依赖的格式化函数，在 vm 里跑 ──────────────
 // 做法与 test-engine.js / price-alias.js 一致：只抠类定义，不碰 DOM。
 function extractMethod(src, name) {
@@ -182,6 +195,30 @@ console.log('\n④ 刷新链路：输入变化必须真的能触发到这段逻�
   const switchCall = /updateDiscountModeHint\(\)[\s\S]{0,900}?this\.updateGiftDiscountNote\(isGiftMode\)/.test(html);
   ck('切换单子/礼物码单时会刷新该提示', switchCall);
 
+  /* 【8.3.45】清除路径也必须刷新。
+     8.3.38 只覆盖了「用户打字」这条路径。清除走的是另一条路
+     （InputFlowFeature.clearInput → runInputClearSideEffects、
+       ClearAllCoordinatorFeature.clearAll），
+     那里原先只 resetResults，没人通知提示，于是清空之后那句
+     「总价仍为 280」还挂在界面上 —— 用户报上来的就是这个残留。
+     这里钉住两个清除出口各自都有刷新调用。 */
+  const clearInputCall = /runInputClearSideEffects\(targetId\)\s*\{[\s\S]{0,1400}?targetId === 'discount'[\s\S]{0,200}?updateGiftDiscountNote/.test(html);
+  ck('单字段清除（清除小叉）会刷新该提示', clearInputCall);
+
+  /* 光有 discount 不够：清空「总价」同样让那句话不成立
+     （总价没了，却还说「总价仍为 X」），所以总价也必须进这条分支。 */
+  const clearCoversTotal = /targetId === 'discount' \|\| targetId === 'discountOverlay' \|\| targetId === 'totalPrice'[\s\S]{0,160}?updateGiftDiscountNote/.test(html);
+  ck('清空总价也走同一条刷新（否则「总价仍为 X」同样残留）', clearCoversTotal);
+
+  const clearAllCall = /clearAll\(\)\s*\{[\s\S]{0,1200}?updateGiftDiscountNote/.test(html);
+  ck('「全部清除」会刷新该提示', clearAllCall);
+
+  /* 顺序断言：必须锚在 clearAll 作用域内做，不能用「全文第一个 resetResults + 之后有刷新」
+     这种宽泛写法 —— runInputClearSideEffects 里也有一对 `resetResults()` + 刷新，
+     它会把顺序错位的 clearAll 也判成正确的（假绿，真踩过）。
+     实现见文件顶部的 orderInClearAll（供正向与反向验证共用）。 */
+  ck('「全部清除」里的刷新排在结果归位之后（顺序不能反）', orderInClearAll(html));
+
   // 反向陷阱：InputFlowFeature 上没有 currentMode，若在调用点自行判断模式会永远不成立
   const wrongGuard = /handleMainInput[\s\S]{0,900}?Number\(this\.currentMode\) === 2[\s\S]{0,120}?updateGiftDiscountNote/.test(html);
   ck('调用点没有误用 this.currentMode 做守门（该处取不到，会静默失效）', !wrongGuard);
@@ -256,6 +293,37 @@ console.log('\n⑥ 反向验证：把功能拆掉后，断言必须变红');
   );
   const trapHit = /handleMainInput[\s\S]{0,900}?Number\(this\.currentMode\) === 2[\s\S]{0,120}?updateGiftDiscountNote/.test(wrongGuardSrc);
   ck('误用 this.currentMode 守门时，陷阱断言确实会失败', trapHit === true);
+
+  /* 反向 4【8.3.45】：把新增的两个清除路径刷新删掉，对应断言必须变红。
+     否则这四条断言只是「源码里碰巧有这几个字」，挡不住以后被删。 */
+  const noClearInput = html.replace(
+    " if (targetId === 'discount' || targetId === 'discountOverlay' || targetId === 'totalPrice') this.app.updateGiftDiscountNote?.();\n",
+    ''
+  );
+  const clearInputGone = /targetId === 'discount'[\s\S]{0,200}?updateGiftDiscountNote/.test(noClearInput);
+  ck('删掉单字段清除的刷新后，该断言确实会失败', clearInputGone === false);
+
+  const noClearAll = html.replace(
+    ' this.app.updateGiftDiscountNote?.();\n this.bossMemoryFeature.hideBossSuggestions();',
+    ' this.bossMemoryFeature.hideBossSuggestions();'
+  );
+  const clearAllGone = /clearAll\(\)\s*\{[\s\S]{0,1200}?updateGiftDiscountNote/.test(noClearAll);
+  ck('删掉「全部清除」的刷新后，该断言确实会失败', clearAllGone === false);
+
+  /* 反向 5：把 clearAll 里的刷新挪到 resetResults 之前（顺序错），顺序断言必须变红。
+     两个坑都踩过，记在这里：
+       ① 锚点必须唯一 —— `this.orderFlow.resetResults();` 在文件里有两处
+          （另一处在 runInputClearSideEffects），用它会替换错地方；
+       ② 锚点不能跨过中间的注释，否则匹配不到，反向验证就成了永远为真的假绿。
+     所以这里用 clearAll 里 `initClearButtons()` 紧跟的那一处作为唯一锚点。 */
+  const clearAllAnchor = ' this.inputFlowFeature.initClearButtons();\n this.orderFlow.resetResults();';
+  const wrongOrder = html.replace(
+    clearAllAnchor,
+    ' this.inputFlowFeature.initClearButtons();\n this.app.updateGiftDiscountNote?.();\n this.orderFlow.resetResults();'
+  );
+  const replaced = wrongOrder !== html;
+  ck('顺序反向验证的锚点确实命中了源码（否则本条是假绿）', replaced);
+  ck('把刷新提到结果归位之前时，顺序断言确实会失败', orderInClearAll(wrongOrder) === false);
 }
 
 console.log('\n═════ 判定 ═════');
