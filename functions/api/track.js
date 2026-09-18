@@ -133,7 +133,13 @@ export async function onRequestPost(context) {
     try {
       await bumpTotalLaunchCounters(env, deviceId);
     } catch (e) {
-      // KV 写入失败不影响本次上报被视为成功（Analytics Engine 已经写入）
+      /* KV 写入失败不影响本次上报被视为成功（Analytics Engine 已经写入），
+         所以这里不抛、不改返回码 —— 但不能连一行痕迹都不留。
+         （8.3.45 修）原先这里是完全空的 catch：一旦 COUNTERS 绑定配置出错
+         导致 KV 持续写入失败，唯一的现象是「计数器数字不再增长」，
+         而 Cloudflare 日志面板里查不到任何线索 —— 你会先去怀疑统计口径，
+         而不是怀疑绑定配置。留在日志里，成本是每次失败一行输出。 */
+      console.error('[码单器统计] KV 计数器写入失败（不影响本次上报）：', e && e.message ? e.message : e);
     }
   }
 

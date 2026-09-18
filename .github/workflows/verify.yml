@@ -27,7 +27,7 @@ permissions:
 
 jobs:
   verify:
-    name: 11 套防线
+    name: 19 套防线
     # 显式锁定，避免 "latest" 漂移造成与开发机不一致的假红
     runs-on: ubuntu-24.04
     timeout-minutes: 15

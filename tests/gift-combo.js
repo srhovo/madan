@@ -274,10 +274,10 @@ ok('有对应的样式', /\.app-list-note\.gift-combo-note \{/.test(HTML));
 /* ============ 汇总 ============ */
 console.log(`\n${'='.repeat(60)}`);
 if (failures.length === 0) {
-  console.log(`第 18 套防线 · 礼物组合：全部通过（${passed} 项断言）`);
+  console.log(`第 10 套防线 · 礼物组合：全部通过（${passed} 项断言）`);
   process.exit(0);
 } else {
-  console.log(`第 18 套防线 · 礼物组合：${failures.length} 项失败 / 共 ${passed + failures.length} 项\n`);
+  console.log(`第 10 套防线 · 礼物组合：${failures.length} 项失败 / 共 ${passed + failures.length} 项\n`);
   failures.forEach((f, i) => console.log(`  ${i + 1}. ${f}`));
   process.exit(1);
 }
