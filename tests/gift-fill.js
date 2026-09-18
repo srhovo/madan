@@ -311,8 +311,63 @@ const releaseSh = fs.readFileSync(path.join(ROOT, 'tools/release.sh'), 'utf8');
 ok('发版脚本拒绝测试版号', /拒绝用测试版号发版/.test(releaseSh),
   '发版产物是用户能拿到的，号必须干净');
 ok('发版脚本提示自动顺位', /NEXT_BY_REPO/.test(releaseSh));
-ok('发版脚本解析当前版本时剥离后缀', /CUR_VER_RAW/.test(releaseSh) && /\$\{CUR_VER_RAW%%-test\.\*\}/.test(releaseSh),
-  '拿带后缀的整串去比会得到「8.3.42 不大于 8.3.42-test.3」的误导结论');
+/* 【8.3.45】这里原先断言的是「发版脚本解析当前版本时剥离后缀」
+   （要求源码里出现 ${CUR_VER_RAW%%-test.*}）。那条断言是错的，且它锁住了一个
+   真实故障：把当前测试号 8.3.45-test.3 剥成 8.3.45 之后，拿 8.3.45 去和它比
+   就变成「两个一模一样的号比大小」，永远判不出「大于」—— 表现就是工作区带着
+   测试号时，正式发行被自己的脚本挡住（8.3.45 发版时踩到）。
+
+   正确的不变式不是「有没有剥离」，而是**「同主段里正式号必须排在测试号之后」**，
+   这样下一个该发的号永远排在最末。下面直接把源码里的 ver_gt 抽出来实测，
+   而不是匹配源码文本 —— 匹配文本只能证明"写了某段代码"，证明不了"算得对"。 */
+const vgBody = (releaseSh.match(/ver_gt\(\) \{[\s\S]*?\n\}/) || [])[0];
+ok('发版脚本内含版本比较函数 ver_gt', Boolean(vgBody), '抽不到函数体，下面的排序断言无从谈起');
+
+if (vgBody) {
+  /* 把 ver_gt 包成一个可调用的探针：传入 A B，返回 '>' / '<=' / 'ERR'。
+     必须区分「判为不大于」和「脚本崩了」—— 原先只返回布尔值，
+     遇到 cut -d. 那种 [ 45-test -gt 45 ] 的 bash 报错会被当成"不大于"
+     而静默通过，是典型的假绿（8.3.45 反向验证时抓到）。 */
+  const probe = (a, b) => {
+    const script = `${vgBody}\nif ver_gt "${a}" "${b}"; then echo GT; else echo LE; fi\n`;
+    try {
+      /* stdout / stderr 分开收：bash 里 [ 45-test -gt 45 ] 的 "integer
+         expression expected" 只写 stderr，整个脚本退出码仍是 0 ——
+         只看退出码和 stdout 会把这种崩溃当成「判为不大于」而静默通过。
+         所以 stderr 非空一律视为 ERR。 */
+      const r = require('child_process').spawnSync('bash', ['-c', script], { encoding: 'utf8' });
+      const errOut = (r.stderr || '').trim();
+      if (errOut) return 'ERR';
+      const out = (r.stdout || '').trim();
+      return out === 'GT' ? '>' : '<=';
+    } catch (e) {
+      return 'ERR';
+    }
+  };
+  const cases = [
+    /* [A, B, 期望 A>B, 说明] */
+    ['8.3.45', '8.3.44', true, '正常顺位 8.3.44 → 8.3.45'],
+    ['8.3.45', '8.3.45-test.3', true, '正式号要压过同主段的测试号（否则发不出去）'],
+    ['8.3.45-test.4', '8.3.45-test.3', true, '测试号之间比 N'],
+    ['8.3.46', '8.3.45', true, '主段更高就更大'],
+    ['8.3.10', '8.3.9', true, '逐段数值比较，不按字符串比'],
+    ['8.3.45-test.3', '8.3.45', false, '测试号不该压过同主段的正式号'],
+    ['8.3.44', '8.4.0', false, '主段更低就更小'],
+  ];
+  const bad = cases.filter(([a, b, want]) => probe(a, b) !== (want ? '>' : '<='));
+  const detail = cases.map(([a, b, want]) => {
+    const got = probe(a, b);
+    const mark = got === (want ? '>' : '<=') ? '' : ' ✗';
+    return `${a}${got}${b}${mark}`;
+  }).join('，');
+  ok('版本比较：同主段下正式号排在测试号之后（7 组实测）', bad.length === 0,
+    bad.length
+      ? bad.map(([a, b, want]) => {
+        const got = probe(a, b);
+        return got === 'ERR' ? `${a} vs ${b} 直接报错` : `${a} vs ${b} 期望${want ? '>' : '≤'} 实得${got}`;
+      }).join('；') + ` ｜ 全部实测：${detail}`
+      : detail);
+}
 
 /* ============ 汇总 ============ */
 console.log(`\n${'='.repeat(60)}`);
