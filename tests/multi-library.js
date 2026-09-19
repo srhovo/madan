@@ -115,6 +115,20 @@ async function boot(source) {
   return { dom, w, app, store, aId, bId, errors };
 }
 
+/* 把一份库数据同时挂到所有 Feature 上并落盘。
+   为什么需要它：这个应用里 app.priceLibraries / priceMemoryFeature.priceLibraries /
+   priceRuleEditorFeature.priceLibraries 是三处引用，测试里**只改一处**会让
+   各 Feature 看到不一致的库（实测踩过：改完没同步，③ 段断言看到的是上一段留下的
+   数据）。统一走这个函数，避免每段各写一遍、漏掉某一处。 */
+function useLibraries(app, store, data) {
+  const normalized = store.normalizeData(data);
+  app.priceLibraries = normalized;
+  if (app.priceMemoryFeature) app.priceMemoryFeature.priceLibraries = normalized;
+  if (app.priceRuleEditorFeature) app.priceRuleEditorFeature.priceLibraries = normalized;
+  store.persist(normalized, {});
+  return normalized;
+}
+
 (async () => {
   console.log('═════ 同时使用多个价格库 · 专项验证 ═════\n');
 
@@ -146,24 +160,160 @@ async function boot(source) {
   if (sugg) {
     const two = sugg.buildResolvedServiceSuggestion('鹅鸭杀');
     ck('服务类型候选能补出副库的价', !!two && two.unitPrice === 30, two && two.unitPrice);
-    ck('候选行标出副库来源（〔礼物价〕）', !!two && /〔礼物价〕/.test(two.meta), two && two.meta);
+    /* 【8.3.46】来源标注收紧为「只在同名冲突时标」。
+       A 库和 B 库这里的项目是**互不重叠**的（A=一起看，B=鹅鸭杀/满天星），
+       所以「鹅鸭杀」只有 B 库有、没有歧义 → 不该标库名。
+       早先的断言要求这里必须出现〔礼物价〕，那是「只要多库就每条都标」的
+       旧行为，正是本轮要改掉的东西（用户原话：「我希望只有完全相同的再提示库名」）。
+       同名冲突的标注验证在下面 ②-b 专段，那里才构造了两个库都有的名字。 */
+    ck('副库独有项目不标库名（无同名歧义）', !!two && !/〔/.test(two.meta), two && two.meta);
   } else {
     ck('服务类型候选能补出副库的价', false, '找不到 serviceSuggestionFeature');
-    ck('候选行标出副库来源（〔礼物价〕）', false, '找不到 serviceSuggestionFeature');
+    ck('副库独有项目不标库名（无同名歧义）', false, '找不到 serviceSuggestionFeature');
   }
 
-  // 候选「清单」也要列出副库的项目 —— 否则用户根本看不到 B 库有哪些项目可点，
-  // 只能盲打全名，「一起用」这个开关就只兑现了一半。
+  /* ── ②-b 来源标注：只在同名冲突时标，且标在说明行首 ─────────────
+     【8.3.46 本轮新增】用户两条明确要求：
+       ① 「我希望只有完全相同的再提示库名」
+          —— 只有 A 库独有的项目不该标（标了是噪音、还把候选行占长）
+       ② 「库名那个前括号错行了，要对齐到与后续内容同一行」
+          —— 根因是库名原本排在整条说明**末尾**，前面那段（匹配方式 + 价格）
+             把行占满后，〔库名〕被挤到第二行，看着就像括号掉了。
+             位置改到**行首**后永远留在第一行，多张卡片之间也天然对齐。
+     这一段专门造「两个库都有同名项目」的场景来钉住这两条。 */
+  if (sugg) {
+    console.log('\n②-b 来源标注只在同名冲突时出现，且落在说明行首');
+    /* 在 A 库里也加一个「鹅鸭杀」，制造同名冲突（价格故意不同，便于区分）；
+       并给 A 库那条挂一个别名 —— 用来验证「同名时靠什么区分」：
+       两条候选项目名一模一样，只有把**库内的区分特征**（别名）标出来，
+       用户才知道该点哪条。这段同时钉住「有别名时报别名」这条通路。 */
+    const d2b = store.normalizeData(libData());
+    d2b.libraries.find(l => l.id === aId).items = [
+      { serviceType: '一起看', unitPrice: 40, settleType: '' },
+      { serviceType: '鹅鸭杀', unitPrice: 33, settleType: '', aliases: ['鹅鸭杀A版'] },
+    ];
+    useLibraries(app, store, d2b);
+
+    const dup = sugg.buildResolvedServiceSuggestion('鹅鸭杀');
+    ck('同名项目会标出库名', !!dup && /〔/.test(dup.meta), dup && dup.meta);
+    ck('库名标在说明最前面（不在末尾，避免被挤到第二行）',
+      !!dup && /^〔/.test(dup.meta), dup && dup.meta);
+    ck('同名时取当前库的价（当前库优先）', !!dup && dup.unitPrice === 33, dup && dup.unitPrice);
+    /* 【8.3.46 新增】同名冲突时还要给出**库内的区分特征**。
+       只有库名的话，两条候选除库名外长得一样，用户只能靠猜。 */
+    ck('同名冲突时标出库内的区分特征（别名）', !!dup && /别名：鹅鸭杀A版/.test(dup.meta), dup && dup.meta);
+
+    const solo = sugg.buildResolvedServiceSuggestion('一起看');
+    ck('A 库独有的项目仍不标库名', !!solo && !/〔/.test(solo.meta), solo && solo.meta);
+
+    const dupList = sugg.getServiceRuleSuggestions('鹅鸭杀').filter(i => i.displayName === '鹅鸭杀');
+    /* 两条**清单条目**（key 以 exact| 开头）—— 不数 `resolved|` 那条补价候选。
+       为什么不能光数条数：输入正好命中规则时，除了每库一条的清单条目，
+       还会额外产出 1 条「resolved|」补价候选（走的是另一条链路），
+       所以同名两库时会看到 3 条 —— 其中 2 条才是清单条目。
+       既有测试里也踩过这个坑（见反向 6b 的说明）。 */
+    const dupListEntries = dupList.filter(i => /^exact\|/.test(i.key));
+    ck('清单里同名项目两条都会出现', dupListEntries.length === 2, `实得 ${dupListEntries.length} 条清单条目（总 ${dupList.length} 条）`);
+    ck('清单里同名项库名也标在行首', dupListEntries.every(i => /^〔/.test(i.meta)),
+      dupListEntries.map(i => i.meta).join(' || '));
+    /* 两条的**来源库名**必须分得清 —— 这正是 findLibraryNameByRuleId 漏查 items
+       时暴露出来的 bug（两条都标「默认价格表」）。 */
+    ck('清单里两条的来源库名能分清', dupListEntries.some(i => /〔默认价格表〕/.test(i.meta))
+      && dupListEntries.some(i => /〔礼物价〕/.test(i.meta)),
+      dupListEntries.map(i => i.meta).join(' || '));
+    /* 副库那条没有别名 → 给出「唯一」（该库里这个名字只有一条记录），
+       与 A 库的「别名：鹅鸭杀A版」形成可分辨的一对。 */
+    ck('没别名的那条给出「唯一」之类的区分特征',
+      dupListEntries.some(i => /唯一/.test(i.meta)), dupListEntries.map(i => i.meta).join(' || '));
+    /* 库名和区分特征之间不能出现空档（早先拼串时 hint 为空会留下「 ·  · 」）。 */
+    ck('说明里没有连续的分隔符空档', dupList.every(i => !/·\s*·/.test(i.meta)),
+      dupList.map(i => i.meta).join(' || '));
+
+    const soloList = sugg.getServiceRuleSuggestions('一起看').find(i => i.displayName === '一起看');
+    ck('清单里独有项不标库名', !!soloList && !/〔/.test(soloList.meta), soloList && soloList.meta);
+
+    /* 复原成「A 库只有一起看、B 库只有鹅鸭杀/满天星」，避免影响后面的断言。 */
+    const restore = store.normalizeData(libData());
+    restore.libraries.find(l => l.id === aId).items = [{ serviceType: '一起看', unitPrice: 40, settleType: '' }];
+    restore.libraries.find(l => l.id === bId).items = [
+      { serviceType: '鹅鸭杀', unitPrice: 30, settleType: '' },
+      { serviceType: '满天星', unitPrice: 10, settleType: '' },
+    ];
+    useLibraries(app, store, restore);
+    ck('②-b 结束时数据复原回「两库项目互不重叠」',
+      store.findLookupItemByService(libData(), '鹅鸭杀', '').unitPrice === 30,
+      store.findLookupItemByService(libData(), '鹅鸭杀', '')?.unitPrice);
+  } else {
+    ['同名项目会标出库名', '库名标在说明最前面（不在末尾，避免被挤到第二行）',
+      '同名时取当前库的价（当前库优先）', 'A 库独有的项目仍不标库名',
+      '同名冲突时标出库内的区分特征（别名）',
+      '清单里同名项目两条都会出现', '清单里同名项库名也标在行首',
+      '清单里两条的来源库名能分清', '没别名的那条给出「唯一」之类的区分特征',
+      '说明里没有连续的分隔符空档', '清单里独有项不标库名',
+      '②-b 结束时数据复原回「两库项目互不重叠」',
+    ].forEach(n => ck(n, false, '找不到 serviceSuggestionFeature'));
+  }
+
+  /* ── ②-c 别名要能穿过「价格库」这套数据活下来 ──────────────────
+     【8.3.46 本轮修】实测发现：在价格库里给项目填了别名，归一化时会被丢掉 ——
+     PriceMemory.normalizeEntry 已经算出了 aliases，但拼装 item 时没带上。
+     后果不止「别名没了」：
+       · items 是规则的上游（normalizeLibrary 用 mergeWithLegacyItems 由 items 生成 rules），
+         这里丢了别名，从 items 升上来的规则就全都没别名；
+       · 同名冲突时用来区分两条候选的「库内特征」也读不到，只能退化成「唯一」；
+       · legacy 副本（价格库数据出问题时的回退来源）若也丢，回退后别名整体消失。
+     下面钉住「写进去 → 归一化 → 读出来」这条往返路径。 */
+  console.log('\n②-c 别名要能穿过价格库的归一化活下来');
+  {
+    const withAlias = store.normalizeData(libData());
+    withAlias.libraries.find(l => l.id === bId).items = [
+      { serviceType: '鹅鸭杀', unitPrice: 30, settleType: '', aliases: ['鹅鸭杀A版', '鸭鸭杀'] },
+      { serviceType: '满天星', unitPrice: 10, settleType: '' },
+    ];
+    const na = useLibraries(app, store, withAlias);
+    const item = (na.libraries.find(l => l.id === bId).items || []).find(i => i.serviceType === '鹅鸭杀');
+    ck('归一化后 item 上还留着别名数组', !!item && Array.isArray(item.aliases) && item.aliases.length === 2,
+      item && JSON.stringify(item.aliases));
+    ck('归一化后首个别名也留在 alias 上（老代码/DOM 读它）', !!item && item.alias === '鹅鸭杀A版',
+      item && item.alias);
+    const rule = (na.libraries.find(l => l.id === bId).rules || []).find(r => r.serviceName === '鹅鸭杀');
+    ck('由 items 升上来的规则也带着别名（不被中途丢掉）',
+      !!rule && Array.isArray(rule.aliases) && rule.aliases.includes('鹅鸭杀A版'),
+      rule && JSON.stringify(rule.aliases));
+    /* legacy 副本也要带别名 —— 它是价格库出错时的回退来源。 */
+    const legacyCopy = store.toLegacyItems(na.libraries.find(l => l.id === bId).items || []);
+    const legacyHit = (legacyCopy || []).find(i => i.serviceType === '鹅鸭杀');
+    ck('legacy 副本（回退来源）里也带着别名', !!legacyHit && !!legacyHit.alias,
+      legacyHit && JSON.stringify(legacyHit.alias));
+    /* 别名要能用于联想：按别名查能得到这个项目。 */
+    if (sugg) {
+      const byAlias = sugg.getServiceRuleSuggestions('鸭鸭杀');
+      ck('按别名能查到这条项目', byAlias.some(i => i.displayName === '鹅鸭杀'),
+        byAlias.map(i => i.displayName).join('/'));
+    } else {
+      ck('按别名能查到这条项目', false, '找不到 serviceSuggestionFeature');
+    }
+    // 复原
+    const back2 = store.normalizeData(libData());
+    back2.libraries.find(l => l.id === bId).items = [
+      { serviceType: '鹅鸭杀', unitPrice: 30, settleType: '' },
+      { serviceType: '满天星', unitPrice: 10, settleType: '' },
+    ];
+    useLibraries(app, store, back2);
+  }
+
+
   if (sugg && typeof sugg.getServiceRuleSuggestions === 'function') {
     const list = sugg.getServiceRuleSuggestions('鹅鸭杀');
     const names = list.map(i => i.displayName);
     ck('候选清单里能看到副库的项目', names.includes('鹅鸭杀'), names.join('/'));
     const item = list.find(i => i.displayName === '鹅鸭杀');
-    ck('清单里副库那条也标了来源库', !!item && /〔礼物价〕/.test(item.meta), item && item.meta);
+    /* 【8.3.46】同 ②-b：A/B 项目互不重叠时「鹅鸭杀」是 B 库独有，无同名歧义 → 不标。 */
+    ck('清单里副库独有项不标库名', !!item && !/〔/.test(item.meta), item && item.meta);
 
     const listA = sugg.getServiceRuleSuggestions('一起看');
     const itemA = listA.find(i => i.displayName === '一起看');
-    ck('清单里当前库那条标的是当前库名', !!itemA && /〔默认价格表〕/.test(itemA.meta), itemA && itemA.meta);
+    ck('清单里当前库独有项也不标库名', !!itemA && !/〔/.test(itemA.meta), itemA && itemA.meta);
 
     const mergedRules = editor.getLookupServiceRules();
     const listAll = sugg.getServiceRuleSuggestions('');
@@ -203,6 +353,36 @@ async function boot(source) {
   const virtItem = (virt.items || []).find(i => i.serviceType === '一起看');
   ck('合成出的「虚拟库」里也是当前库的价', !!virtItem && virtItem.unitPrice === 40,
     virtItem && virtItem.unitPrice);
+  /* 【8.3.46】合成出的「虚拟库」里**两条同名项目都要在**，不能被当成重复项吞掉一条。
+     原先这里是按「项目名 + 结算方式」做键、先到先得，键里没有价钱，
+     于是两个库都存了「一起看」而价钱不同时，副库那条会被静默丢弃 ——
+     界面上看不出任何异常，用户只会拿到当前库的价、而且不知道还有另一条可选。
+     多库同用的意义恰恰在于这种同名不同价交给用户自己挑，所以两条都必须留着。
+     这里断言的是「数量」，配合上面「取价仍取当前库的 40」一起看：
+     一条没少 + 优先取当前库，才算语义完整。 */
+  const sameNameItems = (virt.items || []).filter(i => i.serviceType === '一起看');
+  ck('合成出的「虚拟库」里同名项目两条都在（副库那条没被当重复项吞掉）',
+    sameNameItems.length === 2, `实得 ${sameNameItems.length} 条`);
+  /* 【8.3.46】候选清单里的同名项目也必须两条都在 —— 这是用户能看见的那一层。
+     上面断言的是数据层，这里断言的是「用户点得到第二条」，
+     两者缺一用户就仍然只能拿到主库的价。
+
+     注意这里**不能**只筛 `exact|` 开头的 key：当前库那条会被「已解析候选」
+     接管（key 是 `resolved|...`），因为它的名字与输入框里的字完全一致。
+     只筛 `exact|` 会把它当成「少了一条」而误报。所以按**项目名**筛。 */
+  if (sugg) {
+    const dupEntries = sugg.getServiceRuleSuggestions('一起看', []).filter(i => i.displayName === '一起看');
+    ck('候选清单里同名项目两条都能点（副库的价点得到）',
+      dupEntries.length === 2, `实得 ${dupEntries.length} 条`);
+    ck('候选清单里两条的价钱分别是两库各自的（40 / 99）',
+      dupEntries.map(i => i.unitPrice).sort((x, y) => x - y).join('/') === '40/99',
+      dupEntries.map(i => i.unitPrice).join('/'));
+    ck('候选清单里两条都标了各自的来源库名（不会都标成主库）',
+      dupEntries.some(i => /〔默认价格表〕/.test(i.meta)) && dupEntries.some(i => /〔礼物价〕/.test(i.meta)),
+      dupEntries.map(i => i.meta).join(' ｜ '));
+  } else {
+    ck('候选清单里同名项目两条都能点（副库的价点得到）', false, '找不到 serviceSuggestionFeature');
+  }
   if (sugg) {
     const c2 = sugg.buildResolvedServiceSuggestion('一起看');
     ck('候选里补出的价同样是当前库的 40', !!c2 && c2.unitPrice === 40, c2 && c2.unitPrice);
@@ -320,8 +500,156 @@ async function boot(source) {
     }
   }
 
+  /* ── ⑧-b 候选点选后「能真正填上价」的跨库归属 ──────────────────
+     【8.3.46 本轮修的真 bug】用户原话：
+       「目前只有主库才能正确填充单价相关信息。例如当我使用 a 库和 b 库时，
+         主库为 a 库时，b 库的项目只能弹出候选，但是选择候选后无法填充
+         单价信息。」
+     根因（已实测复现）：点候选时走 selectTemporaryRule，它**固定**把
+     「本次用哪条规则」的选择记在**当前库**的键上；
+     而查价时 matchLibrary 是按「拥有该规则的库」读那个键。
+     候选来自 B 库、当前库是 A 时，写进「A|名字|结算」、读的是「B|名字|结算」
+     → 读不到 → 卡在 ambiguous_rule → 单价填不上。
+     修法：按 ruleId 反查规则真正属于哪个库，把选择写对键。
+     下面用真实链路（点候选 → 等一帧 → 读单价框）验证它真的填上了。 */
+  if (sugg && app.priceMemoryFeature) {
+    console.log('\n⑧-b 点副库来的候选，单价要真的填上（本轮修的 bug）');
+    const pm = app.priceMemoryFeature;
+    const priceInputId = 'autoUnitPrice';
+    const readPrice = () => {
+      const el = doc.getElementById(priceInputId) || app.el.inputs?.autoUnitPrice;
+      return el ? String(el.value || '') : '';
+    };
+    const d3 = store.normalizeData(libData());
+    // A 库 = 一起看 ¥40；B 库 = 鹅鸭杀 ¥30。当前库是 A。
+    d3.libraries.find(l => l.id === aId).items = [{ serviceType: '一起看', unitPrice: 40, settleType: '' }];
+    d3.libraries.find(l => l.id === bId).items = [{ serviceType: '鹅鸭杀', unitPrice: 30, settleType: '' }];
+    /* 三处引用一起换 —— 只改一处会让候选先看到旧的副库条目（实测踩过：
+       副库条目的 id 取不到、这一整段断言全变成「取不到副库条目」）。 */
+    const d3n = useLibraries(app, store, d3);
+    /* 副库条目的 id 要**从归一化后的数据里取**。
+       归一化会重算 items 的 id，若用换之前那份数据里的 id，
+       点候选时带的是个已失效的 id，匹配不到任何规则 → 单价填不上（会误判成 bug）。 */
+    const bItem = d3n.libraries.find(l => l.id === bId).items[0];
+    const typeEl = doc.getElementById('type') || app.el.inputs?.type;
+    if (typeEl && bItem?.id) {
+      typeEl.value = '鹅鸭杀';
+      readPrice(); // 触碰一次
+      sugg.applyServiceRuleSuggestionElement({
+        dataset: { type: '鹅鸭杀', ruleId: String(bItem.id), settleType: 'round', serviceRule: 'true' },
+      });
+      // 匹配走 requestAnimationFrame / setTimeout，等一帧
+      await new Promise(r => setTimeout(r, 400));
+      const got = readPrice();
+      ck('点副库候选后单价被填上（不是空的）', got !== '', `实得 ${JSON.stringify(got)}`);
+      ck('填的是副库那条的价（¥30）', got === '30', `实得 ${JSON.stringify(got)}`);
+
+      /* 归属必须落在 B 库 —— 这正是修复点。
+         若退回「固定写当前库」，这条会变成「A 库有记录」，与查价的读法错位。 */
+      const matcher = w.eval('PriceRuleMatcher');
+      const onB = matcher.getTemporaryChoice(d3.libraries.find(l => l.id === bId), '鹅鸭杀', 'round');
+      const onA = matcher.getTemporaryChoice(d3.libraries.find(l => l.id === aId), '鹅鸭杀', 'round');
+      ck('选择记在「拥有该规则的库」（B 库）上', !!onB, onB ? String(onB.ruleId) : '无记录');
+      ck('没有错记到当前库（A 库）上', !onA, onA ? String(onA.ruleId) : '无记录（正确）');
+    } else {
+      ['点副库候选后单价被填上（不是空的）', '填的是副库那条的价（¥30）',
+        '选择记在「拥有该规则的库」（B 库）上', '没有错记到当前库（A 库）上',
+      ].forEach(n => ck(n, false, '取不到服务类型输入框或副库条目'));
+    }
+  } else {
+    ['点副库候选后单价被填上（不是空的）', '填的是副库那条的价（¥30）',
+      '选择记在「拥有该规则的库」（B 库）上', '没有错记到当前库（A 库）上',
+    ].forEach(n => ck(n, false, '找不到 serviceSuggestionFeature / priceMemoryFeature'));
+  }
+
+  /* ── ⑧-c 同名但结算方式不同的两条候选，点哪条就得填哪条的价 ─────────
+     【8.3.46 本轮实测抓到的第二个真 bug】
+     场景：A 库（当前库）有「鹅鸭杀 ¥7 按局数」，B 库有「鹅鸭杀 ¥35 按小时」。
+     候选清单里两条都出来了、库名也标得清清楚楚，**但点副库那条，填进去的是主库的价**。
+     根因：点候选时走的是一条「先替换输入框文字、再重新自动匹配」的链路，
+     而自动匹配只拿得到「项目名」和一个全局的「当前按小时还是按局数」——
+     它会在两库里重新挑一条，挑的顺序是「当前库优先」，于是永远挑回主库那条。
+     用户在候选里点的那条**具体是哪条**，在中途被丢掉了。
+     修法：把「用户点的是哪一条、那条按什么结算」短暂记下来，
+     自动匹配时优先照它取价（见 getCurrentAutoPriceSettleType 的说明）。
+     这条链路只有走**真实事件**才会经过，直接调函数会绕开它 ——
+     所以下面用真的 mousedown 事件点 DOM 上的候选项。 */
+  if (sugg && app.priceMemoryFeature) {
+    console.log('\n⑧-c 同名两条结算方式不同时，点副库那条要填副库的价');
+    const d4 = store.normalizeData(libData());
+    d4.libraries.find(l => l.id === aId).items = [{ serviceType: '鹅鸭杀', unitPrice: 7, settleType: 'round' }];
+    d4.libraries.find(l => l.id === bId).items = [{ serviceType: '鹅鸭杀', unitPrice: 35, settleType: 'hour' }];
+    useLibraries(app, store, d4);
+    const typeEl4 = doc.getElementById('type') || app.el.inputs?.type;
+    const priceEl4 = () => [...doc.querySelectorAll('input')].find(i => i.name === 'autoUnitPrice' || i.id === 'autoUnitPrice');
+    if (typeEl4) {
+      typeEl4.value = '鹅鸭杀';
+      typeEl4.dispatchEvent(new w.Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 300));
+      const items4 = [...doc.querySelectorAll('.type-suggest-item')];
+      const bEl4 = items4.find(el => /礼物价/.test(el.textContent || ''));
+      ck('候选里能同时看到副库那条（标着副库名）', !!bEl4,
+        items4.map(el => (el.textContent || '').replace(/\s+/g, ' ').trim()).join(' ｜ '));
+      if (bEl4) {
+        /* 真实交互走的是 mousedown（程序里就是绑在这个事件上），
+           用 click 点不动 —— 实测踩过：click 之后处理函数一次都没被调用。 */
+        bEl4.dispatchEvent(new w.MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        await new Promise(r => setTimeout(r, 500));
+        const gotP = String(priceEl4()?.value || '');
+        ck('点副库那条后填的是副库的价（¥35，不是主库的 ¥7）', gotP === '35', `实得 ${JSON.stringify(gotP)}`);
+      } else {
+        ck('点副库那条后填的是副库的价（¥35，不是主库的 ¥7）', false, '候选里找不到副库那条');
+      }
+    } else {
+      ck('候选里能同时看到副库那条（标着副库名）', false, '取不到服务类型输入框');
+      ck('点副库那条后填的是副库的价（¥35，不是主库的 ¥7）', false, '取不到服务类型输入框');
+    }
+  } else {
+    ck('候选里能同时看到副库那条（标着副库名）', false, '找不到 serviceSuggestionFeature / priceMemoryFeature');
+    ck('点副库那条后填的是副库的价（¥35，不是主库的 ¥7）', false, '找不到 serviceSuggestionFeature / priceMemoryFeature');
+  }
+
   // ── ⑨ 反向验证：断言必须真的能变红 ────────────────────────────
   console.log('\n⑨ 反向验证（确认上面的断言不是假绿）');
+
+  /* 反向 0：把「临时选择记到规则的归属库」退回「固定记当前库」，
+     ⑧-b 的归属断言必须失败。
+     锚点是 selectTemporaryRule 里那行 owner 判定 —— 退回后选择又会被
+     写错键，正是「只有主库能填价」那个 bug 的写法。
+     注意这里必须**替换**那一行，不能在前面再插一行同名 const ——
+     插进去会变成 `Identifier 'owner' has already been declared` 的语法错误，
+     整个页面起不来，断言就测不到想测的东西（实测踩过这个坑）。 */
+  const ownerAnchor = ' const owner = this.findLibraryOwningRule(ruleId) || this.priceLibraryStore.getActiveLibrary(this.priceLibraries);';
+  const alwaysActive = html.replace(
+    ownerAnchor,
+    ' const owner = this.priceLibraryStore.getActiveLibrary(this.priceLibraries);'
+  );
+  ck('反向验证 0 的锚点确实命中了源码（否则本条是假绿）', alwaysActive !== html);
+  try {
+    const c0 = await boot(alwaysActive);
+    const st0 = c0.app.priceLibraryStore;
+    const a0 = c0.aId, b0 = c0.bId;
+    let d0 = st0.normalizeData(c0.app.priceLibraries);
+    d0.libraries.find(l => l.id === a0).items = [{ serviceType: '一起看', unitPrice: 40, settleType: '' }];
+    d0.libraries.find(l => l.id === b0).items = [{ serviceType: '鹅鸭杀', unitPrice: 30, settleType: '' }];
+    c0.app.priceLibraries = d0;
+    c0.app.priceMemoryFeature.priceLibraries = d0;
+    st0.persist(d0, {});
+    const bItem0 = d0.libraries.find(l => l.id === b0).items[0];
+    const t0 = c0.w.document.getElementById('type');
+    t0.value = '鹅鸭杀';
+    c0.app.features.serviceSuggestionFeature.applyServiceRuleSuggestionElement({
+      dataset: { type: '鹅鸭杀', ruleId: String(bItem0.id), settleType: 'round', serviceRule: 'true' },
+    });
+    await new Promise(r => setTimeout(r, 300));
+    const m0 = c0.w.eval('PriceRuleMatcher');
+    const wrong = m0.getTemporaryChoice(d0.libraries.find(l => l.id === a0), '鹅鸭杀', 'round');
+    ck('反向验证 0：退回写法后选择会错记到当前库（断言确实能变红）', !!wrong,
+      wrong ? '错记到 A 库，符合预期' : '未复现错记');
+    c0.dom.window.close();
+  } catch (e) {
+    ck('反向验证 0：退回写法后选择会错记到当前库（断言确实能变红）', false, '运行异常：' + e.message);
+  }
 
   /* 反向 1：把「查价用并集」退回「只看当前库」，并集断言必须失败。
      锚点是 getMergedLibraries 的返回语句 —— 它一旦只返回当前库，
@@ -478,15 +806,230 @@ async function boot(source) {
      （即 getLookupServiceRules 的并集），而不是只靠 resolved 那条硬匹配。
      判据：换一个「不会命中 resolved」的查询词，副库项目仍要出现在清单里。 */
   if (sugg && typeof sugg.getServiceRuleSuggestions === 'function') {
+    /* 这一段依赖「满天星只存在于副库」这个前提，而 ⑧-b 段把副库条目换成了
+       只有「鹅鸭杀」（那段要一个干净的跨库点选场景）—— 所以这里先复原。
+       步骤之间互相改数据是这个文件的固有形态，每段用完自己复原，
+       否则后面的断言会看到上一段的残留（这个坑先后踩过两次）。 */
+    const restoreB = store.normalizeData(libData());
+    restoreB.libraries.find(l => l.id === bId).items = [
+      { serviceType: '鹅鸭杀', unitPrice: 30, settleType: '' },
+      { serviceType: '满天星', unitPrice: 10, settleType: '' },
+    ];
+    useLibraries(app, store, restoreB);
+
     // 「满天星」只存在于副库，且用「满天」这个前缀去查 —— 不会整条命中规则，
     // 因此不会生成 resolved 补价候选，能干净地测到「清单来源」这条路。
     const listByPrefix = sugg.getServiceRuleSuggestions('满天');
     const bEntry = listByPrefix.find(i => i.displayName === '满天星');
     ck('副库项目会出现在候选清单里（不依赖整条命中）', !!bEntry, listByPrefix.map(i => i.displayName).join('/'));
-    ck('副库那条候选标了来源库', !!bEntry && /〔礼物价〕/.test(bEntry.meta), bEntry && bEntry.meta);
+    /* 【8.3.46】「满天星」只存在于副库，无同名歧义 → 按新规则不该标库名。
+       原先这里断言必须出现〔礼物价〕，锁的是「只要多库就每条都标」的旧行为。 */
+    ck('副库独有项目在清单里不标库名（无同名歧义）', !!bEntry && !/〔/.test(bEntry.meta), bEntry && bEntry.meta);
   } else {
     ck('副库项目会出现在候选清单里（不依赖整条命中）', false, '找不到 getServiceRuleSuggestions');
-    ck('副库那条候选标了来源库', false, '找不到 getServiceRuleSuggestions');
+    ck('副库独有项目在清单里不标库名（无同名歧义）', false, '找不到 getServiceRuleSuggestions');
+  }
+
+  /* 反向 7：把「各库分别归一化再拼起来」退回「跨库一起归一化」，
+     跨库同名规则就会被去重吞掉，同名两条断言必须失败。
+     这正是用户报的「只有主库能填价」的深层原因：副库的同名规则
+     在中途被合并掉，候选里根本没有它。 */
+  const lookupAnchor = ' return merged.flatMap(library => PriceRuleEngine.normalizeRules(library.rules).rules);';
+  const crossDedup = html.replace(
+    lookupAnchor,
+    ' return PriceRuleEngine.normalizeRules(merged.flatMap(library => library.rules || [])).rules;'
+  );
+  ck('反向验证 7 的锚点确实命中了源码（否则本条是假绿）', crossDedup !== html);
+  if (crossDedup !== html) {
+    let swallowed = false;
+    try {
+      const c7 = await boot(crossDedup);
+      const st7 = c7.app.priceLibraryStore;
+      const ed7 = c7.app.priceRuleEditorFeature;
+      const sg7 = c7.app.features.serviceSuggestionFeature;
+      /* 造同名冲突：两库都有「鹅鸭杀」。 */
+      const d7 = st7.normalizeData(c7.app.priceLibraries);
+      d7.libraries.find(l => l.id === c7.aId).items = [
+        { serviceType: '一起看', unitPrice: 40, settleType: '' },
+        { serviceType: '鹅鸭杀', unitPrice: 33, settleType: '' },
+      ];
+      c7.app.priceLibraries = d7;
+      c7.app.priceMemoryFeature.priceLibraries = d7;
+      ed7.priceLibraries = d7;
+      st7.persist(d7, {});
+      // 退回跨库去重后，两库同名的「鹅鸭杀」只剩一条规则
+      const rules7 = ed7.getLookupServiceRules().filter(r => r.serviceName === '鹅鸭杀');
+      const entries7 = sg7.getServiceRuleSuggestions('鹅鸭杀').filter(i => /^exact\|/.test(i.key));
+      swallowed = rules7.length === 1 && entries7.length === 1;
+      c7.dom.window.close();
+    } catch (e) {
+      swallowed = false;
+    }
+    ck('退回「跨库一起去重」后，副库的同名规则会被吞掉（断言确实能变红）', swallowed === true);
+  } else {
+    ck('退回「跨库一起去重」后，副库的同名规则会被吞掉（断言确实能变红）', false, '锚点未命中');
+  }
+
+  /* 反向 8：把规则 id 里的「库」这层盐去掉，两库同名同价的规则 id 又会撞车。
+     撞车后候选的展示键相同 → 两条被当成同一条、其中一条直接消失
+     （实测：清单条目从 2 条掉到 0 条，只剩一条 resolved 补价候选；
+     库名也只能靠 id 反查、永远命中第一个库）。
+     判据：清单里不再有两条同名条目，或两条指向同一个库名。 */
+  const scopeAnchor = ' const scope = String(rule?.scope || \'\');';
+  const noScope = html.replace(scopeAnchor, ' const scope = \'\';');
+  ck('反向验证 8 的锚点确实命中了源码（否则本条是假绿）', noScope !== html);
+  if (noScope !== html) {
+    let idClash = false;
+    try {
+      const c8 = await boot(noScope);
+      const st8 = c8.app.priceLibraryStore;
+      const sg8 = c8.app.features.serviceSuggestionFeature;
+      const d8 = st8.normalizeData(c8.app.priceLibraries);
+      // 两库同名**同价**：这是 id 最容易撞车的组合（价钱也一样，三要素也分不开）
+      d8.libraries.find(l => l.id === c8.aId).items = [
+        { serviceType: '一起看', unitPrice: 40, settleType: '' },
+        { serviceType: '鹅鸭杀', unitPrice: 30, settleType: '' },
+      ];
+      d8.libraries.find(l => l.id === c8.bId).items = [{ serviceType: '鹅鸭杀', unitPrice: 30, settleType: '' }];
+      c8.app.priceLibraries = d8;
+      c8.app.priceMemoryFeature.priceLibraries = d8;
+      c8.app.priceRuleEditorFeature.priceLibraries = d8;
+      st8.persist(d8, {});
+      const src8 = sg8.getServiceRuleSuggestions('鹅鸭杀')
+        .filter(i => /^exact\|/.test(i.key))
+        .map(i => (i.meta.match(/^〔([^〕]*)〕/) || [])[1] || '');
+      /* 实测的变红形态（比预想的更强烈）：两条同名候选因为 key 相同
+         被去重逻辑当成同一条，**直接只剩 1 条**，清单条目数掉到 0
+         （唯一那条还是 resolved 补价候选）。所以判据是
+         「清单条目不再是两条、或两条指向同一个库名」，任一成立即算变红。 */
+      idClash = src8.length !== 2 || new Set(src8).size === 1;
+      c8.dom.window.close();
+    } catch (e) {
+      idClash = false;
+    }
+    ck('去掉规则 id 里的「库」这层盐后，同名两条会撞成一条/指向同一个库（断言确实能变红）', idClash === true);
+  } else {
+    ck('去掉规则 id 里的「库」这层盐后，同名两条会撞成一条/指向同一个库（断言确实能变红）', false, '锚点未命中');
+  }
+
+  /* 反向 9：把「别名随 item 一起存下来」拆掉（拼装 item 时不带 aliases），
+     ②-c 那组断言必须失败。
+     这是本轮实测抓到的真缺陷：normalizeEntry 算出了别名，
+     拼 item 时却没带上，于是从 items 升上来的规则全都没别名。 */
+  const aliasAnchor = ' aliases: base.aliases,\n alias: base.alias,\n usageCount: Math.max(1, Number(raw?.usageCount) || Number(base.usageCount) || 1),';
+  const noAlias = html.replace(aliasAnchor, ' usageCount: Math.max(1, Number(raw?.usageCount) || Number(base.usageCount) || 1),');
+  ck('反向验证 9 的锚点确实命中了源码（否则本条是假绿）', noAlias !== html);
+  if (noAlias !== html) {
+    let aliasGone = false;
+    try {
+      const c9 = await boot(noAlias);
+      const st9 = c9.app.priceLibraryStore;
+      const d9 = st9.normalizeData(c9.app.priceLibraries);
+      d9.libraries.find(l => l.id === c9.bId).items = [
+        { serviceType: '鹅鸭杀', unitPrice: 30, settleType: '', aliases: ['鹅鸭杀A版'] },
+      ];
+      const n9 = st9.normalizeData(d9);
+      const it9 = (n9.libraries.find(l => l.id === c9.bId).items || []).find(i => i.serviceType === '鹅鸭杀');
+      const rl9 = (n9.libraries.find(l => l.id === c9.bId).rules || []).find(r => r.serviceName === '鹅鸭杀');
+      // 拆掉之后 item 上没有别名，规则上也传不下来
+      aliasGone = !it9?.aliases?.length && !rl9?.aliases?.length;
+      c9.dom.window.close();
+    } catch (e) {
+      aliasGone = false;
+    }
+    ck('拆掉「别名随 item 存下来」后，别名会整体消失（断言确实能变红）', aliasGone === true);
+  } else {
+    ck('拆掉「别名随 item 存下来」后，别名会整体消失（断言确实能变红）', false, '锚点未命中');
+  }
+
+  /* 反向 10：把「合成虚拟库时不去重 items」退回「按名字+结算方式去重、先到先得」，
+     ④ 段那两条断言必须失败。
+     这是本轮实测抓到的真缺陷：键里没有价钱，两库同名不同价时副库那条被静默丢弃，
+     用户只拿得到当前库的价、而且完全不知道还有另一条可选。
+     判据：合成出的虚拟库里同名项目不再有两条。 */
+  const itemsFlatAnchor = ' items: libraries.flatMap(library => library.items || []),';
+  const itemsDedup = html.replace(itemsFlatAnchor, [
+    ' items: (() => { const m = new Map();',
+    ' libraries.forEach(library => (library.items || []).forEach(item => {',
+    ' const k = `${item.serviceKey}|${item.settleType}`;',
+    ' if (!m.has(k)) m.set(k, item); }));',
+    ' return [...m.values()]; })(),'
+  ].join('\n'));
+  ck('反向验证 10 的锚点确实命中了源码（否则本条是假绿）', itemsDedup !== html);
+  if (itemsDedup !== html) {
+    let swallowed2 = false;
+    try {
+      const c10 = await boot(itemsDedup);
+      const st10 = c10.app.priceLibraryStore;
+      const d10 = st10.normalizeData(c10.app.priceLibraries);
+      d10.libraries.find(l => l.id === c10.aId).items = [
+        { serviceType: '一起看', unitPrice: 40, settleType: '' },
+        { serviceType: '鹅鸭杀', unitPrice: 30, settleType: '' },
+      ];
+      d10.libraries.find(l => l.id === c10.bId).items = [{ serviceType: '一起看', unitPrice: 99, settleType: '' }];
+      c10.app.priceLibraries = d10;
+      c10.app.priceMemoryFeature.priceLibraries = d10;
+      c10.app.priceRuleEditorFeature.priceLibraries = d10;
+      st10.persist(d10, {});
+      const sameName10 = (st10.mergeLibrariesForLookup(d10).items || []).filter(i => i.serviceType === '一起看');
+      swallowed2 = sameName10.length === 1;
+      c10.dom.window.close();
+    } catch (e) {
+      swallowed2 = false;
+    }
+    ck('退回「合成虚拟库时按名字去重」后，副库的同名项目会被吞掉（断言确实能变红）', swallowed2 === true);
+  } else {
+    ck('退回「合成虚拟库时按名字去重」后，副库的同名项目会被吞掉（断言确实能变红）', false, '锚点未命中');
+  }
+
+  /* 反向 11：把候选自带的「按什么结算」退回「按全局偏好模式」，
+     ⑧-c 那条断言必须失败。
+     这是本轮实测抓到的真缺陷，也是「副库项目点了候选填不上价」的**直接原因**：
+     改动前，清单里每条候选带的结算方式都是同一个值（按界面当前偏好算出来的），
+     而不是「这条记录自己是怎么计价的」。于是主库那条按局数、副库那条按小时时，
+     两条候选**都**说自己是「局数」—— 用户点副库那条，程序拿着「局数」
+     去两库里找，主库排前面、正好有条局数的，就填了主库的价。
+     修法：每条候选带上它**自己的**结算方式（哪一档有价就用哪一档）。
+     实测：退回旧写法后，点副库那条匹配到的是「默认价格表 ¥7」，
+     与副库的 ¥35 完全对不上 —— 正是用户描述的症状。 */
+  const entrySettleAnchor = /const entrySettle = PriceRuleEngine\.normalizePositivePrice\(rule\.prices\?\.\[preferred\]\) !== null \? preferred : \(PriceRuleEngine\.normalizePositivePrice\(rule\.prices\?\.round\) !== null \? 'round' : 'hour'\);/;
+  const globalSettle = html.replace(entrySettleAnchor, 'const entrySettle = preferred;');
+  ck('反向验证 11 的锚点确实命中了源码（否则本条是假绿）', globalSettle !== html);
+  if (globalSettle !== html) {
+    let wrongPrice = false;
+    try {
+      const c11 = await boot(globalSettle);
+      const st11 = c11.app.priceLibraryStore;
+      const sg11 = c11.app.features.serviceSuggestionFeature;
+      const d11 = st11.normalizeData(c11.app.priceLibraries);
+      // 主库按局数 ¥7、副库按小时 ¥35 —— 同名、不同结算方式
+      d11.libraries.find(l => l.id === c11.aId).items = [{ serviceType: '鹅鸭杀', unitPrice: 7, settleType: 'round' }];
+      d11.libraries.find(l => l.id === c11.bId).items = [{ serviceType: '鹅鸭杀', unitPrice: 35, settleType: 'hour' }];
+      c11.app.priceLibraries = d11;
+      c11.app.priceMemoryFeature.priceLibraries = d11;
+      c11.app.priceRuleEditorFeature.priceLibraries = d11;
+      st11.persist(d11, {});
+      const type11 = c11.dom.window.document.getElementById('type') || sg11.el.inputs?.type;
+      const price11 = () => [...c11.dom.window.document.querySelectorAll('input')]
+        .find(i => i.name === 'autoUnitPrice' || i.id === 'autoUnitPrice');
+      type11.value = '鹅鸭杀';
+      type11.dispatchEvent(new c11.dom.window.Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 300));
+      const items11 = [...c11.dom.window.document.querySelectorAll('.type-suggest-item')];
+      const bEl11 = items11.find(el => /礼物价/.test(el.textContent || '')) || items11[items11.length - 1];
+      if (bEl11) {
+        bEl11.dispatchEvent(new c11.dom.window.MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        await new Promise(r => setTimeout(r, 500));
+        // 退回旧写法后填进去的不是副库的 35（实测是主库的 7）
+        wrongPrice = String(price11()?.value || '') !== '35';
+      }
+      c11.dom.window.close();
+    } catch (e) {
+      wrongPrice = false;
+    }
+    ck('若候选不带自己的结算方式，点副库那条会填成主库的价（断言确实能变红）', wrongPrice === true);
+  } else {
+    ck('若候选不带自己的结算方式，点副库那条会填成主库的价（断言确实能变红）', false, '锚点未命中');
   }
 
   // 收尾

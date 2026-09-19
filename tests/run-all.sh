@@ -10,7 +10,7 @@
 #   bash tests/run-all.sh --require-package # 当前版本没有对应 zip 即判失败（CI/发版用）
 #   bash tests/run-all.sh --release-flow   # 发版流程中调用：允许「zip 刚生成尚未 git add」
 #
-# 可用 --only 值: engine | chunk | arch | chain | dom | combo | fullchain | mutate | giftcombo | package | version | alias | historyrefill | hints | giftqty | hintlayout | giftfill | giftfillui | multilibrary
+# 可用 --only 值: engine | chunk | arch | chain | dom | combo | fullchain | mutate | giftcombo | package | version | alias | historyrefill | hints | giftqty | hintlayout | giftfill | giftfillui | multilibrary | metalayout | ruleid
 #
 # 退出码: 0 全通过 / 1 有套件失败
 set -u
@@ -354,7 +354,7 @@ fi
 # 纯字符串检查抓不住。含反向验证（改回 classname 后真的会丢 class）。
 if ! should_skip hintlayout; then
   echo
-  echo "── [17/20] 提示文案与控件类名 hint-layout.js ─────────────────"
+  echo "── [17/22] 提示文案与控件类名 hint-layout.js ─────────────────"
   out=$(node tests/hint-layout.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -374,7 +374,7 @@ fi
 # 正式发行时对照仓库已发行版顺位，不占正式版本序列。
 if ! should_skip giftfill; then
   echo
-  echo "── [18/20] 逐项补价与纯数字候选 gift-fill.js ─────────────────"
+  echo "── [18/22] 逐项补价与纯数字候选 gift-fill.js ─────────────────"
   out=$(node tests/gift-fill.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -395,7 +395,7 @@ fi
 # 三处修复各配一条反向验证（改回错误写法必须变红），实测分别报红 21/4/13 项。
 if ! should_skip giftfillui; then
   echo
-  echo "── [19/20] 补价那一排的宽度与按钮可见性 gift-fill-ui.js ──────"
+  echo "── [19/22] 补价那一排的宽度与按钮可见性 gift-fill-ui.js ──────"
   out=$(node tests/gift-fill-ui.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -416,13 +416,54 @@ fi
 # 五条反向验证覆盖上面每一条，确保断言不是假绿。
 if ! should_skip multilibrary; then
   echo
-  echo "── [20/20] 同时使用多个价格库 multi-library.js ────────────────"
+  echo "── [20/22] 同时使用多个价格库 multi-library.js ────────────────"
   out=$(node tests/multi-library.js 2>&1)
   rc=$?
   echo "$out" | tail -6
   line=$(echo "$out" | grep -oE "失败 [0-9]+ 项" | tail -1)
   [ -z "$line" ] && line=$(echo "$out" | grep -oE "全部通过.*" | tail -1)
   run_suite multilibrary "同时使用多个价格库" $rc "${line:-无输出}"
+fi
+
+# ── [21/21] 候选说明行的排版 ───────────────────────────────────────
+# 8.3.46 用户报的「提示库名的前括号位置不对，没对齐在同一行」就落在这里：
+# 根因是库名原本排在整条说明的**末尾**，前面那段（匹配方式 + 价钱）把行占满后
+# 〔库名〕被挤到第二行，看着就像括号掉了。本轮把库名提到行首。
+# 另外多库同用后说明变长（多了「〔XX价〕 · 别名：XX」这截），
+# 两行装不下会被截成半截 —— 加了 has-more 按需放宽到三行。
+# 这两件事都只能看**渲染结果**：JSDOM 没有布局引擎（高度恒为 0），
+# 所以本套必须跑在真实浏览器里（与 gift-fill-ui.js 同一套做法）。
+# 守三件事：① 有库名时〔 一定在第一行 ② 两行装不下的放宽后要显示完整
+#          ③ 不管多长都稳在 3 行内、且两行够用时不多占一行。
+if ! should_skip metalayout; then
+  echo
+  echo "── [21/22] 候选说明行排版 suggest-meta-layout.js ──────────────"
+  out=$(node tests/suggest-meta-layout.js 2>&1)
+  rc=$?
+  echo "$out" | tail -6
+  line=$(echo "$out" | grep -oE "失败 [0-9]+ 项" | tail -1)
+  [ -z "$line" ] && line=$(echo "$out" | grep -oE "全部通过.*" | tail -1)
+  run_suite metalayout "候选说明行排版" $rc "${line:-无输出}"
+fi
+
+# ── [22/22] 规则 id 稳定性 ─────────────────────────────────────────
+# 8.3.46 为了修「副库项目点候选填不上价」，规则的 id 生成方式动了两处：
+#   · 加了「所属库」这层盐（否则两库同名同价会算出同一个 id，候选被误判成重复）
+#   · 去掉了「第几条」这个输入（否则旁边增删一条，后面所有规则的 id 全变）
+# id 是草稿 / 界面选中态 / 备份里 ruleId 共同引用的东西，漂移了界面上看不出来，
+# 只会表现为「刚选好的规则又没了」。这套防线钉住三条：
+#   ① 反复归一化 id 不变 ② 增删邻居不影响其余 id ③ 跨库同名同价不撞车
+# 另配一条反向验证（把「第几条」放回去必须变红）。
+# 本地若有真实备份，可用 `node tests/rule-id-stability.js <备份.json>` 再验一遍。
+if ! should_skip ruleid; then
+  echo
+  echo "── [22/22] 规则 id 稳定性 rule-id-stability.js ────────────────"
+  out=$(node tests/rule-id-stability.js 2>&1)
+  rc=$?
+  echo "$out" | tail -6
+  line=$(echo "$out" | grep -oE "失败 [0-9]+ 项" | tail -1)
+  [ -z "$line" ] && line=$(echo "$out" | grep -oE "全部通过.*" | tail -1)
+  run_suite ruleid "规则 id 稳定性" $rc "${line:-无输出}"
 fi
 
 # ── 汇总 ───────────────────────────────────────────────────────────

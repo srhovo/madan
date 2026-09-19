@@ -1051,8 +1051,21 @@
    而原样式是 nowrap + 省略号 —— 正好把来源截成「〔默…」，等于白标。
    改成最多两行、超出才省略：常见长度（含来源）都能完整显示，
    真遇到超长区间名也只是多占一行，不会横向溢出。
-   行数上限用 -webkit-line-clamp，配 overflow: hidden。 */
-.type-suggest-item.service-rule .type-suggest-meta { display: -webkit-box; width: 100%; color: var(--color-text-light); font-size: var(--font-size-xs); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; -webkit-box-orient: vertical; -webkit-line-clamp: 2; word-break: keep-all; }
+   另外：只要还剩下没说全的说明，就再放宽到 3 行（见下面的 .has-more）。
+   两栏并排时半宽大约 150-176px，「〔礼物价〕 · 别名：鹅鸭杀 · 包c¥30」
+   这种带来源标注的说明 2 行放不下，第 3 行才是真正多余的，
+   所以按需放宽比一刀切 2 行更贴合实际。
+   行数上限用 -webkit-line-clamp，配 overflow: hidden。
+   注意这里**不能**加 text-overflow: ellipsis：-webkit-box 配 line-clamp 时，
+   省略号交给 line-clamp 自己处理；再写上 text-overflow 会让最后一行被截得
+   比应有的宽度早很多（实测「〔默认价格表〕 · 别名：鹅鸭杀 · 包c¥30」在
+   176px 宽的单栏里被截成「〔默认价格表〕 · 别名：鹅鸭杀 · 包c…」），
+   把本来放得下的内容吃掉。 */
+.type-suggest-item.service-rule .type-suggest-meta { display: -webkit-box; width: 100%; color: var(--color-text-light); font-size: var(--font-size-xs); line-height: 1.35; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; word-break: keep-all; }
+/* 【8.3.46】还有没说全的说明时放宽到 3 行（`.has-more` 由渲染时按实测判断）。
+   只放宽这一类：它们多为「同名冲突 + 带别名」的长说明，2 行确实不够；
+   普通说明不挂这个类，仍然是 2 行上限，不占多余的竖向空间。 */
+.type-suggest-item.service-rule .type-suggest-meta.has-more { -webkit-line-clamp: 3; }
  #type.type-soft-fill {
  color: var(--color-text-light);
  border-color: rgba(106, 17, 203, 0.45);
@@ -6112,6 +6125,12 @@ class PriceRuleEngine {
 
  static buildRuleKey(rule) {
  if (!rule) return '';
+ /* 【8.3.46】注意：规则键**不带** scope（所属库）。
+     它是「同一个库里两条规则算不算同一条」的判据 —— 库里同名就该合并成一条
+     （历史数据里同一项目重复保存过）。跨库的去重则在调用方控制：
+     getLookupServiceRules 改为「各库分别归一化再拼起来」，不再跨库合并，
+     这样不同库的同名项目能各留各的、由用户自己选。
+     若把 scope 塞进这个键，库内去重会失效、同一库出现重复项，那是另一种坏。 */
  if (rule.kind === 'exact') return `exact|${rule.serviceKey || this.buildServiceKey(rule.serviceName)}`;
  const boundary = rule.rankType === 'star'
  ? `${rule.minStar}-${rule.maxStar}`
@@ -6119,8 +6138,34 @@ class PriceRuleEngine {
  return `rankRange|${rule.rankType}|${boundary}|${this.normalizeText(rule.rangeLabel).toLowerCase()}`;
  }
 
- static buildRuleId(rule, index = 0) {
- const source = `${this.buildRuleKey(rule)}|${Number(rule?.createdAt) || 0}|${index}`;
+ /* 【8.3.46】规则 id 的构成里加一个「所属库」的盐（scope）。
+     为什么必须加：id 原本只由「规则键 + createdAt」决定，而这两项在
+     两个库里同名同价的项目上是**一样的**（createdAt 落在同一次归一化的同一毫秒），
+     于是 A 库和 B 库的「鹅鸭杀」会算出同一个 id（实测：price_rule_19261864）。
+     多库同用之前这不构成问题（一次只有一个库的规则在场），
+     但现在两库规则同处一个列表，id 撞车会连带把**候选的展示键**也撞掉：
+     候选的去重键与 DOM 的 data-rule-id 都带这个 id，
+     两条不同库的候选会被当成同一条，其中一条被去重吃掉、
+     剩下那条的库名又只能靠 id 反查（反查永远返回第一个命中的库）→ 库名标错。
+     加了 scope（库 id）之后，各库的规则 id 天然分开，反查归属也变得确定。
+     兼容性：raw.id 存在时一律沿用（老数据、已保存的规则 id 不变）；
+     只有需要**临时算出** id 的新数据才走这条，且此时带上 scope 只会
+     得到「更唯一」的 id —— 不影响任何已落盘的内容。 */
+ /* 【8.3.46 修·重要】这里必须**去掉 index**，让算出的 id 只由规则本身决定。
+     原先是 `${规则键}|createdAt|index`，那个 index 是「同一个库里第几条」——
+     一旦前面多出/少掉一条规则（比如某个项目被删了），后面所有规则的 id 都会变。
+     实测证据：真实价格库里的精确项目规则是由 items 升上来的（fromLegacyItem
+     不传 id），所以每次归一化都要重算；本轮给 items 加 scope 时改变了入参形式，
+     index 跟着漂移，27 条规则里 16 条的 id 当场全变了。
+     为什么 id 不能漂：草稿、备份、界面上的选中态都会引用 ruleId，
+     id 一变这些引用就全部失配 —— 用户看到的是「刚选好的区间规则又没了」。
+     去掉 index 之后 id 只由「规则键 + createdAt + 所属库」决定，
+     同一条规则不管排在第几位、旁边有没有别人，算出来都一样。
+     唯一性由 createdAt（毫秒）+ scope（库）+ 规则键（名字/区间）三者保证：
+     同一库里同名规则本来就会被合并成一条，所以不会出现两条算同一个 id。 */
+ static buildRuleId(rule) {
+ const scope = String(rule?.scope || '');
+ const source = `${this.buildRuleKey(rule)}|${Number(rule?.createdAt) || 0}|${scope}`;
  let hash = 0x811c9dc5;
  for (let i = 0; i < source.length; i++) {
  hash ^= source.charCodeAt(i);
@@ -6137,7 +6182,7 @@ class PriceRuleEngine {
  const createdAt = Number(raw?.createdAt) || now;
  const aliases = this.normalizeAliases(raw);
  return {
- id: String(raw?.id || this.buildRuleId({ kind: 'exact', serviceKey, createdAt }, index)),
+ id: String(raw?.id || this.buildRuleId({ kind: 'exact', serviceKey, createdAt, scope: raw?.scope }, index)),
  kind: 'exact',
  serviceName,
  serviceKey,
@@ -6168,7 +6213,7 @@ class PriceRuleEngine {
  if (!namedRanks.length) return null;
  }
  const createdAt = Number(raw?.createdAt) || now;
- const base = { kind: 'rankRange', rangeLabel, rankType, minStar, maxStar, namedRanks, createdAt };
+ const base = { kind: 'rankRange', rangeLabel, rankType, minStar, maxStar, namedRanks, createdAt, scope: raw?.scope };
  const aliases = this.normalizeAliases(raw);
  return {
  id: String(raw?.id || this.buildRuleId(base, index)),
@@ -6198,10 +6243,15 @@ class PriceRuleEngine {
  // 【多别名】合并时把两边的别名并集保留，避免「同一条精确项目从两处导入」时丢掉别名。
  const mergedAliases = [...new Set([...(current.aliases || []), ...(incoming.aliases || []),
    ...(current.alias ? [current.alias] : []), ...(incoming.alias ? [incoming.alias] : [])].filter(Boolean))].slice(0, 12);
+ /* 【8.3.46】scope（所属库）要显式带上，否则合并时被 `...latest` 带丢 ——
+    它只影响「要不要重算 id」，丢了就等于没加，跨库 id 仍会撞车。
+    两边都来自同一个库（库内合并），取先到的那个即可。 */
+ const mergedScope = current.scope || incoming.scope || '';
  if (current.kind === 'exact' && incoming.kind === 'exact') {
  const latest = incoming.updatedAt >= current.updatedAt ? incoming : current;
  return {
  ...latest,
+ scope: mergedScope,
  id: current.id || incoming.id,
  aliases: mergedAliases,
  alias: mergedAliases[0] || '',
@@ -6212,7 +6262,7 @@ class PriceRuleEngine {
  };
  }
  const latest = incoming.updatedAt >= current.updatedAt ? incoming : current;
- return { ...latest, id: current.id || incoming.id, aliases: mergedAliases, alias: mergedAliases[0] || '', createdAt: Math.min(current.createdAt, incoming.createdAt), updatedAt: Math.max(current.updatedAt, incoming.updatedAt) };
+ return { ...latest, scope: mergedScope, id: current.id || incoming.id, aliases: mergedAliases, alias: mergedAliases[0] || '', createdAt: Math.min(current.createdAt, incoming.createdAt), updatedAt: Math.max(current.updatedAt, incoming.updatedAt) };
  }
 
  static normalizeRules(list) {
@@ -6231,6 +6281,22 @@ class PriceRuleEngine {
 
  static fromLegacyItem(item, index = 0) {
  return this.normalizeExactRule({
+ /* 【8.3.46 修·重要】把 item 的 id 一起带上，让「由项目升上来的规则」
+     有一个**稳定**的 id。
+     原先不传 id，规则 id 只能现算，而现算的输入里含 createdAt ——
+     真实数据里同一批 items 的 createdAt 是同一毫秒，算出来的并不唯一；
+     换个入参（比如本轮加 scope）就会全变。
+     更关键的是：这类规则是**每次归一化都重新生成**的（库里没有对应的
+     rules 记录），id 每变一次，所有引用它的地方（草稿、界面选中态、
+     备份里的 ruleId）就集体失配。
+     带上 item.id 之后，规则 id 与项目 id 一一对应：
+     项目 id 本身已经是「名字 + 结算方式 + 创建时间」的哈希，够唯一，
+     而且它存在落盘数据里、是稳定的 —— 重算多少次都是同一个。
+     注意这里刻意**不加前缀**：id 要能反查出「这条规则属于哪个库」，
+     而反查是靠比对 items/rules 的 id 是否相等（见 findLibraryByRuleId），
+     两边用同一个值才能对上。规则 id 与项目 id 长得一样不会混淆：
+     它们出现在不同的列表里（rules / items），没有一处同时比对两者。 */
+ id: item?.id,
  serviceType: item?.serviceType,
  unitPrice: item?.unitPrice,
  settleType: item?.settleType,
@@ -9564,6 +9630,17 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  serviceKey,
  unitPrice: base.unitPrice,
  settleType: base.settleType,
+ /* 【8.3.46 修】别名必须在这里落到 item 上。
+    上一层的 priceMemoryStore.normalizeEntry 已经算出了 aliases，
+    但这里拼装 item 时没带上 —— 于是在这一层被静默丢掉。
+    后果不是「别名没了」这么单纯：normalizeLibrary 会用 items 去
+    mergeWithLegacyItems 生成 rules（别名经由 fromLegacyItem 传递），
+    一旦这里丢了，从 items 升上来的规则就全都没别名 ——
+    「保存时填了别名，保存后消失」正是这个。
+    同时新的展示逻辑（同名冲突时标出库内区分特征）也要读 item.aliases。
+    两个字段都保留：aliases 是数组（多别名），alias 是首个（老代码/DOM 用）。 */
+ aliases: base.aliases,
+ alias: base.alias,
  usageCount: Math.max(1, Number(raw?.usageCount) || Number(base.usageCount) || 1),
  createdAt,
  updatedAt,
@@ -9602,6 +9679,13 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
 
  normalizeLibrary(raw, index = 0) {
  const normalizedItems = this.normalizeItems(raw?.items);
+ /* 【8.3.46】先定出这个库的 id，作为「规则的盐」往下传。
+     原因：两个库里同名同价的规则会算出同一个 id，多库同用后
+     两库规则同处一个列表，id 撞车会让候选被误判成重复、库名也会标错。
+     见 PriceRuleEngine.buildRuleId 的说明。
+     这里先算 id 是因为它原本在最后才拼装，而规则要先于它被归一化 ——
+     所以把这个库 id 的算法提前，后面的返回值复用同一个值。 */
+ const libraryId = String(raw?.id || (index === 0 ? this.defaultLibraryId : `price_library_${this.hashText(`${raw?.name || index}|${Number(raw?.createdAt) || 0}`)}`));
  const legacyGiftMemories = normalizedItems.items.filter(item => item.settleType === 'gift').map(item => ({
  id: `gift_memory_legacy_${item.id}`,
  serviceType: item.serviceType,
@@ -9615,11 +9699,17 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  const serviceItems = normalizedItems.items.filter(item => item.settleType !== 'gift');
  const normalizedGiftMemories = GiftMemoryEngine.normalize([...(Array.isArray(raw?.giftMemories) ? raw.giftMemories : []), ...legacyGiftMemories]);
  const normalizedSurcharges = SurchargeRuleEngine.normalizeRules(raw?.surcharges);
- const normalizedRules = PriceRuleEngine.mergeWithLegacyItems(raw?.rules, serviceItems);
+ /* 给这个库里的每条规则带上 scope（本库 id）：items 升上来的规则一律重新算 id
+     （也就是「没有显式 id」的那些），显式带了 id 的照旧沿用，老数据不受影响。 */
+ const scopedItems = serviceItems.map(item => ({ ...item, scope: libraryId }));
+ const normalizedRules = PriceRuleEngine.mergeWithLegacyItems(
+ Array.isArray(raw?.rules) ? raw.rules.map(rule => (rule && typeof rule === 'object' && !rule.scope ? { ...rule, scope: libraryId } : rule)) : raw?.rules,
+ scopedItems);
  const createdAt = Number(raw?.createdAt) || Date.now();
  return {
  library: {
- id: String(raw?.id || (index === 0 ? this.defaultLibraryId : `price_library_${this.hashText(`${raw?.name || index}|${createdAt}`)}`)),
+ /* 复用上面提前算出的 libraryId（规则 id 的盐也用它），避免两处算法漂移。 */
+ id: libraryId,
  name: this.normalizeLibraryName(raw?.name, index === 0 ? '默认价格表' : `价格表${index + 1}`),
  createdAt,
  updatedAt: Number(raw?.updatedAt) || createdAt,
@@ -9803,14 +9893,9 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  if (libraries.length === 1) {
  return { ...libraries[0], sources: [libraries[0]], merged: false };
  }
- const byKey = new Map();
  const sources = [];
  libraries.forEach(library => {
  sources.push(library);
- (library.items || []).forEach(item => {
- const key = `${item.serviceKey}|${item.settleType}`;
- if (!byKey.has(key)) byKey.set(key, item);
- });
  });
  /* 规则（含区间规则）的合并交给 PriceRuleEngine 自己按 rule 唯一键去重，
     因为区间规则的「冲突」判定比精确项目复杂（同名区间可能真的重叠）。
@@ -9822,7 +9907,18 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  return {
  id: libraries.map(library => library.id).join('+'),
  name: libraries.map(library => library.name).join(' + '),
- items: [...byKey.values()],
+ /* 【8.3.46】这里刻意**不去重** items，即使同一个合并结果的 id 相同。
+    原先用 `${item.serviceKey}|${item.settleType}` 做键、先到先得，
+    本意是「A 库有的项目优先用 A 库的」。但键里没有价钱：两个库都存了
+    「鹅鸭杀·局数」而价钱不同时，B 库那条会被当成重复项直接丢掉 ——
+    用户拿到的是 A 库的价，且完全没有察觉（候选里也不会出现第二条）。
+    多库同用的意义恰恰在于这种同名不同价要由用户自己挑，
+    所以这里的 items 也要各留各的，由下游按自己的口径处理：
+    查价走 getLookupServiceRules（各库分别归一化后拼接），
+    展示走候选列表（同名冲突时标库名 + 库内区分特征）。
+    另外这些 item 在归一化阶段就已经带上了所属库的 scope，
+    两个库的同名项目不会算出同一个规则 id（见 PriceRuleEngine.buildRuleId）。 */
+ items: libraries.flatMap(library => library.items || []),
  rules,
  surcharges,
  giftMemories,
@@ -9850,12 +9946,110 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
      与上面按 serviceKey 找 item 的区别：候选清单列的是「规则」，
      区间规则没有对应的 item，只能靠规则 id 反查。
      只在展示层用，不参与任何金额计算，查不到就返回空。 */
- findLibraryNameByRuleId(data, ruleId) {
+ findLibraryByRuleId(data, ruleId) {
  const id = String(ruleId || '');
- if (!id) return '';
+ if (!id) return null;
+ /* 【8.3.46 修】这里原先把 `library.rules` 当成唯一的规则来源，查不到 items。
+     但「精确项目」的 id 是挂在 library.items 上的（区间规则才在 rules），
+     而候选里绝大多数是精确项目 —— 于是这个函数对它们一律返回空，
+     调用方再回落到「第一个库」，标出来的库名是错的。
+     实测证据：两库各存一条同名「鹅鸭杀」（主库按局数 ¥7、副库按小时 ¥35）时，
+     副库那条的 id 在 rules 里找不到，返回空 → 候选上两条都标成主库名 →
+     用户点副库那条时按主库走，填进去的是主库的价。
+     修法：items 与 rules 两处都找。 */
  for (const library of this.getMergedLibraries(data)) {
- if ((library.rules || []).some(rule => String(rule.id || '') === id)) return String(library.name || '');
+ if ((library.items || []).some(item => String(item.id || '') === id)) return library;
+ if ((library.rules || []).some(rule => String(rule.id || '') === id)) return library;
  }
+ return null;
+ }
+
+ /* 【8.3.46】按「项目名 + 结算方式 + 价钱」找它的归属库。
+     为什么需要它：两个库里若存了**完全同名、同结算方式、同价**的项目，
+     它们的 id 会算出同一个值（buildItemId 只吃 serviceKey|settleType|createdAt，
+     而下层 normalizeEntry 会把 createdAt 落到当前时间）—— 此时单靠 id
+     无法判断这条候选来自哪个库，findLibraryByRuleId 只会返回第一个命中的库，
+     另一条就被标成了别人的库名，看着像「库名标错」。
+     这里用「名字 + 结算方式 + 价钱」三要素定位：id 相同时，
+     先在**当前库**（查价范围里排最前的那个，也就是实际取价的那个库）里找，
+     找不到再往后面的库找 —— 与查价「当前库优先」的口径一致。
+     找不到就返回 null，调用方退回按 id 找。 */
+ findLibraryByItemSignature(data, serviceName, settleType, unitPrice) {
+ const key = this.buildServiceKey(serviceName);
+ if (!key) return null;
+ const settle = String(settleType || '').trim().toLowerCase();
+ const price = Number(unitPrice);
+ const libraries = this.getMergedLibraries(data) || [];
+ const hit = library => (library.items || []).some(item => this.buildServiceKey(item.serviceType) === key
+ && String(item.settleType || '').trim().toLowerCase() === settle
+ && Number(item.unitPrice) === price);
+ for (const library of libraries) if (hit(library)) return library;
+ return null;
+ }
+
+ /* 只要库名的薄封装（调用方只需要名字时用，避免到处写 .name）。 */
+ findLibraryNameByRuleId(data, ruleId) {
+ const library = this.findLibraryByRuleId(data, ruleId);
+ return library ? String(library.name || '') : '';
+ }
+
+ /* 【8.3.46】查出「这个项目名在几个库里出现过」，用于决定要不要标来源库名。
+     判定口径：只按**名字**比，不比价格。
+     为什么只按名字：用户在候选里点的是「用哪一条记录」，
+     同名项目哪怕两库价格一样，也是两条独立的记录，标出来才有意义。
+     为什么不是「只要多库就标」：A 库有「一起看」、B 库没有时，
+     这条候选的来源是唯一的、没有歧义，标了只是噪音、还占掉候选行的宽度。
+     名字比对走 buildServiceKey（去空格 + 小写），与查价时的同一套口径，
+     避免「鹅鸭杀」和「鹅鸭杀 」被当成两个名字。
+     只用于展示层，不参与任何金额计算。 */
+ countServiceNameAcrossLibraries(data, serviceName) {
+ const key = this.buildServiceKey(serviceName);
+ if (!key) return 0;
+ let count = 0;
+ for (const library of this.getMergedLibraries(data)) {
+ if ((library.items || []).some(item => this.buildServiceKey(item.serviceType) === key)) count += 1;
+ }
+ return count;
+ }
+
+ /* 【8.3.46】展示层统一入口：这个名字是否该标来源库名。
+     条件：① 同时用了不止一个库（单库标了是废话）
+           ② 这个名字确实在 2 个以上库里都有（否则没有歧义）
+     两处标注（已解析候选、候选清单）都走这里，避免两处判断口径漂移。 */
+ shouldTagLibrarySource(data, serviceName) {
+ if ((this.getMergedLibraries(data) || []).length < 2) return false;
+ return this.countServiceNameAcrossLibraries(data, serviceName) > 1;
+ }
+
+ /* 【8.3.46】同名项目之间「拿什么区分」的提示词，给候选行首标在库名旁边，
+     例如「〔默认价格表〕 · 别名：鹅鸭杀 ·」这一小节里的「别名：鹅鸭杀」。
+     为什么需要它：同名冲突的场景下，两条候选**项目名一模一样**，
+     但价可能一样、版本/别名又很长，光看价格分不出该点哪一条 ——
+     用户看到的会是「〔默认价格表〕 · 精确项目 · 包c¥30」和
+     「〔礼物价〕 · 精确项目 · 包c¥30」两行几乎一样的字，
+     只能靠记住哪个库在前面来猜。
+     库名之外再补一条**库内的区分特征**（同库同价是常态，所以优先取别名，
+     没有别名就报「唯一」——即该库里这个名字只有一条记录），
+     用户就有明确的据可依。
+     口径与展示顺序：
+       · 别名      —— 该库里这条记录自己填的别名（最直接的区分）
+       · 唯一      —— 该库里这个名字只有这一条记录（另一库才有第二条）
+     都拿不到时返回空，调用方就只显示库名，与本轮改动前一致。 */
+ getSiblingDistinguishHint(data, serviceName, libraryId = '') {
+ if (!this.shouldTagLibrarySource(data, serviceName)) return '';
+ const key = this.buildServiceKey(serviceName);
+ if (!key) return '';
+ const library = (this.getMergedLibraries(data) || []).find(item => String(item.id || '') === String(libraryId || ''));
+ if (!library) return '';
+ const sameName = (library.items || []).filter(item => this.buildServiceKey(item.serviceType) === key);
+ if (!sameName.length) return '';
+ const aliasBag = [];
+ sameName.forEach(item => {
+ const list = Array.isArray(item.aliases) && item.aliases.length ? item.aliases : (item.alias ? [item.alias] : []);
+ list.forEach(name => { const text = String(name || '').trim(); if (text && !aliasBag.includes(text)) aliasBag.push(text); });
+ });
+ if (aliasBag.length) return `别名：${aliasBag.slice(0, 2).join('、')}${aliasBag.length > 2 ? '等' : ''}`;
+ if (sameName.length === 1) return '唯一';
  return '';
  }
 
@@ -9864,6 +10058,12 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  unitPrice: item.unitPrice,
  settleType: item.settleType,
  serviceType: item.serviceType,
+ /* 【8.3.46 修】别名要跟着 legacy 副本一起走。
+    legacy 副本是「价格库」这套数据出错时的回退来源（也是老版本码单器读的那份），
+    这里若把别名丢掉，一旦发生回退，用户的别名就整体消失了。
+    normalizeEntry 会把它们从 alias/aliases 里读回来，所以两个字段都给。 */
+ aliases: Array.isArray(item.aliases) ? [...item.aliases] : item.aliases,
+ alias: item.alias,
  usageCount: item.usageCount,
  lastUsed: item.lastUsed,
  createdAt: item.createdAt
@@ -12536,12 +12736,31 @@ class LayoutFeature {
  } else {
  meta = `${match.matchedBy === 'alias' ? '别名匹配' : '精确项目'} · ${settleLabel}¥${match.unitPrice}`;
  }
- /* 【8.3.46】多库同用：只有「同时用了不止一个库」时才标来源。
-     一个库的时候标了是废话（就那一个，谁都知道价从哪来），
-     还会把原本干净的候选行塞长、在手机上更容易折行。
-     标在最后一位，因为前面那段（区间关系 / 匹配方式 + 价格）才是用户先看的。 */
- if (this.getLookupPriceLibraries()?.mergedLibraries?.length > 1 && match.libraryName) {
- meta += ` · 〔${match.libraryName}〕`;
+ /* 【8.3.46】多库同用：只有「这个名字确实在多个库里都有」时才标来源。
+     为什么要收紧：早先的写法是「只要同时用了 2 个以上库就每条都标」，
+     于是 A 库独有的项目也顶着〔A库〕—— 用户根本没有第二个同名项目可选，
+     这个标注既没信息量、又把候选行占长，在手机上更容易折行。
+     现在改成只在**同名冲突**时标（名字在 2 个以上库里都出现）。
+     位置也改到最前面：库名夹在末尾时，前面那段说明会把整行占满，
+     〔库名〕被挤到第二行、和前面脱节 —— 看着像括号错行。
+     放到行首就永远留在第一行，而且各条候选的库名起头位置天然对齐。 */
+ const tagLib = this.priceLibraryStore?.shouldTagLibrarySource?.(this.app.priceLibraries, match.serviceDisplay)
+ ? String(match.libraryName || '')
+ : '';
+ if (tagLib) {
+ /* 【8.3.46】同名冲突时，光有库名还不够 —— 两条候选的项目名一模一样，
+      用户只能靠「库名」认。再补一条库内的区分特征（别名 / 唯一），
+      见 PriceLibraryStore.getSiblingDistinguishHint 的说明。
+      另外：这里说明里原本已经会写「别名匹配」（走别名命中规则时），
+      行首再标一遍「别名：XXX」就重了 —— 命中别名的那次合并成一句，
+      避免同一件事在同一行说两遍。 */
+ const hint = this.priceLibraryStore?.getSiblingDistinguishHint?.(
+ this.app.priceLibraries, match.serviceDisplay, match.libraryId);
+ /* 命中的是别名时，把「命中别名」这层信息并进行首那一段；
+     meta 里就退回中性的「精确项目」，不再重复报一次。 */
+ const viaAlias = match.matchedBy === 'alias';
+ if (viaAlias && hint && /^别名：/.test(hint)) meta = meta.replace(/^别名匹配 · /, '');
+ meta = `〔${tagLib}〕${hint ? ` · ${hint}` : ''} · ${meta}`;
  }
  return {
  key: `resolved|${match.matchedRuleId}|${match.matchedVariant}|${match.settleType}`,
@@ -12577,34 +12796,66 @@ class LayoutFeature {
      价格库面板里的「精确单价 / 区间规则」列表仍然是只显示当前库的 ——
      那是编辑入口，改动会写进当前库，两边不能混。 */
  const suggestRules = this.getLookupServiceRules();
- /* 多库时才标来源；单库时标了是废话，还会把候选行塞长、在窄屏更容易折行。 */
- const suggestMultiLib = (this.getLookupPriceLibraries()?.mergedLibraries?.length || 0) > 1;
- const sourceTagOf = (ruleId) => {
- if (!suggestMultiLib) return '';
- const name = this.priceLibraryStore?.findLibraryNameByRuleId?.(this.app.priceLibraries, ruleId);
- /* 只写成「〔库名〕」。候选行的说明是单行不换行（nowrap + 省略号），
-    「来自「默认价格表」」这种长写法在两栏并排时会被截成「来自…」——
-    正好把唯一有用的信息截掉。换成方括号短标，多库时才有，一眼能分清来源。 */
- return name ? `〔${name}〕` : '';
+ /* 【8.3.46】来源标注的开关与位置，和已解析候选保持一致（同一个展示口径）：
+     只有**同名项目确实在多个库里都有**时才标，标在说明行最前面，
+     这样库名永远落在第一行、各条候选之间天然对齐。
+     原先「只要多库就每条都标」会把 A 库独有的项目也标上，属于噪音。
+     归属的判定优先走「名字+结算方式+价钱」三要素（见 findLibraryByItemSignature
+     的说明：两库同名同价同结算时 id 会撞车，只靠 id 会指错库），
+     拿不到再退回按 id 找 —— 区间规则没有单一价钱，只能走 id。 */
+ const sourceTagOf = (rule, serviceName, settleType, unitPrice) => {
+ const owner = (rule?.kind === 'exact'
+ ? this.priceLibraryStore?.findLibraryByItemSignature?.(this.app.priceLibraries, serviceName, settleType, unitPrice)
+ : null) || this.priceLibraryStore?.findLibraryByRuleId?.(this.app.priceLibraries, rule?.id);
+ if (!owner) return '';
+ /* 精确项目按项目名判同名；区间规则没有单一的「项目名」，
+    用区间名/别名参与判定 —— 区间规则之间本来就靠名字区分，同名更该标出来。 */
+ const judgedName = String(serviceName || rule?.alias || rule?.rangeLabel || '');
+ if (!this.priceLibraryStore?.shouldTagLibrarySource?.(this.app.priceLibraries, judgedName)) return '';
+ /* 【8.3.46】同名冲突时再补一条库内的区分特征（别名 / 唯一），
+    否则两条候选除了库名以外长得一模一样，用户没法判断该点哪条。
+    见 PriceLibraryStore.getSiblingDistinguishHint 的说明。 */
+ const hint = this.priceLibraryStore?.getSiblingDistinguishHint?.(
+ this.app.priceLibraries, judgedName, owner.id);
+ /* 只返回「库名 + 可选区分特征」，**不带尾部分隔符** ——
+    分隔符交给拼装处（与 aliasText、价钱一起用 join(' · ')）。
+    否则行首那一段自带一个 ` · `、后面若有一段被省略（比如别名已在这标过、
+    不再重复），就会留下「 ·  · 」这样的空档。 */
+ return hint ? `〔${owner.name || ''}〕 · ${hint}` : `〔${owner.name || ''}〕`;
  };
  suggestRules.forEach(rule => {
- const sourceTag = sourceTagOf(rule.id);
  if (rule.kind === 'exact') {
  const displayName = String(rule.serviceName || '').trim();
  if (!displayName) return;
+ /* 结算方式与价钱要一起传进去：两库同名同价时 id 会撞车，
+    得靠这三要素才能定位到「这条候选真正来自哪个库」（见 sourceTagOf 的说明）。 */
+ const entrySettle = PriceRuleEngine.normalizePositivePrice(rule.prices?.[preferred]) !== null ? preferred : (PriceRuleEngine.normalizePositivePrice(rule.prices?.round) !== null ? 'round' : 'hour');
+ const entryPrice = PriceRuleEngine.normalizePositivePrice(rule.prices?.[preferred]) ?? PriceRuleEngine.normalizePositivePrice(rule.prices?.round) ?? PriceRuleEngine.normalizePositivePrice(rule.prices?.hour);
+ const sourceTag = sourceTagOf(rule, displayName, entrySettle, entryPrice);
  const prices = this.formatServiceSuggestionPrices(rule.prices);
  // 【多别名】全部别名都参与联想搜索；展示时取前两个，多于两个用「等」收尾。
  const aliasList = Array.isArray(rule.aliases) && rule.aliases.length ? rule.aliases : (rule.alias ? [rule.alias] : []);
  const values = [displayName, ...aliasList];
- const aliasText = aliasList.length ? `别名：${aliasList.slice(0, 2).join('、')}${aliasList.length > 2 ? `等 ${aliasList.length} 个` : ''}` : '精确项目';
+ /* 【8.3.46】说明里若已经在行首标了这条记录的别名，就不再重复标一次 ——
+    同名冲突时行首会出现「〔默认价格表〕 · 别名：鹅鸭杀A版」，
+    紧接着又跟一段「别名：鹅鸭杀A版」，同一句话连说两遍。
+    这里直接把那一段**去掉**（返回空串），而不是换成「精确项目」——
+    换成「精确项目」会变成「〔默认价格表〕 · 别名：鹅鸭杀A版 · 精确项目 · 局数¥30」，
+    信息没少但变啰嗦；去掉后是「〔默认价格表〕 · 别名：鹅鸭杀A版 · 局数¥30」，
+    该说的都在、更短。空串会被下面的 filter(Boolean) 滤掉，不会留下多余分隔符。 */
+ const aliasText = aliasList.length
+ ? (sourceTag.includes(`别名：${aliasList[0]}`)
+   ? ''
+   : `别名：${aliasList.slice(0, 2).join('、')}${aliasList.length > 2 ? `等 ${aliasList.length} 个` : ''}`)
+ : '精确项目';
  suggestions.push({
  key: `exact|${rule.id}`,
  displayName,
  inputValue: displayName,
  ruleId: rule.id,
- settleType: PriceRuleEngine.normalizePositivePrice(rule.prices?.[preferred]) !== null ? preferred : (PriceRuleEngine.normalizePositivePrice(rule.prices?.round) !== null ? 'round' : 'hour'),
- unitPrice: PriceRuleEngine.normalizePositivePrice(rule.prices?.[preferred]) ?? PriceRuleEngine.normalizePositivePrice(rule.prices?.round) ?? PriceRuleEngine.normalizePositivePrice(rule.prices?.hour),
- meta: [aliasText, prices, sourceTag].filter(Boolean).join(' · '),
+ settleType: entrySettle,
+ unitPrice: entryPrice,
+ meta: [sourceTag, aliasText, prices].filter(Boolean).join(' · '),
  searchKeys: this.getCachedServiceSuggestionSearch(`exact|${rule.id}|${rule.updatedAt}`, values),
  priority: 0,
  popularity: this.getRulePopularity(rule),
@@ -12618,6 +12869,7 @@ class LayoutFeature {
  const baseName = String(rule.alias || rule.rangeLabel || '').trim();
  if (!baseName) return;
  const displayName = `${baseName}${variant.label}`;
+ const sourceTag = sourceTagOf(rule, baseName);
  // 【多别名】区间规则的别名同样参与搜索；显示名仍以第一个（或区间名）为准。
  const rangeAliasList = Array.isArray(rule.aliases) && rule.aliases.length ? rule.aliases : (rule.alias ? [rule.alias] : []);
  const values = [
@@ -12635,7 +12887,7 @@ class LayoutFeature {
  ruleId: rule.id,
  settleType: PriceRuleEngine.normalizePositivePrice(prices?.[preferred]) !== null ? preferred : (PriceRuleEngine.normalizePositivePrice(prices?.round) !== null ? 'round' : 'hour'),
  unitPrice: PriceRuleEngine.normalizePositivePrice(prices?.[preferred]) ?? PriceRuleEngine.normalizePositivePrice(prices?.round) ?? PriceRuleEngine.normalizePositivePrice(prices?.hour),
- meta: [`按${rule.rangeLabel}区间`, this.formatServiceSuggestionPrices(prices), sourceTag].filter(Boolean).join(' · '),
+ meta: [sourceTag, `按${rule.rangeLabel}区间`, this.formatServiceSuggestionPrices(prices)].filter(Boolean).join(' · '),
  searchKeys: this.getCachedServiceSuggestionSearch(`range|${rule.id}|${variant.key}|${rule.updatedAt}`, values),
  priority: 0,
  popularity: Math.max(0, Number(rule.updatedAt) || 0) / 1e12,
@@ -12673,18 +12925,71 @@ class LayoutFeature {
  this._typeSuggestRenderSignature = signature;
  this._typeSuggestActiveIndex = matches.length ? 0 : -1;
  const itemPrefix = this._activeServiceFragment?.expressionContext ? `第${(this._activeServiceFragment.itemIndex || 0) + 1}项 · ` : '';
+ /* 【8.3.46】说明最多两行，但**一旦还剩下没说全的内容**（被省略号截掉了）就放宽到 3 行。
+    为什么要按需放宽、而不是一律 3 行：两栏并排时半宽只有 150-176px，
+    「〔礼物价〕 · 别名：鹅鸭杀 · 包c¥30」这种带来源标注的说明 2 行放不下 ——
+    而来源标注正好长在行首，被截断后用户看到的是「〔礼物价〕 · 别名：鹅鸭杀…」，
+    库名和别名都在、只是尾巴的价看不到，容易误觉「信息不全」。
+    3 行能放下就让它放；而普通说明仍然只占 2 行，不白占竖向空间。
+    判定方式：把说明塞进一个同样样式的隐藏量尺，量它的实际高度是否超过两行 ——
+    比按字数猜准（中英文混排、全角字符宽度都不一样）。 */
+ const metaStyleOf = item => {
+ const text = `${itemPrefix}${item.meta}`;
+ return `<span class="type-suggest-meta" data-meta-measure="${this.escapeHtml(text)}">${this.escapeHtml(text)}</span>`;
+ };
+ const measuredMeta = matches.map(metaStyleOf);
+ list.dataset.pendingMetas = JSON.stringify(measuredMeta);
  this.setRenderedHtml(list, matches.map((item, index) =>
  `<div class="type-suggest-item service-rule${index === this._typeSuggestActiveIndex ? ' active' : ''}" data-suggestion-owner="service" data-service-rule="true" data-expression-fragment="${this._activeServiceFragment?.expressionContext ? 'true' : 'false'}" data-suggest-index="${index}" data-type="${this.escapeHtml(item.inputValue)}" data-rule-id="${this.escapeHtml(item.ruleId || '')}" data-settle-type="${this.escapeHtml(item.settleType || '')}" data-unit-price="${this.escapeHtml(item.unitPrice ?? '')}" title="${this.escapeHtml(`${item.displayName} · ${item.meta}`)}">
  <span class="type-suggest-name">${this.escapeHtml(item.displayName)}</span>
  <span class="type-suggest-meta">${this.escapeHtml(`${itemPrefix}${item.meta}`)}</span>
  </div>`
  ).join(''));
+ this.relaxTruncatedServiceMeta();
  list.classList.add('show', 'compact-grid');
  /* 【8.3.46】一个候选就不要并排了：并排会把说明挤到只剩一半宽，
    而说明尾部正是「来自「XX价」」—— 来源被省略号吃掉就失去意义。
    见 CSS 里 .is-single 的说明。 */
  list.classList.toggle('is-single', matches.length === 1);
  return true;
+ }
+
+ /* 【8.3.46】把「两行装不下」的候选说明放宽到 3 行。
+     做法：给挂了这个组件的每个说明量一次真实高度，超过两行就加 `has-more`。
+     量法用一次性的隐藏量尺，量完立即移除 —— 不往页面里留多余节点，
+     也不会因为反复渲染而堆积（工程指令八·6：动态 DOM 必须验证唯一实例）。 */
+ relaxTruncatedServiceMeta() {
+ const list = this.el.typeSuggestList;
+ const metas = list ? [...list.querySelectorAll('.type-suggest-item.service-rule .type-suggest-meta')] : [];
+ if (!metas.length) return 0;
+ /* 先按最宽的那种情形量：先看有没有并排（并排才是半宽、才容易截断）。
+    真正渲染完成后 list 上会带 compact-grid；这里两者都量，
+    取「更宽的那个上限」判断是否一定装得下，避免误放宽。 */
+ const measure = el => {
+ const probe = el.cloneNode(true);
+ probe.classList.add('has-more');
+ probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;left:-99999px;top:0;width:100%;';
+ el.parentNode.appendChild(probe);
+ const lineHeight = parseFloat(this.app.window?.getComputedStyle?.(probe)?.lineHeight || '') || 0;
+ const probeHeight = probe.getBoundingClientRect().height || 0;
+ /* 先量 3 行上限下的自然高度；若自然高度小于等于两行，说明本来就没截断，
+    不需要放宽 —— 但要判断「两行是否被截」还得量 2 行上限下的高度。 */
+ probe.classList.remove('has-more');
+ const twoLineHeight = probe.getBoundingClientRect().height || 0;
+ probe.remove();
+ /* 被截断的判据：2 行上限下的高度已顶到上限（等于 lineHeight 的 2 倍左右），
+    而放开到 3 行后高度变大 —— 说明确实还有内容没显示完。 */
+ if (!lineHeight || !probeHeight || !twoLineHeight) return false;
+ const capped = twoLineHeight >= lineHeight * 1.9;
+ return capped && probeHeight > twoLineHeight + 1;
+ };
+ let relaxed = 0;
+ metas.forEach(el => {
+ try {
+ if (measure(el)) { el.classList.add('has-more'); relaxed += 1; }
+ } catch (error) { /* 量尺失败就不放宽，退回两行，不影响功能 */ }
+ });
+ return relaxed;
  }
 
  isSoftTypeSuggestionActive() {
@@ -13868,11 +14173,37 @@ class PriceRuleEditorFeature {
  isEditingRangeRule() { return Boolean(this._editingRangeRuleId); }
  validateImportedData(data) { return PriceRuleConflictEngine.validateData(data); }
  selectTemporaryRule(rawValue, displayValue, settleType, ruleId) {
- const active = this.priceLibraryStore.getActiveLibrary(this.priceLibraries);
- if (!active || !ruleId) return false;
- PriceRuleMatcher.setTemporaryChoice(active, rawValue, settleType, ruleId);
- PriceRuleMatcher.setTemporaryChoice(active, displayValue, settleType, ruleId);
+ if (!ruleId) return false;
+ /* 【8.3.46 修】这条临时选择必须记在**拥有该规则的库**上，不能记在当前库上。
+    原先固定写进 getActiveLibrary(...)，在「多库同用」下会错位：
+      · 候选来自 B 库（B 库里是个同名项目，命中多条需要用户选一条）
+      · 但当前库是 A
+      · 于是选择被记到键「A|项目名|结算方式」，而查价时 matchLibrary 是按
+        「拥有该规则的库」读键「B|项目名|结算方式」→ 读不到
+      · 结果卡在 ambiguous_rule，单价怎么也填不上 ——
+        表现就是「只有主库的项目能填价，副库的只能弹候选、点了没用」。
+    改成按 ruleId 反查它真正属于哪个库，写对键。
+    查不到归属时（极端情况）回落到当前库，保持与改动前一致的行为。 */
+ const owner = this.findLibraryOwningRule(ruleId) || this.priceLibraryStore.getActiveLibrary(this.priceLibraries);
+ if (!owner) return false;
+ PriceRuleMatcher.setTemporaryChoice(owner, rawValue, settleType, ruleId);
+ PriceRuleMatcher.setTemporaryChoice(owner, displayValue, settleType, ruleId);
  return true;
+ }
+
+ /* 【8.3.46】按 ruleId 反查它属于哪个库（查价范围内）。
+   精确项目的 id 在 library.items 上，区间规则的 id 在 library.rules 上，
+   两处都要找 —— 只找 rules 会漏掉绝大多数候选（候选多为精确项目）。 */
+ findLibraryOwningRule(ruleId) {
+ const id = String(ruleId || '');
+ if (!id) return null;
+ for (const library of this.priceLibraryStore.getMergedLibraries(this.priceLibraries)) {
+ const inItems = (library.items || []).some(item => String(item?.id || '') === id);
+ if (inItems) return library;
+ const inRules = (library.rules || []).some(rule => String(rule?.id || '') === id);
+ if (inRules) return library;
+ }
+ return null;
  }
 
  buildPriceMemorySnapshot() {
@@ -14529,7 +14860,23 @@ class PriceRuleEditorFeature {
  const merged = this.priceLibraryStore.getMergedLibraries(this.priceLibraries);
  if (!merged.length) return [];
  if (merged.length === 1) return PriceRuleEngine.normalizeRules(merged[0].rules).rules;
- return PriceRuleEngine.normalizeRules(merged.flatMap(library => library.rules || [])).rules;
+ /* 【8.3.46 修】多库查价时**不能**跨库去重同名规则。
+     原先的写法是 PriceRuleEngine.normalizeRules(merged.flatMap(...))，
+     而 normalizeRules 是按 buildRuleKey（对精确项目就是「项目名」）做键、
+     命中同名就把两条 mergeRule 合并成一条 —— 于是 B 库的同名项目
+     在中途直接消失，候选里只剩当前库那一条。
+     这正是用户报的「只有主库能正确填充单价，副库的项目点了候选也填不上」：
+     副库那条规则根本没进候选清单，点不到自然填不上。
+     为什么同名规则必须各留各的：多库同用下，「同名」恰恰是用户需要做选择的
+     场景 —— A 库和 B 库都有「鹅鸭杀」且价钱不同时，用户要能看到两条、
+     按库名挑一条。合并成一条等于替用户做了决定，而且丢的是副库那条。
+     改法：合并只用于**同一个库内部**（一个库里同名本就该是一条，那是历史数据
+     里同一项目重复保存的情况），跨库则各库分别 normalize 后按顺序拼起来，
+     不打散。顺序保持「当前库在前」（getMergedLibraries 保证），
+     与查价「当前库优先」的口径一致。
+     注意：这里返回的是「查价用」的规则集，只影响候选联想与取价，
+     不参与编辑 —— 编辑仍走 getActiveServiceRules（只当前库）。 */
+ return merged.flatMap(library => PriceRuleEngine.normalizeRules(library.rules).rules);
  }
 }
 
