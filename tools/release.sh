@@ -201,7 +201,14 @@ fi
 [ -z "$NOTES" ] && die "notes 内容为空"
 
 if [ -z "$THEME" ]; then
-  THEME="$(printf '%s' "$NOTES" | head -1 | cut -c1-40)"
+  # 【8.3.47 修】截断必须**按字符**，不能按字节。
+  # `cut -c1-40` 在多数实现里是按字节切的：中文一个字占 3 字节，
+  # 第 40 字节正好落在某个字的中间时，会把那个字劈成半个 ——
+  # 留下一个不完整的字节（0xef），后面 Python 读环境变量就炸在
+  # 「surrogates not allowed」，整个发版在「追加 CHANGELOG」这步回滚，
+  # 而前面所有步骤其实都已成功，报错信息完全看不出是截断引起的。
+  # 所以这里改用 Python 按字符截断（它就是最终要读这个值的那一方，口径一致）。
+  THEME="$(printf '%s' "$NOTES" | head -1 | python3 -c "import sys; print(sys.stdin.read().replace(chr(10),' ')[:40])")"
 fi
 
 # 1.3 当前版本（单一真源：APP_VERSION）
@@ -430,8 +437,14 @@ if [ $DRY_RUN -eq 1 ]; then
   info "演练模式：跳过 CHANGELOG 写入"
 else
   VER="$VER" THEME="$THEME" NOTES="$NOTES" python3 - <<'PY'
-import os, re
+import os, re, sys
 ver, theme, notes = os.environ['VER'], os.environ['THEME'], os.environ['NOTES']
+# 【8.3.47 修】环境变量里若混进了半个多字节字符（例如上游用按字节的 cut 截断过），
+# Python 读到的是「落单的字节」（surrogate）—— 直接拿去写文件或打印都会抛
+# UnicodeEncodeError，把整个发版拖到回滚。这里统一把这类坏字符清掉：
+# 它们本来就是上一个环节切坏的残留，没有任何信息量，清掉比整单回滚合理得多。
+notes = notes.encode('utf-8', 'surrogateescape').decode('utf-8', 'replace')
+theme = theme.encode('utf-8', 'surrogateescape').decode('utf-8', 'replace')
 with open('CHANGELOG.md', encoding='utf-8') as f:
     lines = f.read().split('\n')
 if any(re.match(r'^## %s([^0-9.]|$)' % re.escape(ver), l) for l in lines):
