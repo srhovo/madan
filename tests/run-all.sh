@@ -10,7 +10,7 @@
 #   bash tests/run-all.sh --require-package # 当前版本没有对应 zip 即判失败（CI/发版用）
 #   bash tests/run-all.sh --release-flow   # 发版流程中调用：允许「zip 刚生成尚未 git add」
 #
-# 可用 --only 值: engine | chunk | arch | chain | dom | combo | fullchain | mutate | giftcombo | package | version | alias | historyrefill | hints | giftqty | hintlayout | giftfill | giftfillui | multilibrary | metalayout | ruleid
+# 可用 --only 值: engine | chunk | arch | chain | dom | combo | fullchain | mutate | giftcombo | package | version | alias | aliasui | historyrefill | hints | giftqty | hintlayout | giftfill | giftfillui | multilibrary | metalayout | ruleid
 #
 # 退出码: 0 全通过 / 1 有套件失败
 set -u
@@ -285,6 +285,24 @@ if ! should_skip alias; then
   line=$(echo "$out" | grep -oE "通过 [0-9]+ / 失败 [0-9]+" | tail -1)
   [ -z "$line" ] && line=$(echo "$out" | grep -oE "全部通过.*" | tail -1)
   run_suite alias "精确项目多别名" $rc "${line:-无输出}"
+fi
+
+# ── 11-b. 精确项目「其他名字」· 真实界面链路 ────────────────────────
+# 背景：8.3.47 用户报「精确单价的其他名字功能有bug，无法正常保存，
+# 也无法确认可以通过其他名字触发候选卡片，也无法确定是否可以正常导入导出」。
+# 上一套（price-alias.js）是**把引擎类抠出来在 vm 里跑**，完全不碰界面 ——
+# 它测的是「引擎会不会算」，而用户报的 bug 恰恰出在**保存那一步**：
+# 界面上填的名字根本没被写进记录。覆盖面缺的就是「用户手指真正走到的那条路」，
+# 所以这一套专门从界面输入框走起，一路走到查价、导出、导入为止。
+# 同样自带反向验证（把修复拆掉必须变红）。
+if ! should_skip aliasui; then
+  echo
+  echo "── [13-b] 其他名字界面链路 price-alias-ui.js ─────────────────"
+  out=$(node tests/price-alias-ui.js 2>&1)
+  rc=$?
+  echo "$out" | tail -6
+  line=$(echo "$out" | grep -oE "全部通过.*" | tail -1)
+  run_suite aliasui "其他名字界面链路" $rc "${line:-无输出}"
 fi
 
 # ── 12. 历史记录「编辑回填」详情同步 ──────────────────────────────

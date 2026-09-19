@@ -9586,11 +9586,26 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
 
  buildServiceKey(value) { return this.normalizeServiceType(value).toLowerCase(); }
 
+ /* 一条记录是否叫这个名字（项目名或它的任一个「其他名字」）。
+    【8.3.47 新增】为什么值得单独抽出来：
+    在这之前，「按名字找记录」的地方各写各的比对 —— 有的只比项目名，
+    有的（引擎那条路）会连别名一起比。于是同一件事出现两套口径：
+    用户在输入框里敲别名，候选卡片能弹出来（引擎那套认别名），
+    但「这条项目是不是已经在库里了」这类判断只认项目名，报「没有」——
+    两边对不上，就会出现「候选明明有、却像是没这个项目」。
+    统一走这里，让「按名字找」在任何地方都是同一个意思。 */
+ itemMatchesName(item, serviceKey) {
+ if (!item || !serviceKey) return false;
+ if (this.buildServiceKey(item.serviceType) === serviceKey) return true;
+ const list = Array.isArray(item.aliases) && item.aliases.length ? item.aliases : (item.alias ? [item.alias] : []);
+ return list.some(name => this.buildServiceKey(name) === serviceKey);
+ }
+
  findActiveItemByService(data, serviceType, settleType = '') {
  const key = this.buildServiceKey(serviceType);
  if (!key) return null;
  const activeLibrary = this.getActiveLibrary(data);
- const matches = (activeLibrary?.items || []).filter(item => this.buildServiceKey(item.serviceType) === key);
+ const matches = (activeLibrary?.items || []).filter(item => this.itemMatchesName(item, key));
  if (!matches.length) return null;
  const requestedSettle = String(settleType || '').trim().toLowerCase();
  return (requestedSettle ? matches.find(item => item.settleType === requestedSettle) : null) || matches[0] || null;
@@ -9599,13 +9614,15 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  /* 【8.3.46】同上，但范围是「参与查价的所有库」，按当前库优先。
    用途：判断「这个项目是不是已经有库价了」——决定要不要把它记进记忆库。
    必须用并集：别的库里已有这个项目时，这边若报「没有」，
-   就会把用户当场填的价又记一遍，甚至把不同库的价混起来。 */
+   就会把用户当场填的价又记一遍，甚至把不同库的价混起来。
+   【8.3.47】比对也走 itemMatchesName，认别名 —— 用户用别名查过价之后，
+   这条记录不该被再存一遍。 */
  findLookupItemByService(data, serviceType, settleType = '') {
  const key = this.buildServiceKey(serviceType);
  if (!key) return null;
  const requestedSettle = String(settleType || '').trim().toLowerCase();
  for (const library of this.getMergedLibraries(data)) {
- const matches = (library.items || []).filter(item => this.buildServiceKey(item.serviceType) === key);
+ const matches = (library.items || []).filter(item => this.itemMatchesName(item, key));
  if (!matches.length) continue;
  const hit = (requestedSettle ? matches.find(item => item.settleType === requestedSettle) : null) || matches[0];
  if (hit) return hit;
@@ -9613,7 +9630,29 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  return null;
  }
 
- buildItemId(serviceKey, createdAt = 0, settleType = '') { return `price_item_${this.hashText(`${serviceKey}|${settleType}|${Number(createdAt) || 0}`)}`; }
+ /* 项目 id 的算法。
+    【8.3.47 修·重要】项目 id 必须能指出「它属于哪个库」。
+    原先的输入是「项目名 + 结算方式 + 创建时间」，**不含库**。
+    两个库各存一条同名同结算方式的项目时，只要创建时间落在同一毫秒，
+    算出来的 id 就是同一个 —— 而「导入备份」正是这种情况：
+    一次导入会把所有库的 createdAt 统一刷成同一个时间戳。
+
+    撞车之后，靠 id 反查「这条记录属于哪个库」就永远命中第一个库：
+      · 候选卡片上的库名会标错（都标成主库）；
+      · 同名冲突时用于区分的「别名 / 唯一」提示会取错库，
+        于是本该显示「〔礼物价〕· 别名：XXX」的那条显示成「〔默认价格表〕· 唯一」——
+        两条候选变得一模一样，用户不知道该点哪条；
+      · 点哪条都按第一个库取价。
+
+    这一层做的事：数据里已经算好了「这个库的 id」时，把它作为盐加进去。
+    读取路径是 normalizeItem(raw, index, now)，而归一化 item 时
+    raw 已经带上了本库 id（normalizeLibrary 里 scopedItems 会补 scope），
+    所以老数据、新数据都能拿到盐；拿不到盐时退回原算法，
+    单库场景下 id 与改动前逐字一致，不影响已存的数据。 */
+ buildItemId(serviceKey, createdAt = 0, settleType = '', librarySalt = '') {
+ const salt = String(librarySalt || '').trim();
+ return `price_item_${this.hashText(salt ? `${serviceKey}|${settleType}|${Number(createdAt) || 0}|${salt}` : `${serviceKey}|${settleType}|${Number(createdAt) || 0}`)}`;
+ }
 
  normalizeItem(raw, index = 0, now = Date.now()) {
  const base = this.priceMemoryStore.normalizeEntry(raw);
@@ -9625,7 +9664,7 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  const lastUsed = Number(raw?.lastUsed) || Number(base.lastUsed) || createdAt;
  const updatedAt = Number(raw?.updatedAt) || lastUsed;
  return {
- id: String(raw?.id || this.buildItemId(serviceKey, createdAt, base.settleType) || `price_item_${now}_${index}`),
+ id: String(raw?.id || this.buildItemId(serviceKey, createdAt, base.settleType, raw?.scope) || `price_item_${now}_${index}`),
  serviceType,
  serviceKey,
  unitPrice: base.unitPrice,
@@ -9679,6 +9718,14 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
 
  normalizeLibrary(raw, index = 0) {
  const normalizedItems = this.normalizeItems(raw?.items);
+ /* 【8.3.47】哪些记录原本就自带 id —— 用来判断后面要不要按带盐的算法重算 id。
+    自带 id 的记录（老数据/备份导入）一律沿用：它们的 id 是历史事实，
+    改动它会让界面选中态、导出的引用全部失配。只有「id 是现算出来的」那些才重算。 */
+ const hasExplicitItemId = new Set(
+ (Array.isArray(raw?.items) ? raw.items : [])
+ .filter(item => item && typeof item === 'object' && String(item.id || '').trim())
+ .map(item => item.id)
+ );
  /* 【8.3.46】先定出这个库的 id，作为「规则的盐」往下传。
      原因：两个库里同名同价的规则会算出同一个 id，多库同用后
      两库规则同处一个列表，id 撞车会让候选被误判成重复、库名也会标错。
@@ -9699,9 +9746,20 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  const serviceItems = normalizedItems.items.filter(item => item.settleType !== 'gift');
  const normalizedGiftMemories = GiftMemoryEngine.normalize([...(Array.isArray(raw?.giftMemories) ? raw.giftMemories : []), ...legacyGiftMemories]);
  const normalizedSurcharges = SurchargeRuleEngine.normalizeRules(raw?.surcharges);
- /* 给这个库里的每条规则带上 scope（本库 id）：items 升上来的规则一律重新算 id
-     （也就是「没有显式 id」的那些），显式带了 id 的照旧沿用，老数据不受影响。 */
- const scopedItems = serviceItems.map(item => ({ ...item, scope: libraryId }));
+ /* 给这个库里的每条记录带上 scope（本库 id），并把项目 id 按带盐的算法**重算一次**。
+    【8.3.47 修·重要】为什么必须在这里重算：
+     归一化 items 时还不知道自己在哪个库里（那时只传了 items 数组，没有库 id），
+     所以算出来的项目 id 里没有「库」这一层 —— 两个库的同名记录会算出一模一样的 id，
+     靠 id 反查「这条属于哪个库」就永远命中第一个库：候选卡片上的库名会标错、
+     同名冲突时的区分特征（别名 / 唯一）也会取错库，两条候选变得一模一样，用户没法挑。
+     走到这一步已经拿到了 libraryId，于是把每条记录的 id 按带盐的算法重算 —— 只重算
+     **本来就没有显式 id** 的那些（老数据里存了 id 的照旧沿用，不受影响）。
+     这份带 scope 的记录同时喂给规则生成与 library.items，两处口径保持一致。 */
+ const scopedItems = serviceItems.map(item => {
+   const next = { ...item, scope: libraryId };
+   if (!hasExplicitItemId.has(item)) next.id = this.buildItemId(item.serviceKey, item.createdAt, item.settleType, libraryId);
+   return next;
+ });
  const normalizedRules = PriceRuleEngine.mergeWithLegacyItems(
  Array.isArray(raw?.rules) ? raw.rules.map(rule => (rule && typeof rule === 'object' && !rule.scope ? { ...rule, scope: libraryId } : rule)) : raw?.rules,
  scopedItems);
@@ -9713,7 +9771,7 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  name: this.normalizeLibraryName(raw?.name, index === 0 ? '默认价格表' : `价格表${index + 1}`),
  createdAt,
  updatedAt: Number(raw?.updatedAt) || createdAt,
- items: serviceItems,
+ items: scopedItems,
  rules: normalizedRules.rules,
  surcharges: normalizedSurcharges,
  giftMemories: normalizedGiftMemories
@@ -9918,7 +9976,14 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
     展示走候选列表（同名冲突时标库名 + 库内区分特征）。
     另外这些 item 在归一化阶段就已经带上了所属库的 scope，
     两个库的同名项目不会算出同一个规则 id（见 PriceRuleEngine.buildRuleId）。 */
- items: libraries.flatMap(library => library.items || []),
+ items: libraries.flatMap(library => (library.items || []).map(item => (
+ /* 【8.3.47】拼进来时补上所属库的 scope。
+    归一化阶段只是把 scope 传给了规则 id 的算法，并没有**留在 item 上**；
+    而「按 id 反查这条记录属于哪个库」是要比 item.id 的 ——
+    不带 scope 的话，两个库算出的 id 仍会相同，反查永远命中第一个库。
+    这里补上之后，查价拿到的每条记录都能指出自己的出处。 */
+ item && typeof item === 'object' && !item.scope ? { ...item, scope: library.id } : item
+ ))),
  rules,
  surcharges,
  giftMemories,
@@ -10267,7 +10332,15 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  upsertLegacyByService(list, record, { editingKey = '' } = {}) {
  const now = Date.now();
  const items = this.normalizeItems(list).items;
- const incoming = this.normalizeItem({ ...record, lastUsed: now, updatedAt: now, createdAt: now }, items.length, now);
+ /* 【8.3.47 修】新记录要带**它要落进的那个库**的标记。
+    原先这里只传了 record，算出来的项目 id 里没有库这一层 ——
+    而 library.items 里的记录是带着库标记的（见 normalizeLibrary 的 scopedItems），
+    两者 id 算法不一致：同一条记录「刚存进去」与「从库里读出来」会得到两个不同的 id。
+    后果是这条记录在「靠 id 反查属于哪个库」时查不到，候选卡片上标不出它的出处。
+    先从已有记录里取库标记当默认值（它们都来自同一个库），取不到再退回不传。 */
+ const scopeHint = String(record?.scope || '').trim()
+ || String((items.find(item => item?.scope) || {}).scope || '').trim();
+ const incoming = this.normalizeItem({ ...record, scope: scopeHint, lastUsed: now, updatedAt: now, createdAt: now }, items.length, now);
  if (!incoming) return { ok: false, items: this.toLegacyItems(items), replacedService: false };
  let original = null;
  if (editingKey) {
@@ -12895,13 +12968,30 @@ class LayoutFeature {
  });
  });
  });
+ /* 【8.3.47 修】去重键里**不能**带 meta（说明文字）。
+     原先的键是「展示名 + 说明」，而说明里会写「别名匹配」或「别名：大鹅」——
+     同一个项目用别名命中时，会同时产生两条候选：
+        · 「已解析」那条（说明写「别名匹配 · 局数¥30」）
+        · 清单里那条（说明写「别名：大鹅 · 局数¥30」）
+     两者指向**同一条记录、同一个价**，但说明不同 → 键不同 → 都留了下来，
+     用户看到一模一样的两条，不知道该点哪个。
+     正确的去重口径是「这是不是同一条记录」：同一条记录只该出现一次。
+     所以键用「记录 id + 结算方式 + 来源库」——
+        · 同一条记录不论用什么名字命中（本名还是某个别名），只留一条；
+        · 同一条记录的两种结算方式（按小时 / 按局数）是两个可选项，各留；
+        · 两个库里的同名记录是**两条不同记录**，必须各留 ——
+         多库同用正是要靠它们让用户自己挑（实测踩过：键里不带库，
+         两库同名不同价时第二条会被这里误删，用户就只剩一个价可点）。
+     ruleId 在跨库同名同价时可能相同（两边算出的 id 一样），
+     所以还要带上来源库名一起做键，才能真正区分开。 */
  const seen = new Set();
  return suggestions
  .map(item => ({ ...item, score: normalizedQuery ? this.scoreServiceRuleSuggestion(item, normalizedQuery) : Number(item.popularity) || Number(item.priority) || 0 }))
  .filter(item => !normalizedQuery || item.resolved || item.score > 0)
  .sort((a, b) => (b.priority - a.priority) || (b.score - a.score) || a.displayName.localeCompare(b.displayName, 'zh-CN'))
  .filter(item => {
- const key = `${this.normalizeServiceSuggestQuery(item.displayName)}|${item.meta}`;
+ const sourceLib = (String(item.meta || '').match(/^〔([^〕]*)〕/) || [])[1] || '';
+ const key = `${item.ruleId || this.normalizeServiceSuggestQuery(item.displayName)}|${item.settleType || ''}|${sourceLib}`;
  if (seen.has(key)) return false;
  seen.add(key);
  return true;
@@ -14743,10 +14833,28 @@ class PriceRuleEditorFeature {
  return saved;
  }
 
- const record = { unitPrice, settleType, serviceType };
+ /* 【8.3.47 修·重要】「其他名字」必须**存进这条记录**，不能只拿去查重。
+     原先这里是 `const record = { unitPrice, settleType, serviceType }` ——
+     别名只在上面的 candidateRule 里出现过（用于冲突检测），
+     落到库里时却不在 record 上，于是 normalizeItem 读到的 aliases 是空的。
+     用户看到的三个症状其实是同一个原因：
+       ① 保存时填了别名，保存后框里/列表里都没有了；
+       ② 用别名搜不到这个项目、也弹不出候选（别名根本没进库）；
+       ③ 导出备份里也没有别名（导出只是把库原样搬走，库里没有自然带不出去）。
+     修法：把别名一并放进 record。注意别名在库里的存法是两个字段：
+       · aliases —— 数组，多别名能力真正读的是它（搜索、候选、冲突检测）
+       · alias   —— 首个名字，老代码与旧备份读的是它
+     两个都要给：只给 aliases 会让老版本/旧读取路径看不到别名，
+     只给 alias 则等于退回单别名、多别名能力作废。
+     归一化不在这里做（record 里放原始文本即可）——
+     统一交给 normalizeItem → normalizeEntry → normalizeAliases 那条链路，
+     与读取老数据走同一套规则，避免两处各拆一次、拆法不一致。
+     空字符串要变成空数组：normalizeEntry 对空串的处理是「没有别名」，
+     而 `aliases: ''` 与 `aliases: []` 在这一层等价，交给下游统一归一即可。 */
  // 【多别名】「其他名字」框的原始文本（可能是「蛋仔派对、和平精英」）。
  // 归一化交给 PriceRuleEngine.normalizeAliases，与读取老数据走同一条规则。
  const aliasRaw = String(this.el.pmServiceAliases?.value ?? '').trim();
+ const record = { unitPrice, settleType, serviceType, aliases: aliasRaw, alias: aliasRaw };
  const candidateRule = PriceRuleEngine.normalizeExactRule({ serviceName: serviceType, aliases: aliasRaw, prices: { [settleType]: unitPrice } });
  const activeRules = this.getActiveServiceRules();
  const sameExactIds = activeRules

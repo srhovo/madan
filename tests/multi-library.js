@@ -207,24 +207,27 @@ function useLibraries(app, store, data) {
     ck('A 库独有的项目仍不标库名', !!solo && !/〔/.test(solo.meta), solo && solo.meta);
 
     const dupList = sugg.getServiceRuleSuggestions('鹅鸭杀').filter(i => i.displayName === '鹅鸭杀');
-    /* 两条**清单条目**（key 以 exact| 开头）—— 不数 `resolved|` 那条补价候选。
-       为什么不能光数条数：输入正好命中规则时，除了每库一条的清单条目，
-       还会额外产出 1 条「resolved|」补价候选（走的是另一条链路），
-       所以同名两库时会看到 3 条 —— 其中 2 条才是清单条目。
-       既有测试里也踩过这个坑（见反向 6b 的说明）。 */
-    const dupListEntries = dupList.filter(i => /^exact\|/.test(i.key));
-    ck('清单里同名项目两条都会出现', dupListEntries.length === 2, `实得 ${dupListEntries.length} 条清单条目（总 ${dupList.length} 条）`);
-    ck('清单里同名项库名也标在行首', dupListEntries.every(i => /^〔/.test(i.meta)),
-      dupListEntries.map(i => i.meta).join(' || '));
+    /* 【8.3.47】按「来源库名」把两条分出来，**不能**再按 key 是不是 `exact|` 开头分。
+       为什么改：清单里那条已解析的候选（key 是 `resolved|`）也算一条正经候选 ——
+       当前库那条正好命中输入内容时，它会以 `resolved|` 的形态出现，
+       按 `exact|` 筛就会把它漏掉，误判成「少了一条」。
+       本段真正要钉的是「两个库的同名项目都能看到、且能分清来自哪个库」，
+       所以判据直接用元信息开头的〔库名〕—— 这与用户的观感一致，
+       也与实现无关（无论那条是 `exact|` 还是 `resolved|`，都得带着库名出现）。 */
+    const libOf = item => (String(item.meta || '').match(/^〔([^〕]*)〕/) || [])[1] || '';
+    const libNames = dupList.map(libOf);
+    ck('清单里同名项目两条都会出现', dupList.length === 2, `实得 ${dupList.length} 条（总 ${dupList.length} 条）`);
+    ck('清单里同名项库名也标在行首', dupList.every(i => /^〔/.test(i.meta)),
+      dupList.map(i => i.meta).join(' || '));
     /* 两条的**来源库名**必须分得清 —— 这正是 findLibraryNameByRuleId 漏查 items
        时暴露出来的 bug（两条都标「默认价格表」）。 */
-    ck('清单里两条的来源库名能分清', dupListEntries.some(i => /〔默认价格表〕/.test(i.meta))
-      && dupListEntries.some(i => /〔礼物价〕/.test(i.meta)),
-      dupListEntries.map(i => i.meta).join(' || '));
+    ck('清单里两条的来源库名能分清',
+      libNames.includes('默认价格表') && libNames.includes('礼物价'),
+      dupList.map(i => i.meta).join(' || '));
     /* 副库那条没有别名 → 给出「唯一」（该库里这个名字只有一条记录），
        与 A 库的「别名：鹅鸭杀A版」形成可分辨的一对。 */
     ck('没别名的那条给出「唯一」之类的区分特征',
-      dupListEntries.some(i => /唯一/.test(i.meta)), dupListEntries.map(i => i.meta).join(' || '));
+      dupList.some(i => /唯一/.test(i.meta)), dupList.map(i => i.meta).join(' || '));
     /* 库名和区分特征之间不能出现空档（早先拼串时 hint 为空会留下「 ·  · 」）。 */
     ck('说明里没有连续的分隔符空档', dupList.every(i => !/·\s*·/.test(i.meta)),
       dupList.map(i => i.meta).join(' || '));
@@ -946,14 +949,20 @@ function useLibraries(app, store, data) {
      ④ 段那两条断言必须失败。
      这是本轮实测抓到的真缺陷：键里没有价钱，两库同名不同价时副库那条被静默丢弃，
      用户只拿得到当前库的价、而且完全不知道还有另一条可选。
-     判据：合成出的虚拟库里同名项目不再有两条。 */
-  const itemsFlatAnchor = ' items: libraries.flatMap(library => library.items || []),';
+     判据：合成出的虚拟库里同名项目不再有两条。
+     注：8.3.47 起这段拼接语句多了「补上所属库标记」的那层 map
+     （记录要知道自己在哪个库，靠 id 反查才不会永远命中第一个库），
+     所以锚点要按**现在的**写法写；拆掉的方式仍然是「改成按名字去重」。 */
+  const itemsFlatAnchor = [
+    ' items: libraries.flatMap(library => (library.items || []).map(item => (',
+  ].join('\n');
   const itemsDedup = html.replace(itemsFlatAnchor, [
     ' items: (() => { const m = new Map();',
     ' libraries.forEach(library => (library.items || []).forEach(item => {',
     ' const k = `${item.serviceKey}|${item.settleType}`;',
     ' if (!m.has(k)) m.set(k, item); }));',
-    ' return [...m.values()]; })(),'
+    ' return [...m.values()]; })(),',
+    ' _unused: libraries.flatMap(library => (library.items || []).map(item => ('
   ].join('\n'));
   ck('反向验证 10 的锚点确实命中了源码（否则本条是假绿）', itemsDedup !== html);
   if (itemsDedup !== html) {
