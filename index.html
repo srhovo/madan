@@ -11396,7 +11396,21 @@ class EventDelegationFeature {
  try {
  const raw = String(this.app.el.inputs.type?.value ?? '').trim();
  if (!raw) return '';
- const result = GiftComboEngine.resolve(raw, this.app.giftMemoryFeature?.getMemories?.() || []);
+ /* 【8.3.48】这里改用「参与查价的全部礼物记忆」（getLookupMemories），
+    与查价、算总价的口径统一。原先是 getMemories()（只看当前库）。
+
+    如实说明效果：**这一处改动在当前功能下不产生可见差异**，理由是
+    本方法只用到 result.items.length 与 result.total，而这两个值
+    只取决于「服务类型框那段文字里能解析出几个礼物名」，
+    跟记忆库里有没有这个礼物、有没有价**无关**（total 是纯数量相加）。
+    也就是说，即便副库的礼物在这份记忆库里查不到，
+    它照样会被算进个数里 —— 所以副库礼物的个数并没有被漏掉。
+
+    保留这处改动是为了口径一致：同一个「算这一单该用哪些礼物记忆」的问题，
+    不该在有的地方合并、有的地方只看当前库。这种不一致当下不出错，
+    但下次有人照着这里改代码时容易踩坑。故按「算账统一用合并后的记忆库」来写。
+    （getMemories 仍服务于「管理记忆库」面板：那里只该显示当前库的条目。） */
+ const result = GiftComboEngine.resolve(raw, this.app.giftMemoryFeature?.getLookupMemories?.() || []);
  if (!result.items?.length) return '';
  return ProjectSettlementEngine.formatNumber(result.total);
  } catch (error) { appLogSilent(error); return ''; }
@@ -18559,7 +18573,22 @@ class AutoPriceFeature {
  // 8.3.25：把「按项目序号锚定的手输单价」交给表达式引擎，
  // 使未保存项目也能凭手输单价参与整串结算（手输优先、库价兜底）。
  // 8.3.26：同时传入用户在「局数 / 小时」按钮上的选择，让手输单价项目按用户选的单位结算。
- const resolved = ProjectExpressionEngine.resolve(this.app.priceLibraries, raw, {
+ /* 【8.3.48 修·重要】这里必须传「参与查价库列表」，**不能**传裸的 priceLibraries。
+    原先传的是 this.app.priceLibraries —— 那份数据里只有「当前库是谁」，
+    **不带**「还要一起查哪些库」的信息。于是整串表达式结算时，
+    匹配器只能看到当前库：副库的项目匹配不上 → 表达式结算失败 →
+    总价框是空的。用户看到的正是「副库项目单价能填上、总价却算不出来」。
+
+    为什么单价能填、总价却不行（两个入口拿的数据不一样）：
+      · 单价框那条路走 getLookupPriceLibraries()，它会把合并后的库列表
+        挂在数据上一起递下去，所以副库项目能匹配、单价能填；
+      · 而算总价这条路口原先直接给了裸数据，两者口径不一致。
+    同一个类里本来就有 getLookupPriceLibraries()（它就是为这件事准备的），
+    这里改用即可，与单价那条路走同一份数据，行为自然对齐。
+
+    另注：getLookupPriceLibraries 在「只有一个库」时会原样返回、
+    不额外包装，所以单库场景的行为与改动前逐字一致。 */
+ const resolved = ProjectExpressionEngine.resolve(this.getLookupPriceLibraries(), raw, {
  manualPrices: this.priceMemoryFeature?.getExpressionManualPrices?.(raw) || [],
  preferredMode: this.mode
  });
@@ -18574,7 +18603,7 @@ class AutoPriceFeature {
  const sticky = this.priceMemoryFeature?.getExpressionStickyManualPrice?.();
  const resuming = this.priceMemoryFeature?.isResumingClearedExpression?.(raw) ?? true;
  if (sticky !== null && resuming && ProjectExpressionEngine.looksLikeExpression(raw)) {
- const retry = ProjectExpressionEngine.resolve(this.app.priceLibraries, raw, {
+ const retry = ProjectExpressionEngine.resolve(this.getLookupPriceLibraries(), raw, {
  manualPrices: this.priceMemoryFeature?.buildStickyManualPrices?.(raw, sticky) || [],
  preferredMode: this.mode
  });

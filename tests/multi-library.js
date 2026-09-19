@@ -612,6 +612,163 @@ function useLibraries(app, store, data) {
     ck('点副库那条后填的是副库的价（¥35，不是主库的 ¥7）', false, '找不到 serviceSuggestionFeature / priceMemoryFeature');
   }
 
+  /* ── ⑧-d 多库同用时的「总价」必须真的算得出来 ────────────────────
+     【8.3.48 本轮修的 bug】用户报：勾了多个库之后，在服务类型框里
+     写「时长 + 项目」的组合，副库的项目**单价能填上、总价却算不出来**。
+
+     根因是**同一个类里两条路拿的数据不一样**：
+       · 单价那条路走 getLookupPriceLibraries()，它会把「还要一起查哪些库」
+         这份合并列表挂在数据上递下去 → 副库项目能匹配到、单价填得上；
+       · 算总价那条路（整串表达式结算）却直接把**裸的** priceLibraries 传下去，
+         那份数据只知道「当前库是谁」，不知道「还要查别的库」→
+         副库项目匹配失败 → 表达式结算失败 → 总价框空着。
+
+     这个 bug 特别容易漏掉，因为**主库项目一切正常** ——
+     只有副库项目、或主副混合的串才暴露。所以下面把能取价的各种写法
+     都走一遍，而不是只测一个例子：
+       · 主库 / 副库各自单独一项（按局数、按小时都试）
+       · 主副跨库混合两项
+       · 跨库混合且两项结算方式不同
+       · 副库价与手输价写在同一个串里（手输价那一路本来就是好的，
+         这一条专门验「同一个串里两种来源能共存、各按各的算」）
+     礼物码单同理：主库礼物、副库礼物、主副混合的组合都要能算出总价。 */
+  console.log('\n⑧-d 多库同用时的总价（本轮修的 bug）');
+  {
+    /* 这一段要改输入框并读总价框，先把库配好：
+       A 库（当前库）= 一起看 ¥40 按局数、王者荣耀 ¥20 按小时、礼物「玫瑰」¥5
+       B 库（副库）  = 鹅鸭杀 ¥30 按局数、永劫无间 ¥60 按小时、礼物「满天星」¥10 */
+    const dd = store.normalizeData(libData());
+    dd.libraries.find(l => l.id === aId).items = [
+      { serviceType: '一起看', unitPrice: 40, settleType: 'round' },
+      { serviceType: '王者荣耀', unitPrice: 20, settleType: 'hour' },
+    ];
+    dd.libraries.find(l => l.id === aId).giftMemories = [{ serviceType: '玫瑰', mode: 'fixed', unitPrice: 5 }];
+    dd.libraries.find(l => l.id === bId).items = [
+      { serviceType: '鹅鸭杀', unitPrice: 30, settleType: 'round' },
+      { serviceType: '永劫无间', unitPrice: 60, settleType: 'hour' },
+    ];
+    dd.libraries.find(l => l.id === bId).giftMemories = [{ serviceType: '满天星', mode: 'fixed', unitPrice: 10 }];
+    dd.mergedLibraryIds = [aId, bId];
+    useLibraries(app, store, dd);
+
+    const doc2 = w.document;
+    const typeEl2 = () => doc2.getElementById('type') || app.el.inputs?.type;
+    const durEl2 = () => doc2.getElementById('duration') || app.el.inputs?.duration;
+    const totalEl2 = () => doc2.getElementById('totalPrice') || app.el.inputs?.totalPrice;
+    const setVal2 = (el, v) => {
+      if (!el) return;
+      el.value = String(v);
+      el.dispatchEvent(new w.Event('input', { bubbles: true }));
+      el.dispatchEvent(new w.Event('change', { bubbles: true }));
+    };
+    const readTotal2 = () => String(totalEl2()?.value || '');
+
+    if (Number(app.currentMode) !== 1 && typeof app.switchMode === 'function') {
+      app.switchMode(1);
+      await new Promise(r => setTimeout(r, 400));
+    }
+
+    /* 单子码单：把能取价的写法逐个走一遍。
+       期望值的算法：按局数时「1h = 3 局」，按小时时「1h = 1 小时」。 */
+    const singleCases = [
+      { name: '主库项目 · 按局数', dur: '1h', type: '1h一起看', expect: '120' },
+      { name: '副库项目 · 按局数', dur: '1h', type: '1h鹅鸭杀', expect: '90' },
+      { name: '主库项目 · 按小时', dur: '2h', type: '2h王者荣耀', expect: '40' },
+      { name: '副库项目 · 按小时', dur: '2h', type: '2h永劫无间', expect: '120' },
+      { name: '主副跨库混合两项', dur: '1h', type: '1h一起看+1h鹅鸭杀', expect: '210' },
+      { name: '跨库混合且结算方式不同', dur: '1h', type: '1h一起看+2h永劫无间', expect: '240' },
+    ];
+    for (const one of singleCases) {
+      setVal2(typeEl2(), '');
+      await new Promise(r => setTimeout(r, 150));
+      setVal2(durEl2(), one.dur);
+      await new Promise(r => setTimeout(r, 150));
+      setVal2(typeEl2(), one.type);
+      await new Promise(r => setTimeout(r, 500));
+      const got = readTotal2();
+      ck(`${one.name}「${one.type}」→ 总价 ${JSON.stringify(got)}（期望 ${one.expect}）`, got === one.expect);
+    }
+
+    /* 副库价与手输价写在同一个串里。
+       手输单价那一路向来是好的（它有自己的传参），本条的用意是确认
+       「同一个串里两种来源并存时各按各的算」。
+
+       期望 140 怎么来的（别把它当笔误）：
+         · 库价项目按**库里自带的**单位结算 —— 鹅鸭杀是「按局数」，
+           1h 折 3 局，3×30 = 90；
+         · 手输价项目按**用户在「局数/小时」按钮上选的**单位结算 ——
+           此处按钮停在「小时」，所以 1h 就是 1 小时，1×50 = 50；
+         · 90 + 50 = 140。
+       （一开始把这里写成 240，是误把手输项也按 3 局算了 ——
+         两种来源的单位规则本来就不同，这正是 8.3.26 定下的行为。）
+
+       退回裸数据后这里会算成 300（副库那项被当成手输价重复计入），
+       所以它同时也是一道能变红的防线。 */
+    setVal2(typeEl2(), '');
+    await new Promise(r => setTimeout(r, 200));
+    setVal2(durEl2(), '1h');
+    setVal2(typeEl2(), '1h鹅鸭杀+1h神秘项目');
+    await new Promise(r => setTimeout(r, 300));
+    setVal2(doc2.getElementById('autoUnitPrice') || app.el.inputs?.autoUnitPrice, '50');
+    await new Promise(r => setTimeout(r, 500));
+    ck(`副库价与手输价同串 → 总价 ${JSON.stringify(readTotal2())}（期望 140：库价 90 + 手输 50）`, readTotal2() === '140');
+
+    /* 礼物码单：主库礼物、副库礼物、主副混合组合都要算得出总价。
+       礼物那边的口径本来就是合并全库的（getLookupMemories），
+       这一组是防「以后有人把礼物那条也改回只看当前库」的回归。 */
+    if (typeof app.switchMode === 'function') {
+      app.switchMode(2);
+      await new Promise(r => setTimeout(r, 500));
+    }
+    const giftCases = [
+      { name: '主库礼物', type: '玫瑰', expect: '5' },
+      { name: '副库礼物', type: '满天星', expect: '10' },
+      { name: '主副跨库组合 1+1', type: '玫瑰+满天星', expect: '15' },
+      { name: '主副跨库组合带数量', type: '玫瑰+3满天星', expect: '35' },
+      { name: '主副跨库组合 2+2', type: '2玫瑰+2满天星', expect: '30' },
+    ];
+    for (const one of giftCases) {
+      setVal2(typeEl2(), '');
+      await new Promise(r => setTimeout(r, 200));
+      setVal2(typeEl2(), one.type);
+      await new Promise(r => setTimeout(r, 600));
+      const got = readTotal2();
+      ck(`${one.name}「${one.type}」→ 总价 ${JSON.stringify(got)}（期望 ${one.expect}）`, got === one.expect);
+    }
+
+    /* 礼物个数（订单模板「时长：」后面那个数）。
+       说明：这个数只取决于「服务类型框里解析出几个礼物名」，
+       与记忆库里有没有这个礼物无关 —— 所以「含不在任何库的礼物名」一条
+       期望仍是 2（名字解析得出来就算数）。放在这里是为了钉住这个口径，
+       避免以后有人误以为它跟查价有关而改错。 */
+    const cntHolder = app.features
+      ? Object.values(app.features).find(f => typeof f.getGiftTotalCount === 'function')
+      : null;
+    const cntCases = [
+      { name: '两个都有价', type: '玫瑰+满天星', expect: '2' },
+      { name: '含不在任何库的礼物名（仍按解析出的个数算）', type: '玫瑰+不存在礼物', expect: '2' },
+      { name: '副库礼物写在前面', type: '满天星+玫瑰', expect: '2' },
+      { name: '带数量的组合', type: '3满天星+2玫瑰', expect: '5' },
+    ];
+    for (const one of cntCases) {
+      setVal2(typeEl2(), '');
+      await new Promise(r => setTimeout(r, 200));
+      setVal2(typeEl2(), one.type);
+      await new Promise(r => setTimeout(r, 500));
+      const got = cntHolder ? String(cntHolder.getGiftTotalCount()) : '(取不到)';
+      ck(`礼物个数 · ${one.name}「${one.type}」→ ${JSON.stringify(got)}（期望 ${one.expect}）`, got === one.expect);
+    }
+
+    /* 数据复原，避免影响后面的反向验证段落。 */
+    const back = store.normalizeData(store.getMergedLibraries ? libData() : libData());
+    back.mergedLibraryIds = [aId, bId];
+    useLibraries(app, store, back);
+    if (typeof app.switchMode === 'function') {
+      app.switchMode(1);
+      await new Promise(r => setTimeout(r, 300));
+    }
+  }
+
   // ── ⑨ 反向验证：断言必须真的能变红 ────────────────────────────
   console.log('\n⑨ 反向验证（确认上面的断言不是假绿）');
 
@@ -1039,6 +1196,75 @@ function useLibraries(app, store, data) {
     ck('若候选不带自己的结算方式，点副库那条会填成主库的价（断言确实能变红）', wrongPrice === true);
   } else {
     ck('若候选不带自己的结算方式，点副库那条会填成主库的价（断言确实能变红）', false, '锚点未命中');
+  }
+
+  /* 反向 12：把「整串表达式结算」用的数据退回**裸的** priceLibraries，
+     ⑧-d 那几条必须失败。
+     这是 8.3.48 本轮修的真缺陷，也正是用户报的症状（副库项目单价能填、
+     总价算不出来）。退回旧写法后实测：副库项目那条总价直接是空，
+     混合串也是空，而「副库价 + 手输价同串」会算成 300（期望 240）——
+     副库那一项被当成手输价重复计入，比单纯算不出更隐蔽。
+     同时**主库项目不受影响**（120 照常），这正说明为什么这个 bug
+     容易被漏掉：只测主库永远看不出问题。 */
+  const bareLibAnchor = 'const resolved = ProjectExpressionEngine.resolve(this.getLookupPriceLibraries(), raw, {';
+  const bareLib = html.replace(bareLibAnchor, 'const resolved = ProjectExpressionEngine.resolve(this.app.priceLibraries, raw, {');
+  ck('反向验证 12 的锚点确实命中了源码（否则本条是假绿）', bareLib !== html);
+  if (bareLib !== html) {
+    let brokeSub = false;
+    let mainStillOk = false;
+    try {
+      const c12 = await boot(bareLib);
+      const st12 = c12.app.priceLibraryStore;
+      const doc12 = c12.dom.window.document;
+      let d12 = st12.normalizeData(c12.app.priceLibraries);
+      const a12 = d12.activeLibraryId;
+      d12.libraries.find(l => l.id === a12).items = [{ serviceType: '一起看', unitPrice: 40, settleType: 'round' }];
+      let r12 = st12.createLibrary(d12, '副库');
+      d12 = r12.data;
+      const b12 = d12.activeLibraryId;
+      d12.libraries.find(l => l.id === b12).items = [{ serviceType: '鹅鸭杀', unitPrice: 30, settleType: 'round' }];
+      r12 = st12.switchActiveLibrary(d12, a12);
+      d12 = r12.data;
+      d12.mergedLibraryIds = [a12, b12];
+      const n12 = st12.normalizeData(d12);
+      c12.app.priceLibraries = n12;
+      c12.app.priceMemoryFeature.priceLibraries = n12;
+      c12.app.priceRuleEditorFeature.priceLibraries = n12;
+      st12.persist(n12, {});
+      await new Promise(r => setTimeout(r, 300));
+
+      const type12 = doc12.getElementById('type') || c12.app.el.inputs?.type;
+      const dur12 = doc12.getElementById('duration') || c12.app.el.inputs?.duration;
+      const total12 = () => String((doc12.getElementById('totalPrice') || c12.app.el.inputs?.totalPrice)?.value || '');
+      const set12 = (el, v) => {
+        if (!el) return;
+        el.value = String(v);
+        el.dispatchEvent(new c12.dom.window.Event('input', { bubbles: true }));
+        el.dispatchEvent(new c12.dom.window.Event('change', { bubbles: true }));
+      };
+
+      // 主库项目：旧写法下也应正常（这正是 bug 难发现的原因）
+      set12(dur12, '1h');
+      set12(type12, '1h一起看');
+      await new Promise(r => setTimeout(r, 500));
+      mainStillOk = total12() === '120';
+
+      // 副库项目：旧写法下算不出来
+      set12(type12, '');
+      await new Promise(r => setTimeout(r, 200));
+      set12(type12, '1h鹅鸭杀');
+      await new Promise(r => setTimeout(r, 500));
+      brokeSub = total12() !== '90';
+      c12.dom.window.close();
+    } catch (e) {
+      brokeSub = false;
+      mainStillOk = false;
+    }
+    ck('退回裸数据后，副库项目的总价算不出来（断言确实能变红）', brokeSub === true);
+    ck('退回裸数据后，主库项目仍正常（说明这个 bug 只会被副库暴露）', mainStillOk === true);
+  } else {
+    ck('退回裸数据后，副库项目的总价算不出来（断言确实能变红）', false, '锚点未命中');
+    ck('退回裸数据后，主库项目仍正常（说明这个 bug 只会被副库暴露）', false, '锚点未命中');
   }
 
   // 收尾
