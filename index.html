@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.48</title>
+ <title>码单器8.3.49</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -4323,7 +4323,33 @@ html[data-order-mode="2"] #primaryFieldsContainer .field-type > input {
 
 
  <script>
-const APP_VERSION = '8.3.48';
+const APP_VERSION = '8.3.49';
+// Release note: 8.3.49 修复用户报的四处问题，均为「逻辑订正」，不动存储结构、不动数据格式。
+//   ①【个数不再落进「时长：」】礼物码单下 buildCalculationContext() 的 duration 由「礼物总个数」改为空串。
+//      订单模板「时长：」这一行**保留**、后面留空 —— 行结构不变（下游按固定行数读），只是不再显示个数。
+//      getGiftTotalCount() 方法本身保留，仍可被其他调用方读取。
+//   ②【候选不再只剩「包星」一条】getServiceRuleSuggestions 的去重键从「规则id|结算类型|来源库」
+//      扩为「规则id|结算类型|档位|来源库」，并在 push 时写入 variantKey。
+//      根因：区间规则（如「星耀」）的 普排/包c/包星 三个档位共用同一个 ruleId 且 settleType 都是 round，
+//      三条算出一个键，只剩排在最前的「包星」。实测修前 星耀/低星/无双/21/钻石/36 全部只出 1 条。
+//   ③【打字母不再冒出 602】两处根因，都已修：
+//      a) GiftComboEngine.findMemory 的模糊匹配方向错了 —— 原来用双向 includes，
+//         「k」因为落在「KFC疯狂星期四全套礼物单」里而被判成命中 → looksLikeCombo 认定是组合
+//         → 组合引擎把 602 同时写进礼物单价与总价。现只保留 query.includes(name) 这一个方向
+//         （用户把名字写长＝真简称），去掉 name.includes(query)（用户只打了一截＝还没打完）。
+//      b) findByService 在查询为空时返回「记忆库前 6 条」，而 normalizeText 会剥掉标点空格，
+//         于是纯标点输入会命中这条兜底并被自动写价。现空查询一律返回空数组。
+//   ④【点候选后礼物单价也变、个数留空＝1】三处：
+//      a) applyGiftPriceSuggestion 原先只写总价，现补写礼物单价（先写单价、后写总价，
+//         保证总价以记忆里的原价为准，不被「单价×个数」覆盖）。
+//      b) GiftComboEngine.looksLikeCombo 不再把「单个礼物名」当作组合 ——
+//         否则组合引擎接管后，那一排的「个数」只是投影、不参与计算，
+//         用户改个数总价纹丝不动。现单礼物走普通路径，个数恢复正常参与「单价 × 个数」。
+//      c) syncGiftUnitPriceTotal 的「空个数＝1」＋两道门禁订正：
+//         程序写总价不再被误记成「用户手填」；用户手填过总价后，改个数/单价不再覆盖它
+//         （原逻辑会把用户填的 999 用算式覆盖掉）。
+//      另：个数框 placeholder 改为「默认为1」、加 inputmode=numeric（点击拉起数字键盘）。
+//   本次修改全部集中在计算与候选逻辑，未改动任何 localStorage 键名、schema 版本、数据格式与 UI 结构。
 // Release note: 8.3.34 架构拆分第二步（A4+A5）：把「不可读的产物」变成「可读的源码」，并给全部空 catch 补上「为什么可以吞」的说明。零功能改动、零逻辑改动。A4 —— 内联 chunk 源码外置：dataPortability（约1117行）与 durationCalculator（约272行）的源码此前只以 JSON 转义的单行字符串存在于 index.html 的 __INLINE_CHUNKS_RAW__ 中，编辑器无法索引、无法 diff、无法 review，是全项目最大的维护盲区。现将源码落到 src/chunks/*.js（可索引/可 diff/可 review），index.html 里的字符串改由 tools/build-inline-chunks.js 从源文件生成；编码配方经「重新编码结果与现存字符串逐字节比对」验证未漂移。同时补 tools/sync-root-scripts.js 统一 update-checker.js / analytics.js 的内联同步（此前只靠 inline-integrity.js 报错提醒，缺正向同步手段）。A5 —— 空 catch 注释化：全量清点为 9 处（清单原记 6 处，实测多出 3 处），逐一补上「为什么可以吞」的就近注释，其中 loadModeRatios 是唯一有真实用户影响的（静默丢失自定义比例），已改为记 appLogError 便于定位。新增两道常驻防线：tests/arch-snapshot.js（A3 遗留建议 —— 用运行时原型链内省冻结 app 方法集/state 键/featureOrder 三个架构不变量，专防「隐式动态挂载」这类不报错的静默回归，已用注入式反例验证可捕获）；tools/build-inline-chunks.js --check 与 tools/sync-root-scripts.js --check 纳入统一入口。测试防线由 7 套增至 10 套，全部通过（含变异捕捉 9/9）。过程中修正一处自己引入的失误：在 index.html 里直接给 update-checker/analytics 的内联副本加注释，破坏了源文件与副本的逐字节一致性 —— 正确做法是改源文件再同步，已按此纠正并固化为工具。
 // Release note: 8.3.35 优化清单 B1+B2，零功能改动、零逻辑改动。B1（CSS 去重）：删除一处完全重复的响应式媒体查询块 —— 平板竖屏（768–1024px）「恢复单栏」规则整块出现了两遍，字节完全相同，保留带说明注释的那一份（覆盖 iPad Pro 12.9 竖屏 1024px 宽度），删掉前面无注释的早期副本，共减少 12 行 CSS。其余 128 个「多次定义」的选择器经逐条核对属于**不同上下文/不同断点下的有意级联覆盖**，不构成无效声明，一律保留。等价性用真实 Chromium 在 6 种视口下比对 58320 项计算样式（其中 3 种视口该媒体查询实际命中），零差异。B2（版本号单一真源）：核查 index.html 内 165 处 8.3.x 字样，剥离注释并排除标签属性后，真正参与代码的仅 <title> 与 APP_VERSION 两处（其余 163 处均为变更考古注释，按约定保留）；compareVersions 走 CURRENT_VERSION 间接引用，未发现游离字面量，故本项无需改代码。新增 tests/version-single-source.js 作为常驻防线，并交叉校验 <title>↔APP_VERSION↔version.json↔zip sha256，今后任何第二真源会在测试中立刻报红。
 // Release note: 8.3.33 架构拆分第一步（A3）：消除「隐式动态挂载」，把 OrderCalculator 上的冗余转发入口收敛为显式委托。零功能改动、零逻辑改动。背景：OrderCalculator 长期充当「编排队」，历史上为兼容旧调用点，把大量 Feature 方法以 this.xxx(...args) 形式平铺在自身上（133 个方法中 77 个是单行转发），其中 RatioFeature 更是通过 bindToApp() 在运行时把 12 个方法**动态挂到 app 上**——这正是工程边界明令禁止的「隐式动态挂载/全局隐藏状态」。本版处理三件事：① 删除 59 个已无任何调用方的纯转发入口（实现全部原样保留在其所属 Feature 内，仅移除 app 级冗余镜像）；② 移除 RatioFeature.bindToApp() 的隐式动态挂载，改为显式路径调用（ModeFlowFeature → this.app.ratioFeature.handleModeButtonClick(...)）；③ 顺带修复一处因 ① 暴露出来的**既有隐患**：dataPortability 的 refreshAfterImport() 原本用 ['applyLockedDataToUI','applyLayoutVisibility',...] 字符串数组 + this.app[method]() 做动态派发（同属隐式动态挂载），导入数据后的 7 项界面刷新依赖它；现改为显式委托数组，导入后刷新链路恢复可靠。验证：app 可调用方法 159 → 100（移除 59、新增 0），state 键 24/24 与 feature 数 23 完全一致；7 套测试全绿（引擎 126、喂入链路 122、DOM 26、组合 27、五段式、变异捕捉 9/9、包自包含）；并逐一校验 59 项移除均有「实现保留在所属 Feature + 全文无动态字符串访问 + 无 HTML 属性引用 + 无外部调用者」四项证明。保留 clearAll 作为外部可见的「清空全部」公共入口（测试与外部脚本按此复位）。业务逻辑、计算引擎、存储结构、UI 行为完全未改动。
@@ -7250,10 +7276,37 @@ class GiftComboEngine {
  return { ok: true, source, items, reason: '' };
  }
 
- // 是不是「像礼物组合」的写法 —— 用来决定要不要接管服务类型框。
- // 只要有「+」就直接算组合（多个礼物才需要组合语法）；
- // 单个礼物没有「+」时，只有当它能在记忆库里查到、或它带数字时才算，
- // 否则用户打个「王者荣耀」不该被礼物逻辑接管（那是服务名）。
+ /* 是不是「像礼物组合」的写法 —— 用来决定要不要接管服务类型框。
+    只要有「+」就直接算组合（多个礼物才需要组合语法）；
+    单个礼物没有「+」时，只有当它带数字时才算。
+
+    【8.3.49 改】**单个礼物名不再算作「组合」。**
+    原判据的最后一行是「名字能在记忆库里查到就算组合」：
+        return this.findMemory(item.name, memories).status === 'found';
+    这条规则会跟「个数」打架，而且打得很隐蔽 ——
+    组合一旦生效，界面那一排的「个数」就只是算式投影（显示用），
+    它的变化被 syncGiftUnitPriceTotal 的门禁挡掉，不再参与计算。
+    于是出现这个怪现象（复核里实测）：
+      选「满天星」→ 单价 10、个数 1、总价 10；
+      把个数改成 3 → 总价纹丝不动，还是 10。
+    用户看到的是「我明明改了个数，钱没变」，而实际上
+    个数在那个状态下根本不参与任何计算。用户明确要求
+    「个数要参与计算」—— 那就不能让它处在一个被忽略的状态里。
+
+    为什么不保留旧行为（单礼物也走组合投影）：
+    单礼物用组合引擎跑一遍，得到的信息和「一个礼物、数量 1」
+    完全等价，没有任何额外好处；而代价是所有单礼物场景下
+    「单价 × 个数」这套算式全部失效。用户日常最多的是单礼物，
+    不能为了语法统一把主路径废掉。
+
+    去掉之后单礼物走 handleGiftServiceInput 里那条老路
+    （fixedExact 命中 → 写总价），单价框与个数框各归其位，
+    「单价 × 个数 = 总价」恢复工作。
+
+    仍然保留 `quantity > 1` 那条：用户明确写了「3满天星」，
+    那是在描述「三个满天星」，交给组合引擎拆解数量是对的。
+    也仍保留纯数字（刚敲下「5」）那条，那是打字中间态。
+    「+」多礼物组合同样不受任何影响 —— 那是组合引擎存在的本意。 */
  static looksLikeCombo(value, memories = []) {
  const source = this.normalizeSource(value);
  if (!source) return false;
@@ -7270,8 +7323,7 @@ class GiftComboEngine {
  if (/^[x×*]?\s*\d+(?:\.\d+)?\s*[x×*]?\s*$/.test(source)) return true;
  const item = this.parseItem(source);
  if (!item) return false;
- if (item.quantity > 1) return true;
- return this.findMemory(item.name, memories).status === 'found';
+ return item.quantity > 1;
  }
 
  /* 在礼物记忆库里找一条记录。做三级匹配，从严格到宽松：
@@ -7286,9 +7338,41 @@ class GiftComboEngine {
  if (exact) return exact.mode === 'fixed' && exact.unitPrice !== null
  ? { status: 'found', record: exact }
  : { status: 'no-price', record: exact };
- // 退一步做包含匹配，容忍「满天星礼盒」写成「满天星」这类简称。
- // 但只有唯一命中时才认 —— 多个候选时宁可报缺失让用户自己确认，不能猜。
- const fuzzy = list.filter(item => item.serviceKey.includes(query) || query.includes(item.serviceKey));
+ /* 退一步做包含匹配，容忍「满天星礼盒」写成「满天星」这类简称。
+    但只有唯一命中时才认 —— 多个候选时宁可报缺失让用户自己确认，不能猜。
+
+    【8.3.49 修】包含匹配的方向必须严格区分，只有一种方向算「简称」。
+    用户报的 bug：礼物码单下打字母就冒出「602」——
+      输入 k → 撞上「KFC疯狂星期四全套礼物单」→ 判「唯一命中」
+      → looksLikeCombo 认为是礼物组合 → 组合引擎接管服务类型框
+      → 602 被同时写进「礼物单价」与「总价」。
+    根因是这里原来那条 filter 用了**双向** includes：
+        item.serviceKey.includes(query) || query.includes(item.serviceKey)
+    这两个方向在语义上根本不是一回事：
+
+      · query.includes(item.serviceKey)  ——「用户打的字**包含**了库里这个名字」
+        例：库里「满天星」，用户打「满天星礼盒」。用户把名字写长了，
+        核心词完整出现，这是**真·简称/口头叫法**，认它是对的。
+
+      · item.serviceKey.includes(query)  ——「用户打的字只是库里名字的**一截**」
+        例：库里「KFC疯狂星期四全套礼物单」，用户打「k」。用户什么都没说完，
+        「k」只是那个长名字的第二个字母。这**不是简称**，是「还没打完」。
+        把它认作命中，等于在用户打字中途替他把价定死了 —— 而且定的是一个
+        和他想打的完全无关的礼物。用户打「k」时心里想的是「kfc」，
+        程序却当他已经报出了「KFC疯狂星期四全套礼物单」这一整单。
+
+    所以：第②种方向整个去掉。判据从「长度」升级为「方向」——
+    长度只是方向不对时的表面症状（短查询天然更容易成为长名字的一截），
+    真正的错误是**方向**。去掉它之后：
+      · 「满天星」→「满天星礼盒」照样命中（方向①仍在，这是用户真实简称）；
+      · 「k」「kf」「kfc」→「KFC…」不再命中（方向②已除）；
+      · 名字含数字的礼物（「98K」「AWM」）不受影响，精确匹配没动；
+      · 叫「kfc」的礼物若真存在于库里，走上面的精确匹配，照样查得到。
+
+    这也是「唯一命中才认」这条老规矩本来的意思 —— 唯一，指的是
+    「用户的输入唯一地指向了某个礼物」，而不是「在库里恰好只撞到一个」。
+    方向②那种撞法，撞到的永远是偶然，不是指向。 */
+ const fuzzy = list.filter(item => query.includes(item.serviceKey));
  if (fuzzy.length === 1) {
  const only = fuzzy[0];
  return only.mode === 'fixed' && only.unitPrice !== null
@@ -11447,10 +11531,22 @@ class EventDelegationFeature {
     订单模板「时长：」后面改填这次一共拍下几个礼物，这样下游看到数字就能
     直接对上数量，而不是一个空着或串进上个模式的旧值。
     取值只认服务类型里解析得出来的部分（单个礼物也算一个），解析不出就留空，
-    不猜也不填 0 —— 留空代表「没填」，填 0 会看起来像「买了 0 个」。 */
+    不猜也不填 0 —— 留空代表「没填」，填 0 会看起来像「买了 0 个」。
+
+    【8.3.49 变更】礼物码单下**不再**把礼物个数填进「时长：」，该行留空。
+    原先这里是 `Number(app.currentMode) === 2 ? this.getGiftTotalCount() : ...`，
+    于是订单模板「时长：」后面会出现礼物总个数（例如 `3满天星+2同心结` → 5）。
+    用户明确要求：个数只参与计算，不显示在输出模板上；「时长：」这一行保留但后面留空。
+
+    为什么**保留行、只清空内容**、而不是把整行删掉：
+    输出模板是下游（老板/派单方）按固定格式读的，行数变化会让下游对不上位；
+    留一个空的「时长：」既满足「不显示个数」，又不改变模板的行结构。
+
+    注意：`getGiftTotalCount()` 方法本身保留（仍可能被其他调用方读取），
+    只是不再作为订单模板 duration 的来源。 */
  const duration = hasStructuredProjects
  ? projectSummary.durationText
- : (Number(app.currentMode) === 2 ? this.getGiftTotalCount() : (app.el.inputs.duration.value || ''));
+ : (Number(app.currentMode) === 2 ? '' : (app.el.inputs.duration.value || ''));
  const noteRaw = app.el.inputs.note.value || '';
  const surchargeRaw = String(app.el.inputs.surcharge?.value ?? '');
  const noteDisplayBase = app.surchargeFeature?.buildNoteDisplayBase?.() ?? noteRaw;
@@ -12972,6 +13068,12 @@ class LayoutFeature {
  displayName,
  inputValue: displayName,
  ruleId: rule.id,
+ /* 【8.3.49】把「档位」也记在候选对象上。
+    下面去重时要用它区分「同一条规则的三个档位」——
+    原先去重键里只有「规则 id」，于是 星耀普排/星耀包c/星耀包星 三条
+    被当成同一条记录只留下一条（实测只留「星耀包星」）。
+    这里补一个字段，供去重那一处读取，不改任何已有行为。 */
+ variantKey: variant.key,
  settleType: PriceRuleEngine.normalizePositivePrice(prices?.[preferred]) !== null ? preferred : (PriceRuleEngine.normalizePositivePrice(prices?.round) !== null ? 'round' : 'hour'),
  unitPrice: PriceRuleEngine.normalizePositivePrice(prices?.[preferred]) ?? PriceRuleEngine.normalizePositivePrice(prices?.round) ?? PriceRuleEngine.normalizePositivePrice(prices?.hour),
  meta: [sourceTag, `按${rule.rangeLabel}区间`, this.formatServiceSuggestionPrices(prices)].filter(Boolean).join(' · '),
@@ -12997,7 +13099,19 @@ class LayoutFeature {
          多库同用正是要靠它们让用户自己挑（实测踩过：键里不带库，
          两库同名不同价时第二条会被这里误删，用户就只剩一个价可点）。
      ruleId 在跨库同名同价时可能相同（两边算出的 id 一样），
-     所以还要带上来源库名一起做键，才能真正区分开。 */
+     所以还要带上来源库名一起做键，才能真正区分开。
+
+     【8.3.49 修】键里还必须带「档位」（普排/包c/包星）。
+     上一版把「记录 id」当成「同一条记录」的唯一标识，但区间规则的三个档位
+     是**同一条规则下的三个不同选项**：它们的 ruleId 完全一样，
+     而 settleType 都是 round、来源库也相同 —— 于是三条算出一个键，
+     只有排在最前的那条活下来。实测：输入「星耀」，库里有
+      星耀普排(¥15) / 星耀包c(¥18) / 星耀包星(¥20)
+     却只弹出「星耀包星」一条；「低星」「无双」「21」「钻石」同样症状。
+     用户报的「候选不能同时全部弹出、只剩下一个包星」就是这个键造成的。
+     修法：把 variantKey 并入键。区间候选带 variantKey（上面 push 时写入），
+     精确项目/已解析候选没有这个字段，取空串，键与原行为完全一致 ——
+     所以 8.3.47 修好的「同一条记录用别名命中只留一条」不受影响。 */
  const seen = new Set();
  return suggestions
  .map(item => ({ ...item, score: normalizedQuery ? this.scoreServiceRuleSuggestion(item, normalizedQuery) : Number(item.popularity) || Number(item.priority) || 0 }))
@@ -13005,7 +13119,7 @@ class LayoutFeature {
  .sort((a, b) => (b.priority - a.priority) || (b.score - a.score) || a.displayName.localeCompare(b.displayName, 'zh-CN'))
  .filter(item => {
  const sourceLib = (String(item.meta || '').match(/^〔([^〕]*)〕/) || [])[1] || '';
- const key = `${item.ruleId || this.normalizeServiceSuggestQuery(item.displayName)}|${item.settleType || ''}|${sourceLib}`;
+ const key = `${item.ruleId || this.normalizeServiceSuggestQuery(item.displayName)}|${item.settleType || ''}|${item.variantKey || ''}|${sourceLib}`;
  if (seen.has(key)) return false;
  seen.add(key);
  return true;
@@ -13622,13 +13736,77 @@ if (!box) return false;
  if (this.handleGiftComboInput(input)) return true;
  const exactMatches = this.giftMemoryFeature?.findByService?.(input?.value, { exact: true }) || [];
  const fixedExact = exactMatches.filter(item => item.mode === 'fixed');
- if (fixedExact.length === 1 && this.canReplaceGiftLinkedValue(this.el.inputs.totalPrice, this._giftAutoPrice)) { this.setGiftLinkedValue(this.el.inputs.totalPrice, fixedExact[0].unitPrice, 'price'); this.hideSharedSuggestions({ force: true }); return true; }
+ /* 【8.3.49 修】打出一个完整的礼物全名时，**单价和总价一起写**。
+    原来这里只写总价：
+        this.setGiftLinkedValue(this.el.inputs.totalPrice, fixedExact[0].unitPrice, 'price');
+    于是用户打「满天星」，总价显示 10、单价却是空的。后果是
+    「单价 × 个数」那一排从一开始就缺了一半 —— 用户再想改个数乘一下，
+    算式因为单价为空直接不成立，总价纹丝不动。单价参与计算的前提是它得先有值。
+    顺序：先单价、后总价，与点候选那条路保持一致 ——
+    单价写完 syncGiftUnitPriceTotal 会按「单价 × 个数」算一遍总价，
+    紧接着这句话再把总价按记忆里的原价压回去（记忆里的价即最终价，
+    不该被个数乘一遍），所以总价最后落在正确的位置上。 */
+ if (fixedExact.length === 1 && this.canReplaceGiftLinkedValue(this.el.inputs.totalPrice, this._giftAutoPrice)) { this.writeGiftUnitPrice(fixedExact[0].unitPrice); this.setGiftLinkedValue(this.el.inputs.totalPrice, fixedExact[0].unitPrice, 'price'); this.hideSharedSuggestions({ force: true }); return true; }
  const fuzzyMatches = this.giftMemoryFeature?.findByService?.(input?.value) || [];
  if (fuzzyMatches.length > 0) return this.renderGiftPriceSuggestions(fuzzyMatches);
  this.hideSharedSuggestions({ force: true }); return false;
  }
  applyGiftNameSuggestion(serviceType) { if (serviceType) this.setGiftLinkedValue(this.el.inputs.type, serviceType, 'type'); this.hideSharedSuggestions({ force: true }); return true; }
- applyGiftPriceSuggestion(price, serviceType) { this.setGiftLinkedValue(this.el.inputs.totalPrice, price, 'price'); if (serviceType) this.setGiftLinkedValue(this.el.inputs.type, serviceType, 'type'); this.hideSharedSuggestions({ force: true }); return true; }
+ /* 【8.3.49 修】点候选卡片时，**总价与礼物单价两个框一起写**。
+    用户报的 bug：直接点「服务类型」弹出候选，点卡片后只有「总价」变，
+    「礼物单价」纹丝不动；非得先在框里打字、让候选由打字触发，单价才会跟着走。
+    查下来原因很直白 —— 这个方法原来只写了 totalPrice 一个框：
+        setGiftLinkedValue(this.el.inputs.totalPrice, price, 'price');
+    而礼物码单里唯一会写「礼物单价」框的 applyServicePriceMatch()，
+    入口处判着 `currentMode === 2` 就直接返回了（那是单子码单的路径）。
+    于是礼物码单下按候选 = 单价永远没人写。
+    这里补上单价的写入，让它和打字触发那条路的表现对齐。
+
+    为什么要「先写单价、再写总价」而不是反过来：
+    写单价会走 syncGiftUnitPriceTotal，那一排马上按「单价 × 个数」把总价也算一遍。
+    但用户此刻刚点的就是这条记忆 —— 记忆里的价就是最终价，不该再乘一遍个数。
+    所以单价写完之后必须把总价**按记忆里的原价压回去**，
+    即 setGiftLinkedValue(totalPrice, price) 仍然是最后一步、且以它为准。
+    顺序写反（先总价后单价）会有一个瞬间总价被算式的乘积覆盖，
+    视觉上总价会跳一下再跳回来，用户会以为点错了。 */
+ applyGiftPriceSuggestion(price, serviceType) {
+ const hasPrice = price !== undefined && price !== null && String(price).trim() !== '';
+ /* ① 先写「礼物单价」框（仅当这次点击确实带了价格 —— 记忆里 mode='name'
+    的条目只记名字不记价，那时卡片上没有 data-price，不该往单价里塞东西）。 */
+ if (hasPrice) this.writeGiftUnitPrice(price);
+ /* ② 再写总价 —— 以记忆里的原价为准，盖掉上面那一步可能带出来的「单价×个数」。
+    仍然只走原来那一个 setGiftLinkedValue 通道（_giftAutoPrice 记账、输入事件、
+    防呆门禁都不变），所以「用户手填过总价」这类既有保护一律照旧生效。 */
+ if (hasPrice) this.setGiftLinkedValue(this.el.inputs.totalPrice, price, 'price');
+ if (serviceType) this.setGiftLinkedValue(this.el.inputs.type, serviceType, 'type');
+ this.hideSharedSuggestions({ force: true });
+ return true;
+ }
+ /* 【8.3.49 新增】把「礼物单价」框写成给定值。
+    抽成一个方法是因为**两条路都要写同一个框**：
+      · 用户点候选卡片（applyGiftPriceSuggestion）；
+      · 用户在服务类型里打出一个完整的礼物全名（handleGiftServiceInput）。
+    第二条以前只写总价、不写单价，于是「单价 × 个数」那一排永远缺单价 ——
+    用户看到总价有了、单价空着，再改个数自然什么都不动。
+    单价是最常用场景（单礼物）的必填项，不能只有点候选这一条路能填上它。
+
+    写入方式与 applyGiftPriceSuggestion 原来那一段完全一致：
+    setInputValue 不派发 input（避免触发服务类型那套联想），
+    再单独 emitFieldEvents 补一个 input 事件，让 syncGiftUnitPriceTotal
+    与折数提示这些监听者照常反应。source 仍记 giftMemory，
+    保持「这个价来自礼物记忆库」这一来历标记不丢。 */
+ writeGiftUnitPrice(price) {
+ const val = String(price ?? '').trim();
+ if (!val) return false;
+ const unitEl = this.el?.inputs?.autoUnitPrice || document.getElementById('autoUnitPrice');
+ if (!unitEl) return false;
+ this._giftLinking = true;
+ try {
+ this.setInputValue('autoUnitPrice', val, { emitInput: false, source: 'giftMemory', meta: { linkedField: 'unitPrice' } });
+ this.emitFieldEvents(unitEl, { source: 'giftMemory', meta: { linkedField: 'unitPrice' } });
+ return true;
+ } finally { this._giftLinking = false; }
+ }
  resetGiftLinkedValue(kind) { if (kind === 'price') this._giftAutoPrice = ''; if (kind === 'type') this._giftAutoType = ''; }
  resetGiftState({ hideSuggestions = false } = {}) {
  this._giftAutoPrice = '';
@@ -15738,7 +15916,24 @@ class GiftMemoryFeature {
     其他勾选库里的礼物名，否则跨库用礼物时联想不出来。 */
  findByService(value, { exact = false } = {}) {
  const query = SurchargeRuleEngine.normalizeText(value);
- if (!query) return this.getLookupMemories().slice(0, 6);
+ /* 【8.3.49 修】空查询返回「空」，不再返回「记忆库前 6 条」。
+    原先是 `return this.getLookupMemories().slice(0, 6)` —— 意思是
+    「什么都没输的时候，先给用户看看常见的 6 个礼物名」。
+    出发点没错，但这个方法被**两处**共用，另一处是自动写价：
+      handleGiftServiceInput 里
+        const fixedExact = findByService(值, { exact: true }).filter(mode === 'fixed')
+        if (fixedExact.length === 1) 把它的 unitPrice 写进总价
+    而 normalizeText 会剥掉标点与空格（「。」「、、」「   」都会被剥成空串）。
+    于是用户打一串纯标点/空格，查询变成空 → 这里回前 6 条 →
+    若那 6 条里恰好只有 1 条是固定金额礼物 → 它的价被写进总价。
+    用户的钱就这么被一个空格改掉了，而且完全看不出为什么。
+    现在空查询一律回空数组：
+      · 供候选用的那一路，空查询本来就该什么都不显示（用户还没输入）；
+      · 供自动写价的那一路，空查询等于「没有依据」，必须不写。
+    候选面板真正的「常用礼物」列表由 renderGiftPriceSuggestions 那一路负责，
+    它的数据源是 resolveGiftCombo 的结果，不经过这里，所以这个改动
+    不会让候选面板变空。 */
+ if (!query) return [];
  return this.getLookupMemories().filter(item => {
  const key = SurchargeRuleEngine.normalizeText(item.serviceType);
  return exact ? key === query : key.includes(query) || query.includes(key);
@@ -17458,19 +17653,78 @@ class PriceMemoryFeature {
     来源标记为 giftCombo 的写入（由 syncGiftComboPanelWriteback 发出）同样跳过。 */
  if (options.source === 'giftCombo') return false;
  if (this.priceQuickPickFeature?.isGiftComboActive?.()) return false;
- // 由总价框自己触发时，说明用户正在手填总价 → 交出控制权，不再用算式覆盖它
+ /* 【8.3.49 修】「总价框变了」不等于「用户在填总价」。
+    原来的判据是 source === 'totalPrice' 就认定用户手填、据此交出控制权。
+    但 setGiftLinkedValue 往总价写东西时走的也是这条路：
+    它 setInputValue 之后 emitFieldEvents 会派发一个真的 input 事件，
+    handleMainInput 收到后按键名转成 source='totalPrice' 传进来 ——
+    于是**程序自己写的总价**被记成了「用户手填」。
+
+    症状（复核里实测到的）：礼物码单点候选卡片 → 程序把记忆里的价写进总价
+    → 被记成「用户手填」→ 此后用户把「个数」改成 3，算式被这道门禁挡住，
+    总价停在单价那个数上不动。用户视角就是「我选了候选，再改个数，总价死了」。
+
+    怎么区分程序写与用户写：看这次 input 事件是不是在
+    InputFlowFeature 的写入上下文里发出来的（withWriteContext 压栈）。
+    栈顶有东西 = 程序发起的写入；栈空 = 用户真手打。
+    这条判据是现成的（getActiveWriteContext 就是干这个的），不需要额外加字段。 */
+ const writeCtx = this.app.inputFlowFeature?.getActiveWriteContext?.('totalPrice');
  if (options.source === 'totalPrice') {
+ /* 程序写的总价：不改变「谁在控制总价」这件事，直接跳过 —— 总价已经是
+    程序刚写好的值，没有理由再拿算式算一遍去覆盖它。 */
+ if (writeCtx) return false;
+ // 用户手打的：交出控制权，此后一律不覆盖，直到他自己来解除
  this._giftTotalUserEdited = true;
  return false;
  }
- // 用户回头去动单价或个数，说明他要重新用算式 —— 交还控制权
+ /* 【8.3.49 修】「用户动过个数/单价」不等于「用户可以盖掉自己填的总价」。
+    原来的判据是：只要来源是 autoUnitPrice 或 giftQuantity，就把
+    _giftTotalUserEdited 清掉、交还控制权。理由是「用户回头动那一排，
+    说明他要重新用算式」。这个理由在**没手填过总价**时是成立的，
+    但用户一旦亲手写过总价，它就不成立了 ——
+    用户填的那个数是他对钱的最终决定，改个数不该把它抹掉。
+
+    实测到的后果：手填总价 999，再动一下个数 → 总价被算式
+    「20 × 7 = 140」覆盖，用户的钱被程序改掉了。这正是
+    本方法注释里反复强调要避免的那件事（「踩过的坑：填 5×10=50 后
+    手动改成 999，再点模式按钮时 blur 触发一次重算，999 被盖回去」），
+    只不过当初只堵了 blur 那一条路，没堵「动个数」这条。
+
+    改成：手填过总价之后，单价/个数的变化都不再自动接管总价。
+    用户想回到算式怎么办 —— 把总价框清空即可（发空串不算「填了总价」，
+    会让本方法重新拿到控制权，见下面 hasManualTotal 的判据）。
+    这也符合直觉：想让我重新算，先把你自己写的数删掉。
+
+    怎么判断「真的手填过」而不只是「框里有值」：
+    值非空 **且** 不等于上一轮算式的产物（_lastGiftComputedTotal）。
+    只判非空会把「程序刚写完、用户还没碰」误判成手填。 */
+ const totalNow = String(totalEl.value ?? '').trim();
+ const hasManualTotal = this._giftTotalUserEdited
+ && totalNow !== ''
+ && totalNow !== String(this._lastGiftComputedTotal ?? '');
+ if (hasManualTotal) {
+ // 用户手填的总价仍然有效：这一排的变化不碰总价，只刷新折数提示
+ this.updateGiftDiscountNote(true);
+ return false;
+ }
  if (options.source === 'autoUnitPrice' || options.source === 'giftQuantity') {
+ // 走到这里说明总价不是用户手填的（或已被清空）→ 算式正当接管
  this._giftTotalUserEdited = false;
  }
  const unitRaw = String(unitEl.value ?? '').trim();
- const qtyRaw = String(qtyEl.value ?? '').trim();
- if (!unitRaw || !qtyRaw) {
- /* 任一为空：不再能算「单价 × 个数」。
+ let qtyRaw = String(qtyEl.value ?? '').trim();
+ /* 【8.3.49 新增】「个数」留空 = 1。
+    用户定的规则：个数框默认就让它空着（辅助提示文字写「默认为1」），
+    空着的时候按 1 参与「单价 × 个数」；点了框才拉起数字键盘、填了才算数。
+    放在这里（而不是在渲染时给它塞一个 "1"）的原因是：
+    「空着」是用户看得见的状态，输入框里真写个 1 进去，
+    用户就分不清那 1 是他自己填的还是程序塞的，想改还得先删掉。
+    所以：框里保持空，只有算法这一步把它当 1。
+    注意空 → 1 只作用在「个数」这一路，单价为空依然什么都不算 ——
+    单价空着说明用户还没定价，那时候按 0 或按 1 得出个总价都是凭空捏造。 */
+ if (!qtyRaw) qtyRaw = '1';
+ if (!unitRaw) {
+ /* 单价为空：不再能算「单价 × 个数」。
     此时要区分两种总价 ——
       · 上一轮正是由算式算出来的（_lastGiftComputedTotal 与当前值一致）
         → 必须清掉，否则它挂在那里冒充一个「还算得出来」的结果；
@@ -17486,7 +17740,15 @@ class PriceMemoryFeature {
  }
  const unit = Number(unitRaw);
  const qty = Number(qtyRaw);
- if (!Number.isFinite(unit) || !Number.isFinite(qty) || unit < 0 || qty <= 0) {
+ /* 【8.3.49 修】单价必须是**正数**，0 与负数都不算。
+    原来这里判的是 `unit < 0`，把 0 放了过去 ——
+    于是单价框里写个 0，总价会被写成「0」（0 × 个数 = 0），
+    平白往总价框里塞一个数字，用户还得手动删掉。
+    「单价 0」不是一个有意义的价格，它是「还没填价」的另一种写法；
+    正常输入路径（normalizePositivePrice）本身也把 0 归一成 null，
+    这里保持同一条口径：非正数一律不参与计算，总价保持原样。
+    qty <= 0 同理（个数 0 说明用户正在清空或填错，不该乘出个 0 来）。 */
+ if (!Number.isFinite(unit) || !Number.isFinite(qty) || unit <= 0 || qty <= 0) {
  this._lastGiftComputedTotal = null;
  return false;
  }
@@ -19140,7 +19402,7 @@ class AutoPriceFeature {
     这两个按钮会以为能用，填完却发现总价纹丝不动。现在礼物模式把它改成真正干活的
     「礼物单价 × 个数」：填两个数就把总价算出来，并支持多个相同礼物。
     单子模式下这两个礼物专用控件不显示，原有两个按钮也不显示给礼物用。 */
- anchor.insertAdjacentHTML('afterend', `<div id="autoPricePanel" class="auto-price-panel" data-layout-module="autoPricePanel"><div class="auto-price-row"><span class="ap-label"><span>自定义</span><span>单价</span></span><input ${this.renderAttributes({ id: 'autoUnitPrice', type: 'number', step: '0.001', max: '999999', placeholder: '单价' })}>${this.renderButtonMarkup({ id: 'apModeRound', className: 'ap-mode-btn active', labelHtml: '<span>局数</span><span>单价</span>' })}${this.renderButtonMarkup({ id: 'apModeHour', className: 'ap-mode-btn', labelHtml: '<span>小时</span><span>单价</span>' })}<span class="ap-times" aria-hidden="true" hidden>×</span><input ${this.renderAttributes({ id: 'giftQuantity', type: 'number', step: '1', min: '1', max: '9999', class: 'ap-input gift-quantity-input', placeholder: '个数', 'aria-label': '礼物个数', hidden: '' })}><button type="button" id="addPriceProject" title="加入下一项" aria-label="加入下一项" hidden><span>加入</span><span>下一项</span></button></div></div><div id="manualProjectStatus" class="manual-project-status" data-layout-module="autoPricePanel"><span>已加入 <strong id="manualProjectCount">0</strong> 项</span><button type="button" id="undoLastProject">撤销上一项</button></div><div id="autoPriceQuickPanel" class="auto-price-quick-panel" data-layout-module="autoPriceQuickPanel" aria-label="候选单价名片模块"><div id="autoPriceQuickList" class="ap-quick-list" aria-label="常用单价候选"></div></div>`);
+ anchor.insertAdjacentHTML('afterend', `<div id="autoPricePanel" class="auto-price-panel" data-layout-module="autoPricePanel"><div class="auto-price-row"><span class="ap-label"><span>自定义</span><span>单价</span></span><input ${this.renderAttributes({ id: 'autoUnitPrice', type: 'number', step: '0.001', max: '999999', placeholder: '单价' })}>${this.renderButtonMarkup({ id: 'apModeRound', className: 'ap-mode-btn active', labelHtml: '<span>局数</span><span>单价</span>' })}${this.renderButtonMarkup({ id: 'apModeHour', className: 'ap-mode-btn', labelHtml: '<span>小时</span><span>单价</span>' })}<span class="ap-times" aria-hidden="true" hidden>×</span><input ${this.renderAttributes({ id: 'giftQuantity', type: 'number', step: '1', min: '1', max: '9999', class: 'ap-input gift-quantity-input', placeholder: '默认为1', 'aria-label': '礼物个数（默认为1）', title: '默认为1', inputmode: 'numeric', hidden: '' })}><button type="button" id="addPriceProject" title="加入下一项" aria-label="加入下一项" hidden><span>加入</span><span>下一项</span></button></div></div><div id="manualProjectStatus" class="manual-project-status" data-layout-module="autoPricePanel"><span>已加入 <strong id="manualProjectCount">0</strong> 项</span><button type="button" id="undoLastProject">撤销上一项</button></div><div id="autoPriceQuickPanel" class="auto-price-quick-panel" data-layout-module="autoPriceQuickPanel" aria-label="候选单价名片模块"><div id="autoPriceQuickList" class="ap-quick-list" aria-label="常用单价候选"></div></div>`);
  }
  this.priceQuickPickFeature?.bindQuickListEvents?.();
  this.scheduleUiTask('autoPriceQuickList', () => {
