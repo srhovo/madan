@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.49</title>
+ <title>码单器8.3.50</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -811,6 +811,86 @@
 .pm-library-row.is-merged .pm-library-merge { color: var(--color-primary-dark); font-weight: var(--font-weight-semibold); }
 /* 当前库一定参与查价：勾选框显示为已勾且禁用，避免用户以为"取消了当前库"却又发现它还在查 */
 .pm-library-row.is-active .pm-library-merge input { cursor: default; }
+
+/* 【8.3.50】赛季节切换标签（常驻 ↔ 赛季初）。
+   设计意图：有些团的价目表分「赛季初」和「常驻」两套，两套价差可能不小，
+   需要快速来回切。这里把两套表做成两个**各自独立**的库，靠库名后缀配对，
+   再用这个小标签一键翻转当前库。
+
+   为什么做成胶囊形而不是沿用「一起用」那种方形+勾选框：
+   同一行里已经有一个方形勾选框在表达「参不参与查价」，如果这里再来一个
+   方形控件，两个方块的语义就糊在一起了 —— 用户很难一眼看出哪个管什么。
+   改成胶囊 + 文字，形状上有区分，扫一眼就知道「这是切成另一套」。
+   文字写的是**目标侧**（点击会去的那一侧）而不是当前侧：
+   若显示当前状态，用户会分不清它是按钮还是标签。 */
+.pm-library-season {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 3px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-white);
+  color: var(--color-text-light);
+  font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold);
+  line-height: 1.4; white-space: nowrap; cursor: pointer;
+  transition: border-color var(--transition-base), background var(--transition-base), color var(--transition-base);
+}
+.pm-library-season:hover {
+  border-color: var(--color-primary-light);
+  background: var(--color-bg-info);
+  color: var(--color-primary-dark);
+}
+.pm-library-season:focus-visible {
+  outline: 2px solid var(--color-primary-light); outline-offset: 1px;
+}
+/* 当前库所在的那一侧：轻量高亮，明确「你现在就在这边」 */
+.pm-library-row.is-active .pm-library-season {
+  border-color: var(--color-primary);
+  background: var(--color-bg-info);
+  color: var(--color-primary-dark);
+}
+/* 旋转箭头：表达「两个状态互转」。用 span 单独包一层，方便将来加动效 */
+.pm-library-season .pm-library-season-icon { font-size: 11px; line-height: 1; }
+
+/* 【8.3.50 修】折叠态下的「切回去」提示。
+   配对的两个库默认只显示当前生效的那一个，如果用户什么都不点，
+   另一侧就永远看不见了 —— 但用户可能只是想「切回去」，而不是
+   「展开维护」。这个小按钮专门给他这条路：点一下 = 切到另一侧，
+   行数不变、位置不变，只是这一行的内容整个翻转过去。
+   放在库名前面（列表最左），是因为它是这一行里最轻的动作，
+   不该和右侧的「一起用」抢视觉重量；用虚线箭头的字形 ↗，
+   比文字「切回」更省宽度，窄屏也不会换行。 */
+.pm-library-season-flip {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center;
+  padding: 1px 4px;
+  border: 0; background: none;
+  color: var(--color-text-light);
+  font-size: 11px; line-height: 1;
+  cursor: pointer;
+  border-radius: var(--border-radius-sm);
+  transition: color var(--transition-base), background var(--transition-base);
+}
+.pm-library-season-flip:hover { color: var(--color-primary-dark); background: var(--color-bg-info); }
+.pm-library-season-flip:focus-visible { outline: 2px solid var(--color-primary-light); outline-offset: 1px; }
+.pm-library-row.is-active .pm-library-season-flip { color: var(--color-primary); }
+
+/* 展开两个库的入口。只在配对行的下面出现（单条薄文本行），
+   不占列表行的视觉重量，却保证「单独维护某一侧」这个能力不丢。 */
+.pm-library-expand {
+  display: block; width: 100%;
+  margin: 2px 0 0;
+  padding: 2px 0 2px 20px;
+  border: 0; background: none;
+  color: var(--color-text-light);
+  font-size: var(--font-size-xs);
+  text-align: left; cursor: pointer;
+  transition: color var(--transition-base);
+}
+.pm-library-expand:hover { color: var(--color-primary-dark); }
+.pm-library-expand:focus-visible { outline: 2px solid var(--color-primary-light); outline-offset: 1px; }
+/* 配对被隐藏的那一侧：正常流里完全不占位，避免留下空行 */
+.pm-library-row.is-season-hidden { display: none; }
 
 /* 响应式：工具栏与 Tab 在窄屏下自动折行/滚动，避免字体被截断 */
 @media (max-width: 767px) {
@@ -4323,7 +4403,28 @@ html[data-order-mode="2"] #primaryFieldsContainer .field-type > input {
 
 
  <script>
-const APP_VERSION = '8.3.49';
+const APP_VERSION = '8.3.50';
+// Release note: 8.3.50 新增「赛季初 / 常驻」两套价目表的一键切换；顺带修掉一处多库查价的缺陷。
+//   ①【新增·赛季切换】有些团同一个项目有两套价（赛季初 / 常驻）。做法是**两个各自独立的价格库**，
+//      靠库名后缀配对（支持 · - _ 空格 ・ • 等分隔符，如「下次见CLUB·常驻」↔「下次见CLUB·赛季初」），
+//      在库清单那一行多画一个胶囊标签「⟳ 赛季初 / ⟳ 常驻」，点一下翻到配对的那一侧。
+//      · 分开两个库而不是一个库里分两栏：后者要往 libraries[] 或 items[] 加字段，
+//        老版本 APK 读到新备份会静默丢数据（违反工程指令零.4 第 2 条），所以不做。
+//      · 没配对的库（如「下次见常驻价格表」）不画标签，行为与之前逐字一致，不影响老用户。
+//      · 配对的一对是**互斥查价**：点标签会把查价范围收敛成只有目标那一侧，
+//        保证「切到赛季初就是 48 生效」——不是两套价并排摆着让用户自己挑。
+//        想两库并存查价的用户，把库名改成不带「常驻 / 赛季初」后缀即可（出口留着）。
+//      · UI 用胶囊形而不是方形勾选框：同一行已经有一个方形勾选框在管「参不参与查价」，
+//        再来一个方块会让两个控件的语义糊在一起。
+//      · 不改任何存储结构、不加字段、不动 schemaVersion —— 纯 Name-based 配对，零迁移。
+//   ②【修·多库查价】scope（所属库）在 items→rules 转换链路上被丢掉，导致两个库的同名项目
+//      算出的规则 id 完全相同、归属也分不清。三处补齐：fromLegacyItem 带上 item.scope、
+//      normalizeExactRule / normalizeRankRangeRule 把它落到返回对象上、
+//      mergeWithLegacyItems 把「保留的规则」的 scope 统一刷成本库（判定依据取项目不取原规则，
+//      因为复制出来的库里的规则会带着原库 id 变成僵尸规则，顶掉本库自己生成的那条）。
+//      表现：修前在赛季初库里查「树洞」拿到的是常驻的 42，48 永远出不来。
+//   ③【并入】8.3.49 的全部修复（个数不落进「时长：」、候选按档位分别弹出、
+//      打字不再冒出 602、点候选时单价与总价一起更新、个数留空视为 1 并起数字键盘）。
 // Release note: 8.3.49 修复用户报的四处问题，均为「逻辑订正」，不动存储结构、不动数据格式。
 //   ①【个数不再落进「时长：」】礼物码单下 buildCalculationContext() 的 duration 由「礼物总个数」改为空串。
 //      订单模板「时长：」这一行**保留**、后面留空 —— 行结构不变（下游按固定行数读），只是不再显示个数。
@@ -6207,6 +6308,13 @@ class PriceRuleEngine {
  if (!serviceKey || !this.hasBillingPrice(prices)) return null;
  const createdAt = Number(raw?.createdAt) || now;
  const aliases = this.normalizeAliases(raw);
+ /* 【8.3.50 修】scope 必须落到返回对象上。
+    原先它只参与 buildRuleId 的入参计算，算完就被丢掉 ——
+    结果「规则属于哪个库」这个信息出了这个函数就不存在了。
+    下游（候选去重、库名标注、findLibraryByRuleId 反查）全都依赖它，
+    丢了就退化成「两条同名规则长得一模一样」，多库同用时用户无法区分。
+    兼容性：老数据本来就没有 scope 字段，这里取到 undefined 时
+    行为与改动前逐字一致，不会影响任何已落盘内容。 */
  return {
  id: String(raw?.id || this.buildRuleId({ kind: 'exact', serviceKey, createdAt, scope: raw?.scope }, index)),
  kind: 'exact',
@@ -6215,6 +6323,7 @@ class PriceRuleEngine {
  aliases,
  alias: aliases[0] || '',
  prices,
+ scope: String(raw?.scope || ''),
  legacyManaged: Boolean(raw?.legacyManaged),
  createdAt,
  updatedAt: Number(raw?.updatedAt) || Number(raw?.lastUsed) || createdAt
@@ -6252,6 +6361,9 @@ class PriceRuleEngine {
  maxStar,
  namedRanks,
  prices,
+ /* 【8.3.50 修】同 normalizeExactRule：scope 也要落到返回对象上，
+    否则区间规则跨库合并后同样无法区分归属。见那里的详细说明。 */
+ scope: String(raw?.scope || ''),
  createdAt,
  updatedAt: Number(raw?.updatedAt) || createdAt
  };
@@ -6305,7 +6417,7 @@ class PriceRuleEngine {
  return { rules: [...rules.values()], duplicateCount };
  }
 
- static fromLegacyItem(item, index = 0) {
+   static fromLegacyItem(item, index = 0) {
  return this.normalizeExactRule({
  /* 【8.3.46 修·重要】把 item 的 id 一起带上，让「由项目升上来的规则」
      有一个**稳定**的 id。
@@ -6323,6 +6435,16 @@ class PriceRuleEngine {
      两边用同一个值才能对上。规则 id 与项目 id 长得一样不会混淆：
      它们出现在不同的列表里（rules / items），没有一处同时比对两者。 */
  id: item?.id,
+ /* 【8.3.50 修·重要】把 item 的 scope（所属库）也带上。
+    scope 必须一路传到规则上，否则多库同用时两条同名规则无法区分：
+      · 规则 id 会相同（走 item.id 这条路时碰巧不同，但走 buildRuleId 现算
+        时 scope 为空 → 算出的 id 与别库同名规则**完全相同**）；
+      · 更直接的是「按 id 反查属于哪个库」直接失效 —— 两个库的规则长得
+        一模一样，候选里分不出哪条是哪库的价。
+    这一条在「赛季初 / 常驻」场景下是决定性的：两套表里同名项目（例如树洞
+    常驻 42、赛季初 48）都要能各自出现在候选里，用户按库名挑。
+    scope 缺失时它们会被当成同一条，用户永远只能拿到其中一个价。 */
+ scope: item?.scope,
  serviceType: item?.serviceType,
  unitPrice: item?.unitPrice,
  settleType: item?.settleType,
@@ -6338,7 +6460,28 @@ class PriceRuleEngine {
  static mergeWithLegacyItems(rules, legacyItems) {
  const retained = (Array.isArray(rules) ? rules : []).filter(rule => !rule?.legacyManaged);
  const converted = (Array.isArray(legacyItems) ? legacyItems : []).map((item, index) => this.fromLegacyItem(item, index)).filter(Boolean);
- return this.normalizeRules([...retained, ...converted]);
+ /* 【8.3.50 修·重要】把「保留的规则」的 scope 统一刷成本库 —— 判定依据取项目，
+    不取原规则。为什么必须在这一层做，而不是只靠调用方给 raw.rules 补 scope：
+      调用方补 scope 的写法是「原本没有 scope 的才补」。这在**复制出来的库**上会失效：
+      用户把常驻库复制/另存为赛季初库时，库里那些 retained 规则**已经带着原库 id**
+      （复制发生在点盐之前、或备份导入时逐字带着），于是「原本没有 scope」的判断为假，
+      这些规则的 scope 就一直停留在原库上。实测：赛季初库里 27 条规则有 11 条
+      scope 还是常驻库的 id。
+      后果是决定性的：查价时（getLookupServiceRules）是「各库分别 normalizeRules 再拼」，
+      而 normalizeRules 按 buildRuleKey（不含 scope）去重，先到者胜。
+      这 11 条带着**原库 id**的僵尸规则排在 converted 前面，会顶掉本库自己
+      items→rules 生成的那条 —— 于是赛季初库里查「树洞」拿到的是常驻的 42，
+      48 永远出不来（实测 lookupAtLib2 返回两条完全相同的 770363cb / 原库 scope）。
+    为什么依据取项目而不是直接看规则：项目（items）是它所在库的**宿主事实** ——
+      进这个函数时 items 已经被调用方刷成本库 scope 了（见 normalizeLibrary 的 scopedItems），
+      规则则可能带着历史遗留的旧 scope。用项目当锚，规则永远跟项目同库。
+      反过来若直接拿规则自己的 scope 当锚，僵尸规则会把原库 id 一路传下去，
+      越滚越乱。 */
+ const anchoredScope = (Array.isArray(legacyItems) ? legacyItems : []).map(item => String(item?.scope || '')).find(Boolean) || '';
+ const scopedRetained = anchoredScope
+ ? retained.map(rule => (String(rule?.scope || '') === anchoredScope ? rule : { ...rule, scope: anchoredScope }))
+ : retained;
+ return this.normalizeRules([...scopedRetained, ...converted]);
  }
 }
 
@@ -10024,6 +10167,61 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  return this.persist(normalized, { previousCanonical: data, previousLegacy: this.toLegacyItems(this.getActiveLibrary(data)?.items || []) });
  }
 
+ /* 【8.3.50】把一对赛季节库的查价范围收敛成「只有目标库」——
+    这一对里除了 targetId 之外的那条踢出查价，不碰任何其他库。
+    为什么是「目标库」而不是写死「赛季初」：
+     用户的心智模型是「切到哪个就用哪个」——切到赛季初就是 48 生效，
+     切回常驻就该是 42 生效。若写死保留赛季初，切回常驻时会变成
+     42 和 48 两条候选同时在（实测就是这样：切回常驻后 lk 仍返回两条），
+     那就不是切换而是叠加，与用户预期相反。
+     所以这里跟着 activeLibraryId 走：切换动作本身已经决定了谁是目标，
+     本方法只负责让查价范围与之一致。
+    赛季对只约束自己这一对，别的库（比如用户另配的通用表）原样保留 ——
+    不越权管别人的勾选。 */
+ /* 【8.3.50 修·重要】范围必须从**现有勾选**里推，不能从「所有库」里重算。
+       前一版写成「遍历 normalized.libraries，凡不属于本对的都留下」——
+       这等于把所有库无条件勾上，只把本对里落败的那条踢掉。
+       后果：用户只勾了 A·常驻 和 B·常驻，点一下 A 的赛季标签，
+       范围就变成「A·赛季初 + B·常驻 + B·赛季初」——
+       B 这一对**两侧同时在场**了（实测确认），
+       于是 B 的两个价又都进了候选，正是本功能要消灭的「叠加」。
+       正确语义：本方法只负责「在本对内部做减法」，
+       本对之外的库一律维持用户原本的勾选状态（勾着的继续勾，没勾的不许被勾上）。
+       所以先取现有集合，再把本对里落败的那条 delete 掉，
+       最后把胜者 add 进来（编辑目标永远参与查价）。 */
+    setSeasonalPairSolo(data, group, targetId) {
+      const normalized = this.normalizeData(data);
+      if (!normalized) return { ok: false, reason: 'invalid-data', data };
+      /* 【8.3.50 修】不要再区分 selfId / otherId 谁是「自己」——
+         group 描述的就是「这一对」，targetId 是用户要的那一侧。
+         无论从哪一侧调用，本对的两条 id 都是同一个集合，
+         落败者永远是「本对里不是 targetId 的那一条」。
+         这样调用方就不必关心「我传的是 self 还是 other」，
+         少一个方向判断，就少一处方向写反的机会（已经写反过一次）。 */
+      const pairIds = [String(group?.selfId || ''), String(group?.otherId || '')].filter(Boolean);
+      const winner = String(targetId || '');
+      if (!pairIds.length || !winner || !pairIds.includes(winner)) {
+        return { ok: true, unchanged: true, data: normalized, activeItems: this.toLegacyItems(this.getActiveLibrary(normalized)?.items || []) };
+      }
+      const current = new Set(Array.isArray(normalized.mergedLibraryIds) && normalized.mergedLibraryIds.length
+        ? normalized.mergedLibraryIds
+        : [normalized.activeLibraryId]);
+      pairIds.filter(id => id !== winner).forEach(loserId => current.delete(loserId));
+      current.add(winner);
+      if (!current.size) return { ok: true, unchanged: true, data: normalized, activeItems: this.toLegacyItems(this.getActiveLibrary(normalized)?.items || []) };
+      // 保序：按 libraries 的原始顺序过滤，避免勾选顺序影响候选排序
+      const kept = normalized.libraries.map(library => library.id).filter(id => current.has(id));
+      const currentIds = Array.isArray(normalized.mergedLibraryIds) && normalized.mergedLibraryIds.length
+        ? normalized.mergedLibraryIds
+        : [normalized.activeLibraryId];
+      if (kept.length === currentIds.length && kept.every((value, index) => value === currentIds[index])) {
+        return { ok: true, unchanged: true, data: normalized, activeItems: this.toLegacyItems(this.getActiveLibrary(normalized)?.items || []) };
+      }
+      normalized.mergedLibraryIds = kept;
+      normalized.updatedAt = Date.now();
+      return this.persist(normalized, { previousCanonical: data, previousLegacy: this.toLegacyItems(this.getActiveLibrary(data)?.items || []) });
+    }
+
  // 把参与查价的库各字段并集起来，供查价使用。
  // 返回结构与单个 library 一致（多带一个 sources 说明来源），
  // 这样下游（PriceRuleEngine.normalizeRules / SurchargeRuleEngine 等）无需改动。
@@ -10274,11 +10472,95 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  return { ...result, status: { ...this.lastStatus } };
  }
 
- getLibraryNameKey(value) {
- let text = String(value ?? '');
- try { if (typeof text.normalize === 'function') text = text.normalize('NFKC'); } catch (error) { appLogSilent(error); }
- return text.replace(/\s+/g, ' ').trim().toLowerCase();
- }
+getLibraryNameKey(value) {
+let text = String(value ?? '');
+try { if (typeof text.normalize === 'function') text = text.normalize('NFKC'); } catch (error) { appLogSilent(error); }
+return text.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+/* ============================================================
+   【8.3.50】赛季节配对（常驻 ↔ 赛季初）
+   ============================================================
+   背景：有的团同一套服务有两份价目表 —— 一份「赛季初」，一份「常驻」。
+   两份价差可能不小（例如同一个项目常驻 42/H、赛季初 48/H），
+   开单时要能快速来回切。
+
+   做法：把两份表做成**两个各自独立的库**，靠库名后缀自动配对，
+   界面上给一个小标签一键翻转当前库。
+
+   为什么不做成「一个库内部两个分区」：
+     那需要在 libraries[] 里给库对象（或 items 里给每条记录）加新字段，
+     等于改动了导入导出结构 —— 工程指令零.4 第 2 条明令禁止，
+     且旧版 APK 读新备份时会把这些不认识的字段丢掉（normalizeLibrary
+     只挑它认识的字段拼装），用户的赛季划分会静默消失。
+     两个独立库则完全不碰任何存储结构，旧版本读写也照常。
+     代价是占两个库位（上限 6），对这个场景完全够用。
+
+   命名约定（用户已确认）：
+     下次见CLUB·常驻     ← 常驻侧
+     下次见CLUB·赛季初   ← 赛季初侧
+     分隔符接受 · - _ 空格；后缀词接受 常驻 / 赛季初。
+     没有后缀的库（例如现在的「下次见常驻价格表」）一律视为未配对，
+     行为与改动前完全一致 —— 用户不动名字就完全不受影响。
+
+   这两个方法是**纯函数**：只读传入的字符串/数据，不读写存储、不改任何状态。
+   这样它们可以被安全地反复调用（渲染时会调），不会产生副作用。 */
+
+/* 把一个库名拆成「配对基名 + 赛季节」。
+   返回 { base, season }；season 为 null 表示这个名字不表达赛季节。
+   base 为空串时也视为未配对（避免「·常驻」这种只有后缀的名字跟别人乱配）。 */
+parseSeasonalName(name) {
+  const raw = String(name ?? '').trim();
+  if (!raw) return { base: '', season: null };
+  /* 分隔符里带空格、下划线、短横线和中点。用 [\s\-_·・•] 一次吃掉，
+     中点有多个近似字形（·/・/•），全收进来避免用户用了形近字符配不上。 */
+  const match = raw.match(/^(.*?)[\s\-_·・•]*(常驻|赛季初)$/);
+  if (!match) return { base: '', season: null };
+  const base = String(match[1] || '').trim().replace(/[\s\-_·・•]+$/, '');
+  if (!base) return { base: '', season: null };
+  return { base, season: match[2] === '常驻' ? 'permanent' : 'seasonal' };
+}
+
+/* 扫一遍所有库，找出**两侧都齐**的配对，供界面画切换标签。
+   返回 Map<libraryId, { base, season, selfId, otherId, otherSeason, otherName }>。
+   只有配对成功（对面那个库真的存在）的库才会出现在结果里 ——
+   只建了「·常驻」还没建「·赛季初」时不显示标签，
+   否则用户点下去会落到一个不存在的地方。
+
+   同名基名理论上可能出现多个（例如用户建了「A·常驻」「A·赛季初」
+   又建了第二个「A·常驻」）—— 建库时有重名保护（makeUniqueLibraryName
+   会加「（1）」后缀），所以基名重复基本不会发生；万一发生，
+   这里用「第一个匹配者」定配对，行为确定、不死循环。 */
+buildSeasonalGroups(data) {
+  const normalized = this.normalizeData(data);
+  const groups = new Map();
+  if (!normalized) return groups;
+  const byBase = new Map();
+  normalized.libraries.forEach(library => {
+    const parsed = this.parseSeasonalName(library.name);
+    if (!parsed.season) return;
+    const key = this.getLibraryNameKey(parsed.base);
+    if (!key) return;
+    if (!byBase.has(key)) byBase.set(key, { base: parsed.base, permanent: null, seasonal: null });
+    const slot = byBase.get(key);
+    /* 同一侧出现第二个时保留先来的：避免后建的把已配对的顶掉，
+       让界面上的配对关系保持稳定（不会因为新建库而跳来跳去）。 */
+    if (!slot[parsed.season]) slot[parsed.season] = library;
+  });
+  byBase.forEach(slot => {
+    if (!slot.permanent || !slot.seasonal) return;   // 只齐一侧 → 不算配对
+    const { permanent, seasonal } = slot;
+    groups.set(permanent.id, {
+      base: slot.base, season: 'permanent', selfId: permanent.id,
+      otherId: seasonal.id, otherSeason: 'seasonal', otherName: seasonal.name
+    });
+    groups.set(seasonal.id, {
+      base: slot.base, season: 'seasonal', selfId: seasonal.id,
+      otherId: permanent.id, otherSeason: 'permanent', otherName: permanent.name
+    });
+  });
+  return groups;
+}
 
  hasLibraryName(data, name, excludeId = '') {
  const key = this.getLibraryNameKey(name);
@@ -14301,6 +14583,11 @@ class PriceRuleEditorFeature {
  this._editingPriceMemoryKey = '';
  this._rangeManagerOpen = false;
  this._editingRangeRuleId = '';
+ /* 【8.3.50 修】「展开配对的两个库」开关，默认关（折叠成一行）。
+    为什么不落盘：这是纯视图偏好，不是数据。落盘会引入新的存储字段，
+    违反「不动存储结构」的安全线；而且用户重开面板时希望看到的
+    是最简洁的默认视图，而不是上次的展开态。 */
+ this._seasonPairExpanded = false;
  this._eventScope = new FeatureEventScope();
  }
 
@@ -14348,6 +14635,42 @@ class PriceRuleEditorFeature {
  /* 勾选框要在它上面停下，不要冒泡到整行去触发「切当前库」。
        只做拦截，真正的开关切换交给下面的 change —— 见那里的说明。 */
  if (source.closest('[data-library-merge]')) { event.stopPropagation(); return; }
+ /* 【8.3.50 修】「展开两个库」入口。
+       它是个独立 button、不是行的一部分，所以要先于 pick 命中；
+       拦截后只切视图状态再重绘，不碰任何数据 —— 展开/收起纯属显示偏好，
+       既然不落盘就不该走 persist，否则每次点一下都写一次存储，白费。 */
+ const expandBtn = source.closest('[data-library-expand]');
+ if (expandBtn) {
+ event.preventDefault();
+ event.stopPropagation();
+ this.toggleSeasonPairExpand();
+ return;
+ }
+ /* 【8.3.50】赛季节标签也必须先拦下来。
+       它和「切当前库」是两个不同动作：点整行是「回到这一行」，
+       点标签是「跳到配对的那一行」。如果不拦，点标签除了切到对面库，
+       还会顺带触发整行的 pickPriceLibrary —— 而下方的 pick 逻辑用的是
+       closest('[data-library-pick]')，标签不在那个 button 内部（是兄弟节点），
+       所以其实命不中；但把这个拦截写出来是为了**让意图显式**，
+       将来标签若被移进 button 内部也不会突然变成双触发。
+       另外这里不调 preventDefault：button 的默认动作没有副作用。
+       展开态下那个 ↗ 小箭头用的是同一个 data-library-season，
+       所以这一条分支同时覆盖「胶囊标签」和「箭头」两种形态。 */
+ const seasonTag = source.closest('[data-library-season]');
+ if (seasonTag) {
+ /* 【8.3.50 修·重要】必须 stopPropagation **并且** return，
+       但更要紧的是它们都发生在源元素自身，不会影响下面的 pick 分支 ——
+       真正要防的是「标签在 pick 按钮内部」这一种结构。
+       现在展开态的 ↗ 就正好是这种结构（它被放进 data-library-pick 里，
+       为的是不破坏行内布局）。此时若只 stopPropagation 不 return，
+       下面 closest('[data-library-pick]') 仍会命中同一个按钮，
+       于是「切到对面」之后紧接着又「切回本行」—— 净效果是切了等于没切。
+       实测确认过这个 bug：展开态点 ↗ 完全没反应。
+       所以这里必须显式 return，把 pick 分支短路掉。 */
+ event.stopPropagation();
+ this.switchSeasonalLibrary(seasonTag.dataset.librarySeason);
+ return;
+ }
  // 其余区域：切当前库
  const pick = source.closest('[data-library-pick]');
  if (pick) {
@@ -14901,31 +15224,93 @@ class PriceRuleEditorFeature {
    当前库的勾选框固定勾上并禁用：当前库永远参与查价（见 getMergedLibraries
    里会对当前库做补齐），若不置灰，用户取消勾选后会看到「明明没勾却还在查」，
    那是比直接禁用更让人困惑的状态。 */
- renderPriceLibraryList(data) {
+renderPriceLibraryList(data) {
  const list = this.el.pmLibraryList;
  if (!list) return false;
  const mergedIds = this.priceLibraryStore.getMergedLibraries(data).map(library => library.id);
- const html = data.libraries.map(library => {
+ /* 【8.3.50】先算出赛季节配对表（纯函数，不产生副作用），
+   下面渲染每行时直接查表。未配对的库查不到 → 不画标签、不折叠。 */
+ const seasonGroups = this.priceLibraryStore.buildSeasonalGroups(data);
+ const activeId = String(data.activeLibraryId || '');
+ const rows = [];
+ data.libraries.forEach(library => {
+ const seasonGroup = seasonGroups.get(library.id) || null;
+ /* 【8.3.50 修·折叠】配对的两个库默认只显示「当前生效的那一侧」。
+    为什么改：第一版是两行各带一个「⟳ 对面」标签，实际长这样 ——
+      ● 下次见CLUB·常驻    ⟳赛季初   16项   ☑一起用
+      ○ 下次见CLUB·赛季初  ⟳常驻    16项   ☐一起用
+    两行内容几乎一样、箭头还反向，重复信息太多。用户的原话就是
+    「点一下（下次见club+切换图标+常驻）就切换为（…+赛季初）」——
+    他要的是**同一个显示单元整体翻转**，不是两个并列的库各挂一个按钮。
+    判定「谁是可见的那一侧」一律以 activeLibraryId 为准：
+    这样「当前库永远可见」这条不变量在任何时候都成立，
+    展开/收起来回切也不会出现「列表里一行都不高亮」的错觉。 */
+ const hidden = Boolean(seasonGroup && !this._seasonPairExpanded && library.id !== activeId);
+ rows.push(this.renderPriceLibraryRow(library, { data, mergedIds, seasonGroup, hidden }));
+ /* 展开/收起的入口。两种状态各有一个，且只有一个 ——
+    展开态必须留着它，否则用户点开之后就没有回去的路了
+    （实测踩到：展开后入口消失，只能靠刷新或切换面板收起，
+    这属于把一个开关做成了单向门，不能留）。
+    位置固定在「这一对的第一行之后」，这样收起时按钮不会跳位置。 */
+ if (seasonGroup && library.id === activeId) {
+ const base = this.escapeHtml(seasonGroup.base);
+ rows.push(this._seasonPairExpanded
+ ? `<button type="button" class="pm-library-expand" data-library-expand="1" title="收起「${base}」的两个库，恢复成一键切换">▴ 收起，恢复一键切换</button>`
+ : `<button type="button" class="pm-library-expand" data-library-expand="1" title="展开「${base}」的两个库，可分别维护">▾ 展开「${base}」两个库</button>`);
+ }
+ });
+ this.setRenderedHtml(list, rows.join(''));
+ return true;
+}
+
+/* 【8.3.50】单行渲染。从 renderPriceLibraryList 抽出来，只为了可见行和隐藏行
+   共用同一套模板 —— 复制一份 HTML 是这类改动最容易埋雷的地方
+   （改了一处忘另一处，两个状态就长得不一样了）。 */
+renderPriceLibraryRow(library, { data, mergedIds, seasonGroup = null, hidden = false } = {}) {
  const rangeCount = (library.rules || []).filter(rule => rule.kind === 'rankRange').length;
  const isActive = library.id === data.activeLibraryId;
  const isMerged = isActive || mergedIds.includes(library.id);
  const title = `${library.name}（${library.items.length}项/${rangeCount}区间/${(library.surcharges || []).length}加价）`;
  const metaText = `${library.items.length}项`;
- return `<div class="pm-library-row${isActive ? ' is-active' : ''}${isMerged ? ' is-merged' : ''}" data-library-id="${this.escapeHtml(library.id)}">
+ /* 【8.3.50】配对成功时插入赛季节切换标签。
+   用它替换原来的「N项」文字位置？不 —— 「N项」是用户判断这个库有多满的
+   主要依据，砍掉会让人少一个关键信息。两者都留，标签排在「N项」前面，
+   形成「库名 → 切换标签 → 数量 → 一起用」的阅读顺序：
+   先看清是哪个库，再决定切不切，最后才是数量和查价范围。
+   【8.3.50 修】这里 data-library-season 放的是**目标库**的 id。
+     · 折叠态：可见行只有一行（就是当前库），标签写「⟳ 赛季初」
+       意思是「点我去赛季初」→ 目标 = 配对里的另一侧 = otherId。
+     · 展开态：不再出现这个胶囊（改用下面的 ↗），避免同一行两个入口。
+   把「目标」而不是「来源」写进 DOM，是为了让 switchSeasonalLibrary
+   的入参语义和 DOM 语义完全一致 —— 少一层「反向推导」就少一处出错的机会。 */
+ const seasonTag = (seasonGroup && !this._seasonPairExpanded)
+ ? `<button type="button" class="pm-library-season" data-library-season="${this.escapeHtml(seasonGroup.otherId)}" title="切换到「${this.escapeHtml(seasonGroup.otherName)}」" aria-label="切换到${this.escapeHtml(seasonGroup.otherName)}"><span class="pm-library-season-icon" aria-hidden="true">⟳</span><span>${seasonGroup.otherSeason === 'seasonal' ? '赛季初' : '常驻'}</span></button>`
+ : '';
+ /* 展开态下两行都在，二选一不再靠「谁被藏起来」表达，
+    所以要给一个显式的「切到这一行」小入口。
+    【8.3.50 修·重要】这里的语义是**切到本行**，不是「切到对面」——
+    上一版我错写成对面，于是：展开态点非激活行的 ↗，实际是在请求
+    「切到对面那个库」，而对面恰好就是当前已经激活的那个库，等于空操作。
+    实测表现就是「点了没反应」。正确的语义只有一个：
+    用户在展开列表里看到两行，他在**哪一行**上点 ↗，就是想把那一行设为当前库。
+    所以赋值给 data-library-season 的是 library.id（本行）。 */
+ const flipTag = (seasonGroup && this._seasonPairExpanded)
+ ? `<button type="button" class="pm-library-season-flip" data-library-season="${this.escapeHtml(library.id)}" title="设为当前库：${this.escapeHtml(library.name)}" aria-label="设为当前库 ${this.escapeHtml(library.name)}">↗</button>`
+ : '';
+ return `<div class="pm-library-row${isActive ? ' is-active' : ''}${isMerged ? ' is-merged' : ''}${hidden ? ' is-season-hidden' : ''}" data-library-id="${this.escapeHtml(library.id)}">
 <button type="button" class="pm-library-row-pick" data-library-pick="${this.escapeHtml(library.id)}" role="radio" aria-checked="${isActive ? 'true' : 'false'}" title="${this.escapeHtml(title)}" style="display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:0;background:none;border:0;padding:0;font:inherit;text-align:left;cursor:pointer;color:inherit">
 <span class="pm-library-dot" aria-hidden="true"></span>
+${flipTag}
 <span class="pm-library-row-name">${this.escapeHtml(library.name)}</span>
 </button>
+${seasonTag}
 <span class="pm-library-row-meta">${this.escapeHtml(metaText)}</span>
 <label class="pm-library-merge" title="${isActive ? '当前库始终参与查价' : '勾选后这个库也一起参与查价'}">
 <input type="checkbox" data-library-merge="${this.escapeHtml(library.id)}"${isMerged ? ' checked' : ''}${isActive ? ' disabled' : ''}>
 <span>一起用</span>
 </label>
 </div>`;
- }).join('');
- this.setRenderedHtml(list, html);
- return true;
- }
+}
 
  /* 【8.3.46】切当前库（点整行）。与原来点下拉框等价。 */
  pickPriceLibrary(libraryId) {
@@ -14933,6 +15318,79 @@ class PriceRuleEditorFeature {
  if (!id || id === this.priceLibraries?.activeLibraryId) return false;
  return this.switchPriceLibrary(id);
  }
+
+ /* 【8.3.50】切到配对里的另一侧（点胶囊标签 / 展开态的 ↗）。
+   入参 libraryId 的语义 = **「我要切到的是哪一侧」**，也就是目标库的 id，
+   不是「点击时所在的那一侧」。这一点必须钉死，因为上一版我把它理解成
+   后者（点谁就从谁出发找对面），在折叠态下恰好等价、看不出问题，
+   一到展开态就暴露：展开后两行并排，用户在非激活行的 ↗ 上点击，
+   按「从谁出发找对面」的读法，目标会被算成那个**已经激活**的库，
+   于是什么都不发生。实测就是这个症状（点了没反应）。
+   统一成「入参 = 目标库」后，两种形态共用一条语义：
+     · 折叠态：唯一可见行的标签写着「⟳ 赛季初」，点它就是要去赛季初 →
+       传赛季初的 id。与「找对面」结果相同，行为不变。
+     · 展开态：某行的 ↗ 就是这一行 → 传本行 id。
+   两条路径都是「传目标」，不再有歧义。
+
+   这里刻意**复用 switchPriceLibrary**，而不是另写一套切换逻辑：
+   切赛季和切库在数据层面是同一件事（都只是挪 activeLibraryId），
+   另写一套就会出现两处行为漂移（比如一边清了编辑器状态、另一边没清）。
+   复用后，切赛季自动获得与切库完全一致的行为：清空编辑器、重绘、
+   刷新候选 —— 用户感受不到两套逻辑。
+
+   万一配对的那一侧在某次操作后消失了（理论上不会，因为标签只在
+   两侧都齐时才画），switchPriceLibrary 会返回「库不存在」的错误提示，
+   不会静默失败 —— 这正是我们要的：宁可报错也不要假装切成功。 */
+ switchSeasonalLibrary(libraryId) {
+ const targetId = String(libraryId || '');
+ if (!targetId) return false;
+ const groups = this.priceLibraryStore.buildSeasonalGroups(this.priceLibraries);
+ const group = groups.get(targetId);
+ if (!group) return false;
+ if (targetId === String(this.priceLibraries?.activeLibraryId || '')) return false;
+ /* 【8.3.50 关键】配对的一对库必须**互斥查价**，这是本功能正确的前提。
+    为什么：用户的预期是「切到赛季初就是 48 生效」——**切一下，只有一个价生效**。
+    但查价范围（mergedLibraryIds）原本是个独立的「一起用」勾选框：
+    若两个库都被勾上，getLookupServiceRules 会把 42 和 48 两条候选同时吐出来，
+    用户还得自己认库名挑一条 —— 那就不是「切换」，而是「并排看」，
+    与用户要的「一键换价」完全相反。
+    所以这里在切赛季时同步把查价范围收敛成「只对面那个库」：
+    切完立刻只剩一份价，不用用户再去动勾选框。
+    为什么允许覆盖用户的勾选：赛季对的语义本来就是二选一（同一队的两套表，
+    同时用没有意义 —— 同一个项目报两个价）。用户若真想让这对库并存查价，
+    他可以把库名改成不带「常驻 / 赛季初」后缀，那就不再被识别成一对，
+    勾选框完全归他自己管 —— 出口留好了，不是死路。
+    为什么用 setLibraryMerged 而不是直接改对象：它是「参与查价」的唯一入口，
+    负责去重、校验「至少留一个库」并落盘。绕过它就等于绕过这些约束。 */
+ const stored = this.priceLibraryStore.setLibraryMerged(this.priceLibraries, targetId, true);
+ const base = stored.ok ? stored.data : this.priceLibraries;
+ const solo = this.priceLibraryStore.setSeasonalPairSolo(base, group, targetId);
+ if (solo.ok) {
+ this.priceLibraries = solo.data;
+ this.app.priceMemory = solo.activeItems;
+ }
+ return this.switchPriceLibrary(targetId);
+ }
+
+/* 【8.3.50 修】展开 / 收起「配对的两个库」。
+   契约：
+     · 只改视图状态（this._seasonPairExpanded），**不动任何数据**。
+       不调 persist、不碰 activeLibraryId、不碰 mergedLibraryIds。
+       用户展开只是为了「单独看一眼 / 单独改某一侧」，这不该产生
+       任何数据副作用 —— 否则他会发现自己只是点了下展开，
+       查价范围就变了。
+     · 展开时谁可见：两个库都在。折叠时：只显示当前生效的那一侧。
+     · 收起时不需要「记住」什么 —— 可见性由 activeLibraryId 现算，
+       所以哪怕用户展开后切了库再收起，显示出来的也一定是
+       「他最后切到的那一侧」，不会出现「收起来却显示了另一个库」。
+   重绘走 updatePriceLibraryUI，与其它库操作同一条链，保证三个位置
+   （清单、名称输入框、状态行）永远同步 —— 自己只重绘清单会留下
+   名称框显示旧库名的错位。 */
+toggleSeasonPairExpand(force) {
+ this._seasonPairExpanded = typeof force === 'boolean' ? force : !this._seasonPairExpanded;
+ this.updatePriceLibraryUI({ forceName: false });
+ return this._seasonPairExpanded;
+}
 
  /* 【8.3.46】切「参与查价」开关。
    被拒（最后一个库不能取消）时说清为什么，不要让用户以为按钮坏了。 */
