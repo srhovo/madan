@@ -15246,7 +15246,15 @@ renderPriceLibraryList(data) {
     这样「当前库永远可见」这条不变量在任何时候都成立，
     展开/收起来回切也不会出现「列表里一行都不高亮」的错觉。 */
  const hidden = Boolean(seasonGroup && !this._seasonPairExpanded && library.id !== activeId);
- rows.push(this.renderPriceLibraryRow(library, { data, mergedIds, seasonGroup, hidden }));
+ /* 【8.3.50 修·重要】被折叠的那一行**根本不输出 DOM**，不是「输出再 display:none」。
+    上一版是后者，实测问题是：那一行虽然肉眼看不见，但在 DOM 里依然存在，
+    于是 list.querySelectorAll('.pm-library-row').length === 2，
+    而且它自己那颗 ⟳ 胶囊还在（指向它自己 = 点了没反应的空操作）。
+    用户要的是「两个库合并为一个库来展示」，那就该是一个、不是两个藏一个。
+    留它在 DOM 里唯一的好处是无障碍/测试好数，代价是产生「幽灵控件」——
+    屏幕阅读器和自动化脚本都会把它当成可操作项。宁可让它彻底消失。 */
+ if (hidden) return;
+ rows.push(this.renderPriceLibraryRow(library, { data, mergedIds, seasonGroup, hidden: false }));
  /* 展开/收起的入口。两种状态各有一个，且只有一个 ——
     展开态必须留着它，否则用户点开之后就没有回去的路了
     （实测踩到：展开后入口消失，只能靠刷新或切换面板收起，
