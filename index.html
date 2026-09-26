@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.50</title>
+ <title>码单器8.3.51</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -4403,8 +4403,8 @@ html[data-order-mode="2"] #primaryFieldsContainer .field-type > input {
 
 
  <script>
-const APP_VERSION = '8.3.50';
-// Release note: 8.3.50 新增「赛季初 / 常驻」两套价目表的一键切换；顺带修掉一处多库查价的缺陷。
+const APP_VERSION = '8.3.51';
+// Release note: 8.3.51 修复「已在查价范围内的项目被重复保存 / 跨库复制」——现在只保存真正的新项目；顺带修掉 6 处元素路径写错导致「单项目 + 手输单价」保存链路失效的问题。
 //   ①【新增·赛季切换】有些团同一个项目有两套价（赛季初 / 常驻）。做法是**两个各自独立的价格库**，
 //      靠库名后缀配对（支持 · - _ 空格 ・ • 等分隔符，如「下次见CLUB·常驻」↔「下次见CLUB·赛季初」），
 //      在库清单那一行多画一个胶囊标签「⟳ 赛季初 / ⟳ 常驻」，点一下翻到配对的那一侧。
@@ -9857,6 +9857,31 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  return null;
  }
 
+ /* 【8.3.51 新增】查价 + 报告「命中项属于哪一库」。
+    背景：findLookupItemByService 搜的是 merged 范围（当前库 +「一起用」的其它库），
+    但 saveActiveItems 只写 active 那一库。二者口径不一致，会导致
+    「在 A 库下用到了只存在于 B 库的项目」时，该项目被复制进 A 库。
+    这个函数把「命中项」与「它归属的库」一起返回，让调用方能判断
+    该命中是「当前库自己的」还是「借来的」。
+    ownedByActive === true  ⇒ 命中项本来就在当前库里
+    ownedByActive === false ⇒ 命中项来自「一起用」的其它库（不该被复制进当前库） */
+ findLookupItemWithOwner(data, serviceType, settleType = '') {
+ const normalized = this.normalizeData(data);
+ if (!normalized) return null;
+ const key = this.buildServiceKey(serviceType);
+ if (!key) return null;
+ const requestedSettle = String(settleType || '').trim().toLowerCase();
+ for (const library of this.getMergedLibraries(normalized)) {
+ const matches = (library.items || []).filter(item => this.itemMatchesName(item, key));
+ if (!matches.length) continue;
+ const hit = (requestedSettle ? matches.find(item => item.settleType === requestedSettle) : null) || matches[0];
+ if (hit) {
+ return { item: hit, library, libraryId: library.id, ownedByActive: library.id === normalized.activeLibraryId };
+ }
+ }
+ return null;
+ }
+
  /* 项目 id 的算法。
     【8.3.47 修·重要】项目 id 必须能指出「它属于哪个库」。
     原先的输入是「项目名 + 结算方式 + 创建时间」，**不含库**。
@@ -13840,7 +13865,7 @@ class PriceQuickPickFeature {
  triggerTypeSuggest() {
  try {
  if (this.priceMemoryFeature.isServicePriceLinking()) return false;
- const unitPriceEl = this.app.el.autoUnitPrice;
+ const unitPriceEl = this.app.getElement('autoUnitPrice');
  const unitPrice = unitPriceEl ? parseFloat(unitPriceEl.value) : null;
  if (!unitPrice || !Number.isFinite(unitPrice) || unitPrice <= 0) {
  this.serviceSuggestionFeature?.clearSoftTypeSuggestion({ keepValue: false });
@@ -13934,7 +13959,7 @@ class PriceQuickPickFeature {
 
  getAutoPriceQuickCandidates(limit = 4) {
  const list = this.priceMemoryStore.normalize(this.priceMemory);
- const unitPrice = this.priceMemoryStore.normalizePrice(this.app.el.autoUnitPrice?.value);
+ const unitPrice = this.priceMemoryStore.normalizePrice(this.app.getElement('autoUnitPrice')?.value);
  const settleType = this.priceMemoryFeature.getCurrentAutoPriceSettleType();
  const filtered = unitPrice !== null ? list.filter(item => item.unitPrice === unitPrice && item.settleType === settleType) : list.filter(item => item.settleType !== 'gift');
  const unique = [], seen = new Set();
@@ -16820,8 +16845,8 @@ class PriceMemoryFeature {
  if (candidate.ok) { match = candidate; break; }
  }
  if (!match || !['round', 'hour'].includes(match.settleType)) return false;
- const normalizedPrice = this.priceMemoryStore.normalizePrice(this.app.el.autoUnitPrice?.value);
- const sourceCanReplace = normalizedPrice === null || replacementAuthorized || (this.fieldProvenance?.canReplace?.('autoUnitPrice', { sources: ['priceRule'], currentValue: this.app.el.autoUnitPrice?.value }) ?? false);
+ const normalizedPrice = this.priceMemoryStore.normalizePrice(this.getElement('autoUnitPrice')?.value);
+ const sourceCanReplace = normalizedPrice === null || replacementAuthorized || (this.fieldProvenance?.canReplace?.('autoUnitPrice', { sources: ['priceRule'], currentValue: this.getElement('autoUnitPrice')?.value }) ?? false);
  if (!sourceCanReplace) return false;
  const signature = `${currentKey}|${match.matchedRuleId}|${match.matchedVariant}|${match.unitPrice}|${match.settleType}`;
  if (normalizedPrice === match.unitPrice && currentSettleType === match.settleType) {
@@ -16850,7 +16875,7 @@ class PriceMemoryFeature {
 
  clearAppliedServicePrice() {
  if (this._servicePriceState.manualPriceActive || !this._servicePriceState.appliedKey) return false;
- const priceInput = this.app.el.autoUnitPrice;
+ const priceInput = this.getElement('autoUnitPrice');
  const currentPrice = this.priceMemoryStore.normalizePrice(priceInput?.value);
  const appliedPrice = this.priceMemoryStore.normalizePrice(this._servicePriceState.appliedPrice);
  if (currentPrice === null || appliedPrice === null || currentPrice !== appliedPrice) return false;
@@ -16991,6 +17016,26 @@ class PriceMemoryFeature {
  let next = this.priceMemoryStore.normalize(this.priceMemory);
  let changed = false;
 
+ /* 【8.3.51 修·重要】把「重复保存 / 跨库复制」挡在唯一一个关口上。
+    ── 问题 ──
+    查价走的是 merged 范围（当前库 + 已勾选「一起用」的其它库），
+    但 saveActiveItems 只把 next 覆写进 active 那一库。
+    于是「在 A 库下用到了只存在于 B 库的项目」时，B 库的项目会被复制进 A 库；
+    同理，已存在于任一库的项目每次生成都会被再写一遍。
+    ── 修法 ──
+    只要该项目在查价范围里已经能找到 —— 无论它在当前库还是「一起用」的其它库 ——
+    就只走 upsert 记账（使用次数 / 最近使用时间），**不把它复制进当前库**。
+    只有「查价范围里彻底找不到的全新项目」才允许落进当前库。
+    ── 为什么用一个统一关口 ──
+    原先两个分支各写各的，容易出现「这处挡了、那处漏了」。
+    现在统一为 shouldPersistNewItem()，一处判定，全路径生效。 */
+ const canPersistNewItem = (name) => {
+ if (!name || !this.app.priceLibraries) return false;
+ // 记录归属：命中项在自己库里 ⇒ 无需再存；命中项在别库里 ⇒ 更不能复制过来
+ const owner = this.priceLibraryStore.findLookupItemWithOwner(this.app.priceLibraries, name, '') || null;
+ return !owner;
+ };
+
  if (projects.length) {
  projects.forEach(project => {
  const settleType = project.quantityMode === 'hour' ? 'hour' : 'round';
@@ -17000,33 +17045,64 @@ class PriceMemoryFeature {
  ? String(project.matchedRuleLabel || project.serviceDisplay || '').trim()
  : '';
  const candidateName = formalServiceName || String(project.serviceDisplay || project.serviceRaw || '').trim();
- const existing = candidateName && this.app.priceLibraries
- ? this.priceLibraryStore.findLookupItemByService(this.app.priceLibraries, candidateName, settleType)
+ /* 【8.3.51 统一关口】一次查价拿到「命中项 + 它属于哪个库」。
+    ownedByActive === true  ⇒ 这个项目本来就在当前库里
+    ownedByActive === false ⇒ 它来自「一起用」的其它库
+    ── 旧代码的漏网之处 ──
+    旧写法只用 `existing.unitPrice === unitPrice` 判断，
+    没区分命中项属于哪个库。于是「只在 B 库有的项目」在 A 库下使用时，
+    因为价格恰好相等就命中了这个分支，直接被 upsert 进 next 并写进 A 库。
+    价格不相等时则掉到下面分支，同样被复制进 A 库。
+    两条路都会跨库复制 —— 这就是用户看到的「A 库内容跑到 B/C 库」。 */
+ const lookup = candidateName && this.app.priceLibraries
+ ? this.priceLibraryStore.findLookupItemWithOwner(this.app.priceLibraries, candidateName, settleType)
  : null;
- if (existing && existing.unitPrice === unitPrice) {
- next = this.priceMemoryStore.upsert(next, { unitPrice, settleType, serviceType: existing.serviceType });
+ /* 【8.3.51 核心判定】按「命中项属于哪个库」分流：
+    ── ownedByActive === true：它本来就在当前库里 ──
+       走 upsert 记账（刷新 usageCount / lastUsed）。因为记录已在当前库里，
+       buildKey 能匹配上，upsert 只做「原地累加」，不会产生新条目。
+    ── ownedByActive === false：它来自「一起用」的其它库 ──
+       **什么都不做**。这里绝不能调 upsert —— priceMemory 就是当前库的 items，
+       跨库那条记录在当前库里并不存在，upsert 会走 unshift 分支新建一条，
+       于是 B 库的项目就被复制进了 A 库（用户报的正是这个现象）。
+       使用次数属于「项目所在的那个库」，不该由别的库代记。 */
+ if (lookup && lookup.ownedByActive) {
+ next = this.priceMemoryStore.upsert(next, { unitPrice, settleType, serviceType: lookup.item.serviceType });
  changed = true;
  return;
  }
+ if (lookup) return; // 跨库命中：纯 no-op，不复制、不记账
  // 8.3.25：手输单价（manualOverride）代表用户明确指定了这个项目的价格，
  // 即使它属于多项目/整串表达式，也应记入记忆库，以便下次输入同名项目时直接带价。
  // 这是「未保存项目 + 手输单价」能沉淀下来的关键 —— 原先这些场景被 existingOnly 一并挡掉。
  const manualPriced = project.priceSource === 'manualOverride';
  if (!manualPriced && (existingOnly || project.matchedRuleId || !this.isAutoPriceEligibleService(candidateName))) return;
  if (!this.isAutoPriceEligibleService(candidateName)) return;
- next = this.priceMemoryStore.upsert(next, { unitPrice, settleType, serviceType: candidateName || existing?.serviceType || '' });
+ // 走到这里说明查价范围里彻底没有它 ⇒ 是全新项目，允许落进当前库
+ if (!canPersistNewItem(candidateName)) return;
+ next = this.priceMemoryStore.upsert(next, { unitPrice, settleType, serviceType: candidateName });
  changed = true;
  });
  } else if (this.isAutoPriceEligibleService(serviceType) && (!existingOnly || this._servicePriceState.manualPriceActive)) {
- const unitPrice = this.priceMemoryStore.normalizePrice(this.app.el.autoUnitPrice?.value);
+ // 8.3.51：修回元素路径 —— app.el.autoUnitPrice 恒为 undefined（元素挂在 app.el.inputs 下），
+ // 导致这条「单项目 + 手输单价」链路永远读到空值、整段失效。改走 getElement 实时取值。
+ const unitPrice = this.priceMemoryStore.normalizePrice(this.getElement('autoUnitPrice')?.value);
  const settleType = this.getCurrentAutoPriceSettleType();
  if (unitPrice !== null) {
- const existing = this.app.priceLibraries ? this.priceLibraryStore.findLookupItemByService(this.app.priceLibraries, serviceType, settleType) : null;
- // 8.3.25：手输单价时即使与库价不同也要记下用户这次的选择；未手输则维持原有「不覆盖已有库价」的保守行为。
- if (!existing || existing.unitPrice === unitPrice || this._servicePriceState.manualPriceActive) {
+ const lookup = this.app.priceLibraries
+ ? this.priceLibraryStore.findLookupItemWithOwner(this.app.priceLibraries, serviceType, settleType)
+ : null;
+ // 8.3.51：同 forEach 分支口径 —— 按命中项归属分流（原因见上方注释）
+ if (lookup && lookup.ownedByActive) {
+ // 在当前库内 ⇒ 原地累加使用次数，不产生新条目
+ next = this.priceMemoryStore.upsert(next, { unitPrice, settleType, serviceType: lookup.item.serviceType });
+ changed = true;
+ } else if (!lookup && canPersistNewItem(serviceType)) {
+ // 查价范围里彻底没有 ⇒ 全新项目，落进当前库
  next = this.priceMemoryStore.upsert(next, { unitPrice, settleType, serviceType });
  changed = true;
  }
+ // lookup 且非当前库 ⇒ 跨库命中，纯 no-op
  }
  }
  if (!changed) return;
