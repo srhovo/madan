@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.51</title>
+ <title>码单器8.3.52</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -4403,7 +4403,8 @@ html[data-order-mode="2"] #primaryFieldsContainer .field-type > input {
 
 
  <script>
-const APP_VERSION = '8.3.51';
+const APP_VERSION = '8.3.52';
+// Release note: 8.3.52 修复「导入下次见club后，切到默认价格表等其它库时，下次见价格表整体消失」——赛季配对不再因当前库是第三方而整对隐藏，并按折叠态/展开态各自给出展开与收起入口。
 // Release note: 8.3.51 修复「已在查价范围内的项目被重复保存 / 跨库复制」——现在只保存真正的新项目；顺带修掉 6 处元素路径写错导致「单项目 + 手输单价」保存链路失效的问题。
 //   ①【新增·赛季切换】有些团同一个项目有两套价（赛季初 / 常驻）。做法是**两个各自独立的价格库**，
 //      靠库名后缀配对（支持 · - _ 空格 ・ • 等分隔符，如「下次见CLUB·常驻」↔「下次见CLUB·赛季初」），
@@ -15258,19 +15259,59 @@ renderPriceLibraryList(data) {
  const seasonGroups = this.priceLibraryStore.buildSeasonalGroups(data);
  const activeId = String(data.activeLibraryId || '');
  const rows = [];
+ /* 【8.3.52 修·重要】先判断「当前库属不属于某个配对」。
+    ── 出的什么问题 ──
+    折叠态原本的规则是「配对里，非当前库的那一侧隐藏」，写成
+        hidden = seasonGroup && !expanded && library.id !== activeId
+    这在「当前库就是这一对里的某一侧」时是对的。
+    但当当前库换成**这一对之外的第三方**（比如「默认价格表」）时，
+    这一对里的两侧**都不等于 activeId** → 两侧**同时被隐藏** →
+    整对库从列表里彻底消失，而且没有任何入口能切回去（点了也没了）。
+    这就是「导入下次见club后切到默认价格表，下次见价格表就不见了」的根因。
+    ── 怎么修 ──
+    把「配对是否折叠」的判定从「每一侧各自比 activeId」提升为
+    「这一对整体是否包含当前库」：
+      · 包含   ⇒ 折叠成一行，显示包含的那一侧（保持 8.3.50 的交互）
+      · 不包含 ⇒ 不折叠，但**仍然显示一行代表**（常驻侧），
+                 否则这一对就又消失了。代表行带 ⟳ 标签，点它就切进这一对。 */
+ const activeGroupBase = (() => {
+ const group = seasonGroups.get(activeId);
+ return group ? group.base : '';
+ })();
+ const isActiveInGroup = (seasonGroup) => Boolean(seasonGroup && seasonGroup.base === activeGroupBase);
+ /* 配对不在当前库时，用哪一侧作为「代表行」。
+   选常驻侧：它是不随赛季变化的那个基准价表，作为默认展示更稳定；
+   若极少数情况下只有赛季初一侧（不会配对成功，此处仅防御），退化为 library 自身。 */
+ const representativeOf = (seasonGroup) => {
+ if (!this.app.priceLibraries) return null;
+ const libs = data.libraries || [];
+ return libs.find(l => l.id === seasonGroup.selfId && seasonGroup.season === 'permanent')
+ || libs.find(l => l.id === seasonGroup.otherId && seasonGroup.otherSeason === 'permanent')
+ || null;
+ };
  data.libraries.forEach(library => {
  const seasonGroup = seasonGroups.get(library.id) || null;
+ const groupHasActive = isActiveInGroup(seasonGroup);
+ /* 是否隐藏这一行：
+    · 展开态：都不藏
+    · 配对包含当前库：只留当前那一侧（另一侧藏）
+    · 配对不含当前库：只留常驻代表侧（另一侧藏）—— 保证整对不会凭空消失 */
+ let hidden = false;
+ if (seasonGroup && !this._seasonPairExpanded) {
+ if (groupHasActive) {
+ hidden = library.id !== activeId;
+ } else {
+ const rep = representativeOf(seasonGroup);
+ hidden = !rep || rep.id !== library.id;
+ }
+ }
  /* 【8.3.50 修·折叠】配对的两个库默认只显示「当前生效的那一侧」。
     为什么改：第一版是两行各带一个「⟳ 对面」标签，实际长这样 ——
       ● 下次见CLUB·常驻    ⟳赛季初   16项   ☑一起用
       ○ 下次见CLUB·赛季初  ⟳常驻    16项   ☐一起用
     两行内容几乎一样、箭头还反向，重复信息太多。用户的原话就是
     「点一下（下次见club+切换图标+常驻）就切换为（…+赛季初）」——
-    他要的是**同一个显示单元整体翻转**，不是两个并列的库各挂一个按钮。
-    判定「谁是可见的那一侧」一律以 activeLibraryId 为准：
-    这样「当前库永远可见」这条不变量在任何时候都成立，
-    展开/收起来回切也不会出现「列表里一行都不高亮」的错觉。 */
- const hidden = Boolean(seasonGroup && !this._seasonPairExpanded && library.id !== activeId);
+    他要的是**同一个显示单元整体翻转**，不是两个并列的库各挂一个按钮。 */
  /* 【8.3.50 修·重要】被折叠的那一行**根本不输出 DOM**，不是「输出再 display:none」。
     上一版是后者，实测问题是：那一行虽然肉眼看不见，但在 DOM 里依然存在，
     于是 list.querySelectorAll('.pm-library-row').length === 2，
@@ -15280,18 +15321,48 @@ renderPriceLibraryList(data) {
     屏幕阅读器和自动化脚本都会把它当成可操作项。宁可让它彻底消失。 */
  if (hidden) return;
  rows.push(this.renderPriceLibraryRow(library, { data, mergedIds, seasonGroup, hidden: false }));
- /* 展开/收起的入口。两种状态各有一个，且只有一个 ——
-    展开态必须留着它，否则用户点开之后就没有回去的路了
-    （实测踩到：展开后入口消失，只能靠刷新或切换面板收起，
-    这属于把一个开关做成了单向门，不能留）。
-    位置固定在「这一对的第一行之后」，这样收起时按钮不会跳位置。 */
- if (seasonGroup && library.id === activeId) {
- const base = this.escapeHtml(seasonGroup.base);
- rows.push(this._seasonPairExpanded
- ? `<button type="button" class="pm-library-expand" data-library-expand="1" title="收起「${base}」的两个库，恢复成一键切换">▴ 收起，恢复一键切换</button>`
- : `<button type="button" class="pm-library-expand" data-library-expand="1" title="展开「${base}」的两个库，可分别维护">▾ 展开「${base}」两个库</button>`);
+ /* 展开/收起的入口。**两种状态各有一个，且只有一个。**
+    为什么两种都要：8.3.50 第一版只在折叠态画「展开」，展开后入口就没了 ——
+    用户点开之后没有回去的路，只能刷新或切面板，等于把一个开关做成了单向门。
+    位置固定在「这一对的代表行之后」，这样收起时按钮不会跳位置。
+    ── 谁是「代表行」──
+      · 折叠态：这一对只显示一行（8.3.52：包含当前库时显示当前侧，否则显示常驻侧），
+        入口就挂在这唯一可见的行后面。
+      · 展开态：这一对显示两行，入口挂在**常驻侧**那一行后面 ——
+        固定挂常驻侧（而不是「当前侧」）是为了让入口位置不随 active 变化而跳动。
+    【8.3.52 修·两处】
+      1) 原先条件是 library.id === activeId，只在「当前库在这一对里」时才画入口；
+         当前库是第三方时这一对虽显示了代表行，却没有入口，用户想单独维护
+         赛季初那一侧就没有路。改成按「这一对是否已折叠成一行」判定。
+      2) 原先整段被 if (!_seasonPairExpanded) 包着，展开态根本不进这里，
+         于是展开后没有「收起」按钮（T5/T6 实测复现）。现在两种状态都进。 */
+ const isPairEntryRow = (() => {
+   if (!seasonGroup) return false;
+   if (this._seasonPairExpanded) {
+     /* 展开态：入口挂在**常驻侧**那一行，而不是「当前侧」——
+        挂当前侧会让入口随 active 变化而跳动；挂常驻侧位置恒定。
+        判定必须只看「本行自己是不是常驻侧」，不能去看对面的 season，
+        否则两侧会同时命中（对面也是常驻/赛季初，会互相认为自己是常驻侧），
+        结果渲染出两个入口 —— delivery-test 实测就抓到了这个（期望 1 个，实得 2 个）。
+        常驻侧 = 本行所配对的 season === 'permanent'。
+        极端情况下配对两侧都没有常驻（理论不成立，防御）：退化为 selfId 那一侧。 */
+     const isPermanentSide = seasonGroup.season === 'permanent';
+     const isOtherPermanentSide = seasonGroup.otherSeason === 'permanent';
+     if (!isPermanentSide && !isOtherPermanentSide) return library.id === seasonGroup.selfId;
+     return isPermanentSide;
+   }
+   const groupHasActive = isActiveInGroup(seasonGroup);
+   if (groupHasActive) return library.id === activeId;
+   const rep = representativeOf(seasonGroup);
+   return Boolean(rep && rep.id === library.id);
+ })();
+ if (isPairEntryRow) {
+   const base = this.escapeHtml(seasonGroup.base);
+   rows.push(this._seasonPairExpanded
+     ? `<button type="button" class="pm-library-expand" data-library-expand="1" title="收起「${base}」的两个库，恢复成一键切换">▴ 收起，恢复一键切换</button>`
+     : `<button type="button" class="pm-library-expand" data-library-expand="1" title="展开「${base}」的两个库，可分别维护">▾ 展开「${base}」两个库</button>`);
  }
- });
+});
  this.setRenderedHtml(list, rows.join(''));
  return true;
 }
