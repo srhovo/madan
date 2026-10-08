@@ -1815,7 +1815,7 @@
             {
               "id": "price_rule_season_00_星耀及以下_lower",
               "kind": "rankRange",
-              "rangeLabel": "星耀及以下",
+              "rangeLabel": "钻石及以下",
               "aliases": [],
               "alias": "",
               "rankType": "lowerTier",
@@ -4775,6 +4775,6 @@
   },
   "integrity": {
     "algorithm": "fnv1a32",
-    "value": "9c71d167"
+    "value": "a1d1639a"
   }
 }
