@@ -2,7 +2,7 @@
   "backupType": "pw-order-tool-backup",
   "schemaVersion": 4,
   "appVersion": "8.3.50",
-  "exportedAt": "2026-09-22T23:37:33.828Z",
+  "exportedAt": "2026-10-08T00:00:00.000Z",
   "moduleVersions": {
     "playableNames": 2,
     "bossMemory": 1,
@@ -1618,137 +1618,37 @@
         {
           "name": "下次见CLUB·常驻",
           "createdAt": 1784111046966,
-          "updatedAt": 1790120253828,
+          "updatedAt": 1790120254828,
           "items": [
             {
-              "serviceType": "鹅鸭杀",
-              "serviceKey": "鹅鸭杀",
+              "serviceType": "一起看",
+              "serviceKey": "一起看",
               "unitPrice": 35,
               "settleType": "hour",
-              "usageCount": 54,
+              "usageCount": 3,
               "createdAt": 1784111791750,
-              "updatedAt": 1789723857705,
-              "lastUsed": 1789723857705
-            },
-            {
-              "serviceType": "技术匹配",
-              "serviceKey": "技术匹配",
-              "unitPrice": 17,
-              "settleType": "round",
-              "usageCount": 8,
-              "createdAt": 1784111791750,
-              "updatedAt": 1789467563149,
-              "lastUsed": 1789467563149
+              "updatedAt": 1790120254828,
+              "lastUsed": 1790120254828
             },
             {
               "serviceType": "其他手游",
               "serviceKey": "其他手游",
-              "unitPrice": 40,
+              "unitPrice": 45,
               "settleType": "hour",
               "usageCount": 8,
               "createdAt": 1784111791750,
-              "updatedAt": 1789406631896,
-              "lastUsed": 1789406631896
+              "updatedAt": 1790120254828,
+              "lastUsed": 1790120254828
             },
             {
-              "serviceType": "娱技匹配",
-              "serviceKey": "娱技匹配",
-              "unitPrice": 15,
-              "settleType": "round",
-              "usageCount": 4,
-              "createdAt": 1784111791750,
-              "updatedAt": 1786606627988,
-              "lastUsed": 1786606627988
-            },
-            {
-              "serviceType": "娱乐匹配",
-              "serviceKey": "娱乐匹配",
-              "unitPrice": 13,
-              "settleType": "round",
-              "usageCount": 4,
-              "createdAt": 1784112051436,
-              "updatedAt": 1786606581471,
-              "lastUsed": 1786606581471
-            },
-            {
-              "serviceType": "端游",
-              "serviceKey": "端游",
+              "serviceType": "哄睡",
+              "serviceKey": "哄睡",
               "unitPrice": 50,
               "settleType": "hour",
               "usageCount": 3,
               "createdAt": 1784111791750,
-              "updatedAt": 1784157903056,
-              "lastUsed": 1784157903056
-            },
-            {
-              "serviceType": "纯文",
-              "serviceKey": "纯文",
-              "unitPrice": 30,
-              "settleType": "hour",
-              "usageCount": 3,
-              "createdAt": 1784111791750,
-              "updatedAt": 1784157820241,
-              "lastUsed": 1784157820241
-            },
-            {
-              "serviceType": "树洞",
-              "serviceKey": "树洞",
-              "unitPrice": 42,
-              "settleType": "hour",
-              "usageCount": 3,
-              "createdAt": 1784111791750,
-              "updatedAt": 1784157800252,
-              "lastUsed": 1784157800252
-            },
-            {
-              "serviceType": "纯连",
-              "serviceKey": "纯连",
-              "unitPrice": 40,
-              "settleType": "hour",
-              "usageCount": 3,
-              "createdAt": 1784111791750,
-              "updatedAt": 1784157747891,
-              "lastUsed": 1784157747891
-            },
-            {
-              "serviceType": "蹭金标",
-              "serviceKey": "蹭金标",
-              "unitPrice": 18,
-              "settleType": "round",
-              "usageCount": 3,
-              "createdAt": 1784111791750,
-              "updatedAt": 1784157708296,
-              "lastUsed": 1784157708296
-            },
-            {
-              "serviceType": "教学单",
-              "serviceKey": "教学单",
-              "unitPrice": 6,
-              "settleType": "round",
-              "usageCount": 3,
-              "createdAt": 1784111791750,
-              "updatedAt": 1784157652793,
-              "lastUsed": 1784157652793
-            },
-            {
-              "serviceType": "技术娱乐",
-              "serviceKey": "技术娱乐",
-              "unitPrice": 17,
-              "settleType": "round",
-              "usageCount": 3,
-              "createdAt": 1784157600680,
-              "updatedAt": 1784157600680,
-              "lastUsed": 1784157600680
-            },
-            {
-              "serviceType": "小国蹭标",
-              "serviceKey": "小国蹭标",
-              "unitPrice": 28,
-              "settleType": "round",
-              "usageCount": 3,
-              "createdAt": 1784111791750,
-              "updatedAt": 1784111934405,
-              "lastUsed": 1784111934405
+              "updatedAt": 1790120254828,
+              "lastUsed": 1790120254828
             },
             {
               "serviceType": "大国蹭标",
@@ -1757,34 +1657,165 @@
               "settleType": "round",
               "usageCount": 3,
               "createdAt": 1784111791750,
-              "updatedAt": 1784111861657,
-              "lastUsed": 1784111861657
+              "updatedAt": 1790120254828,
+              "lastUsed": 1790120254828
             },
             {
-              "serviceType": "哄睡",
-              "serviceKey": "哄睡",
-              "unitPrice": 45,
+              "serviceType": "娱乐匹配",
+              "serviceKey": "娱乐匹配",
+              "unitPrice": 39,
+              "settleType": "hour",
+              "usageCount": 1,
+              "createdAt": 1790120254828,
+              "updatedAt": 1790120254828,
+              "lastUsed": 1790120254828
+            },
+            {
+              "serviceType": "娱乐匹配",
+              "serviceKey": "娱乐匹配",
+              "unitPrice": 13,
+              "settleType": "round",
+              "usageCount": 4,
+              "createdAt": 1784112051436,
+              "updatedAt": 1790120254828,
+              "lastUsed": 1790120254828
+            },
+            {
+              "serviceType": "娱技匹配",
+              "serviceKey": "娱技匹配",
+              "unitPrice": 15,
+              "settleType": "round",
+              "usageCount": 4,
+              "createdAt": 1784111791750,
+              "updatedAt": 1790120254828,
+              "lastUsed": 1790120254828
+            },
+            {
+              "serviceType": "小国蹭标",
+              "serviceKey": "小国蹭标",
+              "unitPrice": 28,
+              "settleType": "round",
+              "usageCount": 3,
+              "createdAt": 1784111791750,
+              "updatedAt": 1790120254828,
+              "lastUsed": 1790120254828
+            },
+            {
+              "serviceType": "技术匹配",
+              "serviceKey": "技术匹配",
+              "unitPrice": 51,
+              "settleType": "hour",
+              "usageCount": 1,
+              "createdAt": 1790120254828,
+              "updatedAt": 1790120254828,
+              "lastUsed": 1790120254828
+            },
+            {
+              "serviceType": "技术匹配",
+              "serviceKey": "技术匹配",
+              "unitPrice": 17,
+              "settleType": "round",
+              "usageCount": 8,
+              "createdAt": 1784111791750,
+              "updatedAt": 1790120254828,
+              "lastUsed": 1790120254828
+            },
+            {
+              "serviceType": "技术娱乐",
+              "serviceKey": "技术娱乐",
+              "unitPrice": 17,
+              "settleType": "round",
+              "usageCount": 3,
+              "createdAt": 1784157600680,
+              "updatedAt": 1790120254828,
+              "lastUsed": 1790120254828
+            },
+            {
+              "serviceType": "挂麦",
+              "serviceKey": "挂麦",
+              "unitPrice": 25,
+              "settleType": "hour",
+              "usageCount": 1,
+              "createdAt": 1790120254828,
+              "updatedAt": 1790120254828,
+              "lastUsed": 1790120254828
+            },
+            {
+              "serviceType": "教学单",
+              "serviceKey": "教学单",
+              "unitPrice": 6,
+              "settleType": "round",
+              "usageCount": 3,
+              "createdAt": 1784111791750,
+              "updatedAt": 1790120254828,
+              "lastUsed": 1790120254828
+            },
+            {
+              "serviceType": "树洞",
+              "serviceKey": "树洞",
+              "unitPrice": 42,
               "settleType": "hour",
               "usageCount": 3,
               "createdAt": 1784111791750,
-              "updatedAt": 1784111791750,
-              "lastUsed": 1784111791750
+              "updatedAt": 1790120254828,
+              "lastUsed": 1790120254828
             },
             {
-              "serviceType": "一起看",
-              "serviceKey": "一起看",
+              "serviceType": "端游",
+              "serviceKey": "端游",
+              "unitPrice": 55,
+              "settleType": "hour",
+              "usageCount": 3,
+              "createdAt": 1784111791750,
+              "updatedAt": 1790120254828,
+              "lastUsed": 1790120254828
+            },
+            {
+              "serviceType": "纯文",
+              "serviceKey": "纯文",
               "unitPrice": 35,
               "settleType": "hour",
               "usageCount": 3,
               "createdAt": 1784111791750,
-              "updatedAt": 1784111791750,
-              "lastUsed": 1784111791750
+              "updatedAt": 1790120254828,
+              "lastUsed": 1790120254828
+            },
+            {
+              "serviceType": "纯连",
+              "serviceKey": "纯连",
+              "unitPrice": 45,
+              "settleType": "hour",
+              "usageCount": 3,
+              "createdAt": 1784111791750,
+              "updatedAt": 1790120254828,
+              "lastUsed": 1790120254828
+            },
+            {
+              "serviceType": "蹭金标",
+              "serviceKey": "蹭金标",
+              "unitPrice": 18,
+              "settleType": "round",
+              "usageCount": 3,
+              "createdAt": 1784111791750,
+              "updatedAt": 1790120254828,
+              "lastUsed": 1790120254828
+            },
+            {
+              "serviceType": "鹅鸭杀",
+              "serviceKey": "鹅鸭杀",
+              "unitPrice": 35,
+              "settleType": "hour",
+              "usageCount": 54,
+              "createdAt": 1784111791750,
+              "updatedAt": 1790120254828,
+              "lastUsed": 1790120254828
             }
           ],
           "rules": [
             {
+              "id": "price_rule_season_00_星耀及以下_lower",
               "kind": "rankRange",
-              "rangeLabel": "钻石及以下",
+              "rangeLabel": "星耀及以下",
               "aliases": [],
               "alias": "",
               "rankType": "lowerTier",
@@ -1799,27 +1830,31 @@
               ],
               "prices": {
                 "normal": {
-                  "round": 13
+                  "round": 15,
+                  "hour": 45
                 },
                 "carry": {
-                  "round": 15
+                  "round": 18,
+                  "hour": 54
                 },
                 "starGuarantee": {
-                  "round": 18
+                  "round": 20
                 }
               },
-              "createdAt": 1784111791754,
-              "updatedAt": 1784111791754
+              "createdAt": 1790120254828,
+              "updatedAt": 1790120254828
             },
             {
+              "id": "price_rule_season_01_星耀及以下_named",
               "kind": "rankRange",
-              "rangeLabel": "星耀",
+              "rangeLabel": "星耀及以下",
               "aliases": [],
               "alias": "",
               "rankType": "namedTier",
               "minStar": null,
               "maxStar": null,
               "namedRanks": [
+                "星耀",
                 "星耀1",
                 "星耀2",
                 "星耀3",
@@ -1828,24 +1863,25 @@
               ],
               "prices": {
                 "normal": {
-                  "round": 15
+                  "round": 15,
+                  "hour": 45
                 },
                 "carry": {
-                  "round": 18
+                  "round": 18,
+                  "hour": 54
                 },
                 "starGuarantee": {
                   "round": 20
                 }
               },
-              "createdAt": 1784111791754,
-              "updatedAt": 1784111791754
+              "createdAt": 1790120254828,
+              "updatedAt": 1790120254828
             },
             {
+              "id": "price_rule_season_02_020星",
               "kind": "rankRange",
               "rangeLabel": "0-20星",
-              "aliases": [
-                "低星"
-              ],
+              "aliases": [],
               "alias": "低星",
               "rankType": "star",
               "minStar": 0,
@@ -1853,24 +1889,25 @@
               "namedRanks": [],
               "prices": {
                 "normal": {
-                  "round": 18
+                  "round": 18,
+                  "hour": 54
                 },
                 "carry": {
-                  "round": 20
+                  "round": 20,
+                  "hour": 60
                 },
                 "starGuarantee": {
                   "round": 25
                 }
               },
-              "createdAt": 1784111791754,
-              "updatedAt": 1784113343604
+              "createdAt": 1790120254828,
+              "updatedAt": 1790120254828
             },
             {
+              "id": "price_rule_season_03_2135星",
               "kind": "rankRange",
               "rangeLabel": "21-35星",
-              "aliases": [
-                "无双"
-              ],
+              "aliases": [],
               "alias": "无双",
               "rankType": "star",
               "minStar": 21,
@@ -1878,19 +1915,22 @@
               "namedRanks": [],
               "prices": {
                 "normal": {
-                  "round": 20
+                  "round": 20,
+                  "hour": 60
                 },
                 "carry": {
-                  "round": 25
+                  "round": 25,
+                  "hour": 75
                 },
                 "starGuarantee": {
                   "round": 30
                 }
               },
-              "createdAt": 1784111791754,
-              "updatedAt": 1788887898024
+              "createdAt": 1790120254828,
+              "updatedAt": 1790120254828
             },
             {
+              "id": "price_rule_season_04_3650星",
               "kind": "rankRange",
               "rangeLabel": "36-50星",
               "aliases": [],
@@ -1901,19 +1941,22 @@
               "namedRanks": [],
               "prices": {
                 "normal": {
-                  "round": 25
+                  "round": 25,
+                  "hour": 75
                 },
                 "carry": {
-                  "round": 30
+                  "round": 30,
+                  "hour": 90
                 },
                 "starGuarantee": {
                   "round": 40
                 }
               },
-              "createdAt": 1784111791754,
-              "updatedAt": 1784111791754
+              "createdAt": 1790120254828,
+              "updatedAt": 1790120254828
             },
             {
+              "id": "price_rule_season_05_5165星",
               "kind": "rankRange",
               "rangeLabel": "51-65星",
               "aliases": [],
@@ -1924,19 +1967,22 @@
               "namedRanks": [],
               "prices": {
                 "normal": {
-                  "round": 30
+                  "round": 30,
+                  "hour": 90
                 },
                 "carry": {
-                  "round": 35
+                  "round": 35,
+                  "hour": 105
                 },
                 "starGuarantee": {
                   "round": 45
                 }
               },
-              "createdAt": 1784111791754,
-              "updatedAt": 1784111791754
+              "createdAt": 1790120254828,
+              "updatedAt": 1790120254828
             },
             {
+              "id": "price_rule_season_06_6680星",
               "kind": "rankRange",
               "rangeLabel": "66-80星",
               "aliases": [],
@@ -1947,161 +1993,123 @@
               "namedRanks": [],
               "prices": {
                 "normal": {
-                  "round": 35
+                  "round": 35,
+                  "hour": 105
                 },
                 "carry": {
-                  "round": 40
+                  "round": 40,
+                  "hour": 120
                 },
                 "starGuarantee": {
                   "round": 50
                 }
               },
-              "createdAt": 1784111791754,
-              "updatedAt": 1784111791754
+              "createdAt": 1790120254828,
+              "updatedAt": 1790120254828
             },
             {
+              "id": "price_rule_season_07_81100星",
               "kind": "rankRange",
-              "rangeLabel": "81-90星",
+              "rangeLabel": "81-100星",
               "aliases": [],
               "alias": "",
               "rankType": "star",
               "minStar": 81,
-              "maxStar": 90,
+              "maxStar": 100,
               "namedRanks": [],
               "prices": {
                 "normal": {
-                  "round": 40
+                  "round": 40,
+                  "hour": 120
                 },
                 "carry": {
-                  "round": 45
+                  "round": 45,
+                  "hour": 135
                 },
                 "starGuarantee": {
                   "round": 55
                 }
               },
-              "createdAt": 1784111791754,
-              "updatedAt": 1784111791754
+              "createdAt": 1790120254828,
+              "updatedAt": 1790120254828
             },
             {
+              "id": "price_rule_season_08_101120星",
               "kind": "rankRange",
-              "rangeLabel": "91-100星",
+              "rangeLabel": "101-120星",
               "aliases": [],
               "alias": "",
               "rankType": "star",
-              "minStar": 91,
-              "maxStar": 100,
+              "minStar": 101,
+              "maxStar": 120,
               "namedRanks": [],
               "prices": {
                 "normal": {
-                  "round": 45
+                  "round": 45,
+                  "hour": 135
                 },
                 "carry": {
-                  "round": 50
+                  "round": 50,
+                  "hour": 150
                 },
                 "starGuarantee": {
                   "round": 60
                 }
               },
-              "createdAt": 1784111791754,
-              "updatedAt": 1784111791754
+              "createdAt": 1790120254828,
+              "updatedAt": 1790120254828
             },
             {
+              "id": "price_rule_season_09_121135星",
               "kind": "rankRange",
-              "rangeLabel": "101-110星",
+              "rangeLabel": "121-135星",
               "aliases": [],
               "alias": "",
               "rankType": "star",
-              "minStar": 101,
-              "maxStar": 110,
+              "minStar": 121,
+              "maxStar": 135,
               "namedRanks": [],
               "prices": {
                 "normal": {
-                  "round": 50
+                  "round": 50,
+                  "hour": 150
                 },
                 "carry": {
-                  "round": 55
+                  "round": 55,
+                  "hour": 165
                 },
                 "starGuarantee": {
                   "round": 65
                 }
               },
-              "createdAt": 1784111791754,
-              "updatedAt": 1784111791754
+              "createdAt": 1790120254828,
+              "updatedAt": 1790120254828
             },
             {
+              "id": "price_rule_season_10_136150星",
               "kind": "rankRange",
-              "rangeLabel": "111-120星",
+              "rangeLabel": "136-150星",
               "aliases": [],
               "alias": "",
               "rankType": "star",
-              "minStar": 111,
-              "maxStar": 120,
+              "minStar": 136,
+              "maxStar": 150,
               "namedRanks": [],
               "prices": {
                 "normal": {
-                  "round": 55
+                  "round": 55,
+                  "hour": 165
                 },
                 "carry": {
-                  "round": 60
+                  "round": 60,
+                  "hour": 180
                 },
                 "starGuarantee": {
                   "round": 70
                 }
               },
-              "createdAt": 1784111791754,
-              "updatedAt": 1784111791754
-            },
-            {
-              "kind": "exact",
-              "serviceName": "鹅鸭杀",
-              "serviceKey": "鹅鸭杀",
-              "aliases": [],
-              "alias": "",
-              "prices": {
-                "hour": 35
-              },
-              "legacyManaged": true,
-              "createdAt": 1784111791750,
-              "updatedAt": 1789723857705
-            },
-            {
-              "kind": "exact",
-              "serviceName": "技术匹配",
-              "serviceKey": "技术匹配",
-              "aliases": [],
-              "alias": "",
-              "prices": {
-                "round": 17
-              },
-              "legacyManaged": true,
-              "createdAt": 1784111791750,
-              "updatedAt": 1789467563149
-            },
-            {
-              "kind": "exact",
-              "serviceName": "其他手游",
-              "serviceKey": "其他手游",
-              "aliases": [],
-              "alias": "",
-              "prices": {
-                "hour": 40
-              },
-              "legacyManaged": true,
-              "createdAt": 1784111791750,
-              "updatedAt": 1789406631896
-            },
-            {
-              "kind": "exact",
-              "serviceName": "娱技匹配",
-              "serviceKey": "娱技匹配",
-              "aliases": [],
-              "alias": "",
-              "prices": {
-                "round": 15
-              },
-              "legacyManaged": true,
-              "createdAt": 1784111791750,
-              "updatedAt": 1786606627988
+              "createdAt": 1790120254828,
+              "updatedAt": 1790120254828
             },
             {
               "kind": "exact",
@@ -2110,50 +2118,26 @@
               "aliases": [],
               "alias": "",
               "prices": {
-                "round": 13
+                "round": 13,
+                "hour": 39
               },
               "legacyManaged": true,
               "createdAt": 1784112051436,
-              "updatedAt": 1786606581471
+              "updatedAt": 1790120254828
             },
             {
               "kind": "exact",
-              "serviceName": "端游",
-              "serviceKey": "端游",
+              "serviceName": "技术匹配",
+              "serviceKey": "技术匹配",
               "aliases": [],
               "alias": "",
               "prices": {
-                "hour": 50
+                "round": 17,
+                "hour": 51
               },
               "legacyManaged": true,
               "createdAt": 1784111791750,
-              "updatedAt": 1784157903056
-            },
-            {
-              "kind": "exact",
-              "serviceName": "纯文",
-              "serviceKey": "纯文",
-              "aliases": [],
-              "alias": "",
-              "prices": {
-                "hour": 30
-              },
-              "legacyManaged": true,
-              "createdAt": 1784111791750,
-              "updatedAt": 1784157820241
-            },
-            {
-              "kind": "exact",
-              "serviceName": "树洞",
-              "serviceKey": "树洞",
-              "aliases": [],
-              "alias": "",
-              "prices": {
-                "hour": 42
-              },
-              "legacyManaged": true,
-              "createdAt": 1784111791750,
-              "updatedAt": 1784157800252
+              "updatedAt": 1790120254828
             },
             {
               "kind": "exact",
@@ -2162,76 +2146,11 @@
               "aliases": [],
               "alias": "",
               "prices": {
-                "hour": 40
+                "hour": 45
               },
               "legacyManaged": true,
               "createdAt": 1784111791750,
-              "updatedAt": 1784157747891
-            },
-            {
-              "kind": "exact",
-              "serviceName": "蹭金标",
-              "serviceKey": "蹭金标",
-              "aliases": [],
-              "alias": "",
-              "prices": {
-                "round": 18
-              },
-              "legacyManaged": true,
-              "createdAt": 1784111791750,
-              "updatedAt": 1784157708296
-            },
-            {
-              "kind": "exact",
-              "serviceName": "教学单",
-              "serviceKey": "教学单",
-              "aliases": [],
-              "alias": "",
-              "prices": {
-                "round": 6
-              },
-              "legacyManaged": true,
-              "createdAt": 1784111791750,
-              "updatedAt": 1784157652793
-            },
-            {
-              "kind": "exact",
-              "serviceName": "技术娱乐",
-              "serviceKey": "技术娱乐",
-              "aliases": [],
-              "alias": "",
-              "prices": {
-                "round": 17
-              },
-              "legacyManaged": true,
-              "createdAt": 1784157600680,
-              "updatedAt": 1784157600680
-            },
-            {
-              "kind": "exact",
-              "serviceName": "小国蹭标",
-              "serviceKey": "小国蹭标",
-              "aliases": [],
-              "alias": "",
-              "prices": {
-                "round": 28
-              },
-              "legacyManaged": true,
-              "createdAt": 1784111791750,
-              "updatedAt": 1784111934405
-            },
-            {
-              "kind": "exact",
-              "serviceName": "大国蹭标",
-              "serviceKey": "大国蹭标",
-              "aliases": [],
-              "alias": "",
-              "prices": {
-                "round": 48
-              },
-              "legacyManaged": true,
-              "createdAt": 1784111791750,
-              "updatedAt": 1784111861657
+              "updatedAt": 1790120254828
             },
             {
               "kind": "exact",
@@ -2240,11 +2159,24 @@
               "aliases": [],
               "alias": "",
               "prices": {
-                "hour": 45
+                "hour": 50
               },
               "legacyManaged": true,
               "createdAt": 1784111791750,
-              "updatedAt": 1784111791750
+              "updatedAt": 1790120254828
+            },
+            {
+              "kind": "exact",
+              "serviceName": "纯文",
+              "serviceKey": "纯文",
+              "aliases": [],
+              "alias": "",
+              "prices": {
+                "hour": 35
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1790120254828
             },
             {
               "kind": "exact",
@@ -2257,7 +2189,151 @@
               },
               "legacyManaged": true,
               "createdAt": 1784111791750,
-              "updatedAt": 1784111791750
+              "updatedAt": 1790120254828
+            },
+            {
+              "kind": "exact",
+              "serviceName": "其他手游",
+              "serviceKey": "其他手游",
+              "aliases": [],
+              "alias": "",
+              "prices": {
+                "hour": 45
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1790120254828
+            },
+            {
+              "kind": "exact",
+              "serviceName": "端游",
+              "serviceKey": "端游",
+              "aliases": [],
+              "alias": "",
+              "prices": {
+                "hour": 55
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1790120254828
+            },
+            {
+              "kind": "exact",
+              "serviceName": "蹭金标",
+              "serviceKey": "蹭金标",
+              "aliases": [],
+              "alias": "",
+              "prices": {
+                "round": 18
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1790120254828
+            },
+            {
+              "kind": "exact",
+              "serviceName": "鹅鸭杀",
+              "serviceKey": "鹅鸭杀",
+              "aliases": [],
+              "alias": "",
+              "prices": {
+                "hour": 35
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1790120254828
+            },
+            {
+              "id": "price_rule_ent_80147711",
+              "kind": "exact",
+              "serviceName": "挂麦",
+              "serviceKey": "挂麦",
+              "aliases": [],
+              "alias": "",
+              "prices": {
+                "hour": 25
+              },
+              "legacyManaged": true,
+              "createdAt": 1790120254828,
+              "updatedAt": 1790120254828
+            },
+            {
+              "kind": "exact",
+              "serviceName": "树洞",
+              "serviceKey": "树洞",
+              "aliases": [],
+              "alias": "",
+              "prices": {
+                "hour": 42
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1790120254828
+            },
+            {
+              "kind": "exact",
+              "serviceName": "娱技匹配",
+              "serviceKey": "娱技匹配",
+              "aliases": [],
+              "alias": "",
+              "prices": {
+                "round": 15
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1790120254828
+            },
+            {
+              "kind": "exact",
+              "serviceName": "技术娱乐",
+              "serviceKey": "技术娱乐",
+              "aliases": [],
+              "alias": "",
+              "prices": {
+                "round": 17
+              },
+              "legacyManaged": true,
+              "createdAt": 1784157600680,
+              "updatedAt": 1790120254828
+            },
+            {
+              "kind": "exact",
+              "serviceName": "教学单",
+              "serviceKey": "教学单",
+              "aliases": [],
+              "alias": "",
+              "prices": {
+                "round": 6
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1790120254828
+            },
+            {
+              "kind": "exact",
+              "serviceName": "小国蹭标",
+              "serviceKey": "小国蹭标",
+              "aliases": [],
+              "alias": "",
+              "prices": {
+                "round": 28
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1790120254828
+            },
+            {
+              "kind": "exact",
+              "serviceName": "大国蹭标",
+              "serviceKey": "大国蹭标",
+              "aliases": [],
+              "alias": "",
+              "prices": {
+                "round": 48
+              },
+              "legacyManaged": true,
+              "createdAt": 1784111791750,
+              "updatedAt": 1790120254828
             }
           ],
           "surcharges": [
@@ -2267,11 +2343,12 @@
                 "甜蜜"
               ],
               "prices": {
-                "round": 5
+                "round": 5,
+                "hour": 15
               },
               "enabled": true,
               "createdAt": 1784767206044,
-              "updatedAt": 1789467444636
+              "updatedAt": 1790120254828
             },
             {
               "name": "教学单",
@@ -4438,167 +4515,159 @@
         }
       ],
       "createdAt": 1786491105266,
-      "updatedAt": 1790120253828
+      "updatedAt": 1790120254828
     },
     "priceMemory": [
       {
         "unitPrice": 35,
         "settleType": "hour",
-        "serviceType": "鹅鸭杀",
-        "aliases": [],
-        "alias": "",
-        "usageCount": 54,
-        "lastUsed": 1789723857705,
+        "serviceType": "一起看",
+        "usageCount": 3,
+        "lastUsed": 1790120254828,
         "createdAt": 1784111791750
       },
       {
-        "unitPrice": 17,
-        "settleType": "round",
-        "serviceType": "技术匹配",
-        "aliases": [],
-        "alias": "",
-        "usageCount": 8,
-        "lastUsed": 1789467563149,
-        "createdAt": 1784111791750
-      },
-      {
-        "unitPrice": 40,
+        "unitPrice": 45,
         "settleType": "hour",
         "serviceType": "其他手游",
-        "aliases": [],
-        "alias": "",
         "usageCount": 8,
-        "lastUsed": 1789406631896,
+        "lastUsed": 1790120254828,
         "createdAt": 1784111791750
-      },
-      {
-        "unitPrice": 15,
-        "settleType": "round",
-        "serviceType": "娱技匹配",
-        "aliases": [],
-        "alias": "",
-        "usageCount": 4,
-        "lastUsed": 1786606627988,
-        "createdAt": 1784111791750
-      },
-      {
-        "unitPrice": 13,
-        "settleType": "round",
-        "serviceType": "娱乐匹配",
-        "aliases": [],
-        "alias": "",
-        "usageCount": 4,
-        "lastUsed": 1786606581471,
-        "createdAt": 1784112051436
       },
       {
         "unitPrice": 50,
         "settleType": "hour",
-        "serviceType": "端游",
-        "aliases": [],
-        "alias": "",
+        "serviceType": "哄睡",
         "usageCount": 3,
-        "lastUsed": 1784157903056,
-        "createdAt": 1784111791750
-      },
-      {
-        "unitPrice": 30,
-        "settleType": "hour",
-        "serviceType": "纯文",
-        "aliases": [],
-        "alias": "",
-        "usageCount": 3,
-        "lastUsed": 1784157820241,
-        "createdAt": 1784111791750
-      },
-      {
-        "unitPrice": 42,
-        "settleType": "hour",
-        "serviceType": "树洞",
-        "aliases": [],
-        "alias": "",
-        "usageCount": 3,
-        "lastUsed": 1784157800252,
-        "createdAt": 1784111791750
-      },
-      {
-        "unitPrice": 40,
-        "settleType": "hour",
-        "serviceType": "纯连",
-        "aliases": [],
-        "alias": "",
-        "usageCount": 3,
-        "lastUsed": 1784157747891,
-        "createdAt": 1784111791750
-      },
-      {
-        "unitPrice": 18,
-        "settleType": "round",
-        "serviceType": "蹭金标",
-        "aliases": [],
-        "alias": "",
-        "usageCount": 3,
-        "lastUsed": 1784157708296,
-        "createdAt": 1784111791750
-      },
-      {
-        "unitPrice": 6,
-        "settleType": "round",
-        "serviceType": "教学单",
-        "aliases": [],
-        "alias": "",
-        "usageCount": 3,
-        "lastUsed": 1784157652793,
-        "createdAt": 1784111791750
-      },
-      {
-        "unitPrice": 17,
-        "settleType": "round",
-        "serviceType": "技术娱乐",
-        "aliases": [],
-        "alias": "",
-        "usageCount": 3,
-        "lastUsed": 1784157600680,
-        "createdAt": 1784157600680
-      },
-      {
-        "unitPrice": 28,
-        "settleType": "round",
-        "serviceType": "小国蹭标",
-        "aliases": [],
-        "alias": "",
-        "usageCount": 3,
-        "lastUsed": 1784111934405,
+        "lastUsed": 1790120254828,
         "createdAt": 1784111791750
       },
       {
         "unitPrice": 48,
         "settleType": "round",
         "serviceType": "大国蹭标",
-        "aliases": [],
-        "alias": "",
         "usageCount": 3,
-        "lastUsed": 1784111861657,
+        "lastUsed": 1790120254828,
         "createdAt": 1784111791750
       },
       {
-        "unitPrice": 45,
+        "unitPrice": 39,
         "settleType": "hour",
-        "serviceType": "哄睡",
-        "aliases": [],
-        "alias": "",
+        "serviceType": "娱乐匹配",
+        "usageCount": 1,
+        "lastUsed": 1790120254828,
+        "createdAt": 1790120254828
+      },
+      {
+        "unitPrice": 13,
+        "settleType": "round",
+        "serviceType": "娱乐匹配",
+        "usageCount": 4,
+        "lastUsed": 1790120254828,
+        "createdAt": 1784112051436
+      },
+      {
+        "unitPrice": 15,
+        "settleType": "round",
+        "serviceType": "娱技匹配",
+        "usageCount": 4,
+        "lastUsed": 1790120254828,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 28,
+        "settleType": "round",
+        "serviceType": "小国蹭标",
         "usageCount": 3,
-        "lastUsed": 1784111791750,
+        "lastUsed": 1790120254828,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 51,
+        "settleType": "hour",
+        "serviceType": "技术匹配",
+        "usageCount": 1,
+        "lastUsed": 1790120254828,
+        "createdAt": 1790120254828
+      },
+      {
+        "unitPrice": 17,
+        "settleType": "round",
+        "serviceType": "技术匹配",
+        "usageCount": 8,
+        "lastUsed": 1790120254828,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 17,
+        "settleType": "round",
+        "serviceType": "技术娱乐",
+        "usageCount": 3,
+        "lastUsed": 1790120254828,
+        "createdAt": 1784157600680
+      },
+      {
+        "unitPrice": 25,
+        "settleType": "hour",
+        "serviceType": "挂麦",
+        "usageCount": 1,
+        "lastUsed": 1790120254828,
+        "createdAt": 1790120254828
+      },
+      {
+        "unitPrice": 6,
+        "settleType": "round",
+        "serviceType": "教学单",
+        "usageCount": 3,
+        "lastUsed": 1790120254828,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 42,
+        "settleType": "hour",
+        "serviceType": "树洞",
+        "usageCount": 3,
+        "lastUsed": 1790120254828,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 55,
+        "settleType": "hour",
+        "serviceType": "端游",
+        "usageCount": 3,
+        "lastUsed": 1790120254828,
         "createdAt": 1784111791750
       },
       {
         "unitPrice": 35,
         "settleType": "hour",
-        "serviceType": "一起看",
-        "aliases": [],
-        "alias": "",
+        "serviceType": "纯文",
         "usageCount": 3,
-        "lastUsed": 1784111791750,
+        "lastUsed": 1790120254828,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 45,
+        "settleType": "hour",
+        "serviceType": "纯连",
+        "usageCount": 3,
+        "lastUsed": 1790120254828,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 18,
+        "settleType": "round",
+        "serviceType": "蹭金标",
+        "usageCount": 3,
+        "lastUsed": 1790120254828,
+        "createdAt": 1784111791750
+      },
+      {
+        "unitPrice": 35,
+        "settleType": "hour",
+        "serviceType": "鹅鸭杀",
+        "usageCount": 54,
+        "lastUsed": 1790120254828,
         "createdAt": 1784111791750
       }
     ],
@@ -4706,6 +4775,6 @@
   },
   "integrity": {
     "algorithm": "fnv1a32",
-    "value": "ab0f6223"
+    "value": "9c71d167"
   }
 }
