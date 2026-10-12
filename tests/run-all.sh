@@ -422,7 +422,7 @@ if ! should_skip giftfillui; then
   run_suite giftfillui "补价排宽度与按钮可见性" $rc "${line:-无输出}"
 fi
 
-# ── [20/20] 同时使用多个价格库 ─────────────────────────────────────
+# ── [20/23] 同时使用多个价格库 ─────────────────────────────────────
 # 8.3.46 新增「多库同用」：勾选多个库一起参与查价，不用来回切库。
 # 这套防线的重点是**两种语义不能混**：
 #   · activeLibraryId  = 编辑目标（新增/修改/删除写进哪个库），永远只有一个
@@ -443,7 +443,7 @@ if ! should_skip multilibrary; then
   run_suite multilibrary "同时使用多个价格库" $rc "${line:-无输出}"
 fi
 
-# ── [21/21] 候选说明行的排版 ───────────────────────────────────────
+# ── [21/23] 候选说明行的排版 ───────────────────────────────────────
 # 8.3.46 用户报的「提示库名的前括号位置不对，没对齐在同一行」就落在这里：
 # 根因是库名原本排在整条说明的**末尾**，前面那段（匹配方式 + 价钱）把行占满后
 # 〔库名〕被挤到第二行，看着就像括号掉了。本轮把库名提到行首。
@@ -455,7 +455,7 @@ fi
 #          ③ 不管多长都稳在 3 行内、且两行够用时不多占一行。
 if ! should_skip metalayout; then
   echo
-  echo "── [21/22] 候选说明行排版 suggest-meta-layout.js ──────────────"
+  echo "── [21/23] 候选说明行排版 suggest-meta-layout.js ──────────────"
   out=$(node tests/suggest-meta-layout.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -464,7 +464,7 @@ if ! should_skip metalayout; then
   run_suite metalayout "候选说明行排版" $rc "${line:-无输出}"
 fi
 
-# ── [22/22] 规则 id 稳定性 ─────────────────────────────────────────
+# ── [22/23] 规则 id 稳定性 ─────────────────────────────────────────
 # 8.3.46 为了修「副库项目点候选填不上价」，规则的 id 生成方式动了两处：
 #   · 加了「所属库」这层盐（否则两库同名同价会算出同一个 id，候选被误判成重复）
 #   · 去掉了「第几条」这个输入（否则旁边增删一条，后面所有规则的 id 全变）
@@ -475,13 +475,32 @@ fi
 # 本地若有真实备份，可用 `node tests/rule-id-stability.js <备份.json>` 再验一遍。
 if ! should_skip ruleid; then
   echo
-  echo "── [22/22] 规则 id 稳定性 rule-id-stability.js ────────────────"
+  echo "── [22/23] 规则 id 稳定性 rule-id-stability.js ────────────────"
   out=$(node tests/rule-id-stability.js 2>&1)
   rc=$?
   echo "$out" | tail -6
   line=$(echo "$out" | grep -oE "失败 [0-9]+ 项" | tail -1)
   [ -z "$line" ] && line=$(echo "$out" | grep -oE "全部通过.*" | tail -1)
   run_suite ruleid "规则 id 稳定性" $rc "${line:-无输出}"
+fi
+
+# ── [23/23] 赛季配对切换（当前库必须始终参与查价） ──────────────────
+# 8.3.53 修的两处都在「查价范围」这一层：
+#   ① 算查价范围时当前库被踢出名单、且数组第一个库被算了两遍 ——
+#      只要当前库不是 libraries[0]，切到它也用不了它（用户报的「怎么切都用不了常驻」）。
+#   ② 点整行切库不收敛赛季配对，能造出「切到了 A、查价范围还停在 B」的卡死态。
+# 这套防线用真实 DOM 点真实的 ⟳ 标签与库名那一行，覆盖四类状态：
+#   ① 折叠态点 ⟳ ② 点整行切回 ③ 直接构造卡死态 ④ 赛季对之外的第三方库当当前库
+# 本地复现旧版：node tests/season-pair-switch.js <某个旧 index.html>
+if ! should_skip seasonpair; then
+  echo
+  echo "── [23/23] 赛季配对切换 season-pair-switch.js ─────────────────"
+  out=$(node tests/season-pair-switch.js 2>&1)
+  rc=$?
+  echo "$out" | tail -6
+  line=$(echo "$out" | grep -oE "失败 [0-9]+ 项" | tail -1)
+  [ -z "$line" ] && line=$(echo "$out" | grep -oE "全部通过.*" | tail -1)
+  run_suite seasonpair "赛季配对切换" $rc "${line:-无输出}"
 fi
 
 # ── 汇总 ───────────────────────────────────────────────────────────
