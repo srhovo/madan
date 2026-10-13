@@ -21,6 +21,10 @@
        本脚本主动 await app.ensureLazyFeature(name)，并改为「存在即可」判定。
   [A5] Feature 数量：上游硬编码 23；懒加载完成后实际为 25。改为「核心全在 +
        总数 >= 23」的语义化判定，避免版本演进而脆断。
+  [A7] 新增第七段「价格库查价范围」：8.3.53 修的「切到某库却取到另一个库的价」
+       不报错、不崩、不影响单价计算，只在「当前库 × 勾选集合」的交叉组合下才
+       暴露。本段隔离 eval PriceLibraryStore 做交叉组合断言 + 一条反向验证
+       （把查价范围的兜底退回旧写法，断言必须变红），不需要 DOM。
   [A6] 必需 DOM id：移除 'diyLayoutModal'。8.3.23 起 DIY 布局弹窗整体下线
        （CHANGELOG §8.3.23），该 id 在 index.html 中出现 0 次，仅存
        diyLayoutBtn / diyLayoutIconUse。属「脚本滞后于架构」，非产品缺陷。
@@ -380,6 +384,101 @@ if(!ok)process.exit(2);
 
 
 # ---------------------------------------------------------------------------
+# 第三段补：价格库查价范围（多库同用 / 赛季配对）
+# ---------------------------------------------------------------------------
+def library_scope_report(html_path):
+    """查价范围（getMergedLibraries）的隔离验证 —— 8.3.53 修复的回归哨兵。
+
+    为什么单独立一段：这里出过的两个 bug 都**不报错、不崩、也不影响单价计算**，
+    只表现为「切到某个价格库后取到的却是另一个库的价」，肉眼极难发现，
+    只有把「当前库 / 勾选集合」交叉组合才照得出来。
+
+      · 8.3.53 前：算查价范围时当前库不在勾选集合里就被整条踢出名单，
+        兜底还取了 libraries[0]（那不是当前库，只是数组里第一个）。
+        实测（库顺序 [赛季初, 常驻]、当前=常驻、勾选=[赛季初]）：
+        名单变成 [赛季初, 赛季初]，常驻的价永远查不到 —— 用户报的
+        「怎么切都用不了常驻」。
+      · 同版另一处：点整行切库不收敛赛季配对，能造出
+        「切到了 A、查价范围还停在 B」的卡死态。
+
+    本段复用第三段的隔离执行方式（从 HTML 抠出 PriceLibraryStore 单独 eval，
+    不启动整个 App），不需要 DOM、不需要 jsdom，因此能挂在 AI 可运行链路上。
+    末尾带一条反向验证：把 getMergedLibraries 退回旧兜底后，开头那几条
+    「当前库仍在名单/排最前」的断言必须变红 —— 否则说明这套断言是假绿。
+    """
+    js = r'''const fs=require('fs'),html=fs.readFileSync(process.argv[2],'utf8'),out=process.argv[3];
+const checks={};function t(n,ok,a){checks[n]={ok:!!ok,actual:a}}
+globalThis.appLogSilent=()=>{};globalThis.appLogError=()=>{};
+globalThis.AppTextUtils=Object.freeze({normalizeText(v){let s=String(v??'');try{s=s.normalize('NFKC')}catch{}return s.replace(/\s+/g,' ').trim()},escapeHtml(v){return String(v??'')}});
+const SCHEMA=(html.match(/const PRICE_LIBRARY_SCHEMA_VERSION = (\d+);/)||[])[1]||'3';
+globalThis.PRICE_LIBRARY_SCHEMA_VERSION=Number(SCHEMA);
+function cls(n,next){const a=html.indexOf(`class ${n}`),b=html.indexOf(`class ${next}`,a+1);if(a<0||b<0)throw Error(n);return html.slice(a,b).replace(`class ${n}`,`globalThis.${n}=class ${n}`)}
+eval(cls('PriceRuleEngine','PriceRuleMatcher'));
+eval(cls('PriceRuleMatcher','PriceRuleConflictEngine'));
+eval(cls('SurchargeRuleEngine','GiftMemoryEngine'));
+eval(cls('GiftMemoryEngine','GiftComboEngine'));
+const sa=html.indexOf('class PriceLibraryStore'),sb=html.indexOf('class UiRenderHelper',sa+1);
+const STORE_SRC=html.slice(sa,sb);
+function loadStore(src){return eval('(function(){'+src+'\nreturn PriceLibraryStore;})()')}
+const Store=loadStore(STORE_SRC);
+function makeStorage(){const m=new Map();return{get:(k,f)=>m.has(k)?m.get(k):f,getPersistent:(k,f)=>m.has(k)?m.get(k):f,setPersistent:(k,v)=>{m.set(k,JSON.parse(JSON.stringify(v)));return true},removePersistent:k=>{m.delete(k);return true}}}
+const memoryStub={normalizeEntry(r){const st=String(r?.serviceType??'').trim();return{serviceType:st,serviceKey:st.toLowerCase(),unitPrice:Number(r?.unitPrice)||0,settleType:String(r?.settleType??'').trim().toLowerCase()||'round',usageCount:Number(r?.usageCount)||1,aliases:Array.isArray(r?.aliases)?r.aliases:[],alias:''}},normalize(l){return Array.isArray(l)?l:[]},buildKey(i){return `${i?.serviceKey||''}|${i?.settleType||''}`}};
+const store=new Store(makeStorage(),memoryStub);
+const base={schemaVersion:Number(SCHEMA),activeLibraryId:'',mergedLibraryIds:[],createdAt:1,updatedAt:2,libraries:[
+ {id:'libS',name:'下次见CLUB·赛季初',createdAt:1,updatedAt:1,items:[],rules:[],surcharges:[],giftMemories:[]},
+ {id:'libP',name:'下次见CLUB·常驻',createdAt:2,updatedAt:2,items:[],rules:[],surcharges:[],giftMemories:[]}]};
+const nm=a=>a.map(l=>String(l.name).split('·').pop());
+function sc(activeId,mergedIds){const d=JSON.parse(JSON.stringify(base));d.activeLibraryId=activeId;if(mergedIds===null)delete d.mergedLibraryIds;else d.mergedLibraryIds=mergedIds;return store.getMergedLibraries(d)}
+const m1=sc('libP',['libS']);
+t('当前库不在勾选集合时仍留在名单里',m1.some(l=>l.id==='libP'),nm(m1));
+t('当前库排在最前',Boolean(m1[0])&&m1[0].id==='libP',nm(m1));
+t('名单无重复',new Set(m1.map(l=>l.id)).size===m1.length,nm(m1));
+const m2=sc('libP',['libS','libP']);
+t('同时勾选两个时当前库仍在最前',m2.length===2&&m2[0].id==='libP',nm(m2));
+const m3=sc('libP',null);
+t('老数据无 mergedLibraryIds 时只查当前库',m3.length===1&&m3[0].id==='libP',nm(m3));
+const m4=sc('libP',[]);
+t('勾选为空时回落成只查当前库',m4.length===1&&m4[0].id==='libP',nm(m4));
+const pickStart=html.indexOf('pickPriceLibrary(libraryId) {');
+const pickBody=pickStart<0?'':html.slice(pickStart,html.indexOf('\n }',pickStart));
+t('点整行锚点命中源码',Boolean(pickBody));
+t('点整行对赛季对改走 switchSeasonalLibrary',/buildSeasonalGroups[\s\S]*switchSeasonalLibrary/.test(pickBody),pickBody.replace(/\s+/g,' ').slice(0,140));
+const swStart=html.indexOf('switchSeasonalLibrary(libraryId) {');
+const swBody=swStart<0?'':html.slice(swStart,html.indexOf('\n }',swStart));
+t('⟳ 标签仍会收敛赛季对（调 setSeasonalPairSolo）',swBody.includes('setSeasonalPairSolo'));
+const a=STORE_SRC.indexOf('getMergedLibraries(data) {'),b=STORE_SRC.indexOf('\n }',a);
+const OLD=`getMergedLibraries(data) {
+ const normalized = this.normalizeData(data);
+ if (!normalized) return [];
+ const ids = Array.isArray(normalized.mergedLibraryIds) && normalized.mergedLibraryIds.length
+ ? normalized.mergedLibraryIds
+ : [normalized.activeLibraryId];
+ const chosen = normalized.libraries.filter(library => ids.includes(library.id));
+ if (!chosen.length) return normalized.libraries.slice(0, 1);
+ const active = chosen.find(library => library.id === normalized.activeLibraryId);
+ const rest = chosen.filter(library => library.id !== normalized.activeLibraryId);
+ return active ? [active, ...rest] : [normalized.libraries[0], ...rest].filter(Boolean);
+ }`;
+let revertRuns=false,revertRed=false;
+if(a>=0&&b>a){
+ try{
+  const OldStore=loadStore(STORE_SRC.slice(0,a)+OLD+STORE_SRC.slice(b+3));
+  const os=new OldStore(makeStorage(),memoryStub);
+  const d=JSON.parse(JSON.stringify(base));d.activeLibraryId='libP';d.mergedLibraryIds=['libS'];
+  const om=os.getMergedLibraries(d);
+  revertRuns=true;
+  revertRed=!(om.some(l=>l.id==='libP')&&om[0].id==='libP');
+ }catch(e){revertRuns=false}
+}
+t('反向验证锚点命中（退回旧兜底后仍可运行）',revertRuns);
+t('退回旧兜底后「当前库仍在名单且最前」确实会失败',revertRed);
+const ok=Object.values(checks).every(x=>x.ok);
+fs.writeFileSync(out,JSON.stringify({ok,checks},null,2));
+if(!ok)process.exit(2);'''
+    return run_node_payload(html_path, js, 'library_scope')
+
+
+# ---------------------------------------------------------------------------
 # 第四段：真实素材提取（延续上游归一化比对 + 新增差异分类）
 # ---------------------------------------------------------------------------
 def extraction_report(html_path):
@@ -678,6 +777,7 @@ def write_reports(report, html_path, report_dir):
         lines.append('  错误：' + ext['error'])
 
     for key, title in [('engine_report', '计算/价格/项目引擎'),
+                       ('library_scope_report', '价格库查价范围（多库同用/赛季配对）'),
                        ('dom_report', '完整页面DOM链路')]:
         r = report[key]
         checks = r.get('checks') or {}
@@ -720,16 +820,18 @@ def main():
     static = static_checks(html, version, chunks)
     syntax = inline_syntax(html)
     eng = engine_report(html_path)
+    scope = library_scope_report(html_path)
     ext = extraction_report(html_path)
     bound = extraction_boundary_report(html_path)
     dom = dom_report(html_path)
 
     ok = (all(x['ok'] for x in static) and syntax.get('ok') and eng.get('ok')
-          and ext.get('ok') and dom.get('ok'))
+          and ext.get('ok') and dom.get('ok') and scope.get('ok'))
     report = {'ok': bool(ok), 'html': str(html_path), 'expected_version': version,
               'chunk_names': sorted(chunks), 'static_checks': static,
               'inline_js_syntax': syntax, 'engine_report': eng,
               'extraction_report': ext, 'boundary_report': bound, 'dom_report': dom,
+              'library_scope_report': scope,
               'extraction_soft_pending': ext.get('softCount', 0)}
     rd = Path(args.report_dir).expanduser().resolve() if args.report_dir else html_path.parent
     jp, tp = write_reports(report, html_path, rd)
