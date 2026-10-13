@@ -158,7 +158,8 @@ webView.loadUrl("file:///android_asset/index.html")
 │   ├── inline-integrity.js                            # 内联副本与 .js 源文件逐字节一致性
 │   ├── arch-snapshot.js                               # 架构边界快照（app 方法/state 键/feature 数）
 │   ├── arch-baseline.json                             # 上述快照的基线，有意改动后须 --update
-│   └── run-all.sh                                     # 统一测试入口（19 套防线一次跑完）
+│   ├── season-pair-switch.js                          # 赛季配对切换（真实 DOM，守「当前库必须参与查价」）
+│   └── run-all.sh                                     # 统一测试入口（24 套防线一次跑完）
 ├── tools/             # 开发工具（非运行时依赖，不参与 index.html）
 │   ├── set-version.js                                 # 版本号落点改写器（发版用）
 │   ├── release.sh                                     # 一键发布（改版本号→打包→写清单→跑防线）
@@ -192,7 +193,7 @@ webView.loadUrl("file:///android_asset/index.html")
 ```bash
 npm ci                             # JS 侧测试需要（锁定 jsdom 版本；不要用 npm install 裸装）
 
-# 推荐：统一入口，一次跑完全部 19 套防线
+# 推荐：统一入口，一次跑完全部 24 套防线
 bash tests/run-all.sh              # 全量（含约 4 分钟变异测试）
 bash tests/run-all.sh --fast       # 日常提交：跳过变异测试
 bash tests/run-all.sh --fast --require-package   # CI / 发版：缺包即判失败
