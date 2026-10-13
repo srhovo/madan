@@ -73,7 +73,7 @@ run_suite() {
 # ── 1. 引擎单元测试 ────────────────────────────────────────────────
 if ! should_skip engine; then
   echo
-  echo "── [1/20] 引擎单元测试 test-engine.js ─────────────────────────"
+  echo "── [1/23] 引擎单元测试 test-engine.js ─────────────────────────"
   if [ -z "$VERSION" ]; then
     echo "  ✗ 无法从 index.html 解析 APP_VERSION"
     run_suite engine "引擎单元测试" 1 "无法解析版本号"
@@ -93,7 +93,7 @@ fi
 # tools/build-inline-chunks.js 生成。这道防线盯「有人改了 src 却忘了重新生成」。
 if ! should_skip chunk; then
   echo
-  echo "── [2/20] 内联 chunk 源码一致性 build-inline-chunks.js --check ──"
+  echo "── [2/23] 内联 chunk 源码一致性 build-inline-chunks.js --check ──"
   out=$(node tools/build-inline-chunks.js --check 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -118,7 +118,7 @@ fi
 # 显式更新基线，从而迫使改动者回答「这个增删是有意的吗」。
 if ! should_skip arch; then
   echo
-  echo "── [3/20] 架构边界快照 arch-snapshot.js ─────────────────────"
+  echo "── [3/23] 架构边界快照 arch-snapshot.js ─────────────────────"
   out=$(node tests/arch-snapshot.js 2>&1)
   rc=$?
   echo "$out" | tail -8
@@ -128,7 +128,7 @@ fi
 # ── 3. 喂入链路 ────────────────────────────────────────────────────
 if ! should_skip chain; then
   echo
-  echo "── [4/20] 喂入链路 project-chain.js ───────────────────────────"
+  echo "── [4/23] 喂入链路 project-chain.js ───────────────────────────"
   out=$(node tests/project-chain.js "$HTML" "$OUT/project-chain.json" 2>&1)
   rc=$?
   echo "$out" | tail -4
@@ -139,7 +139,7 @@ fi
 # ── 3. DOM 全链路 ──────────────────────────────────────────────────
 if ! should_skip dom; then
   echo
-  echo "── [5/20] DOM 全链路 dom-full.js ──────────────────────────────"
+  echo "── [5/23] DOM 全链路 dom-full.js ──────────────────────────────"
   out=$(node tests/dom-full.js "$HTML" "$OUT/domfull.json" 2>&1)
   rc=$?
   echo "$out" | tail -3
@@ -149,7 +149,7 @@ fi
 # ── 4. 组合联动 ────────────────────────────────────────────────────
 if ! should_skip combo; then
   echo
-  echo "── [6/20] 组合联动 combo.js ───────────────────────────────────"
+  echo "── [6/23] 组合联动 combo.js ───────────────────────────────────"
   out=$(node tests/combo.js "$HTML" "$OUT/combo.json" 2>&1)
   rc=$?
   echo "$out" | tail -3
@@ -162,7 +162,7 @@ fi
 FULLCHAIN="tests/码单器8.3_AI可运行全链路测试脚本_8.3架构版.py"
 if ! should_skip fullchain; then
   echo
-  echo "── [7/20] 五段式全链路 $(basename "$FULLCHAIN") ──────────"
+  echo "── [7/23] 五段式全链路 $(basename "$FULLCHAIN") ──────────"
   if [ ! -f "$FULLCHAIN" ]; then
     run_suite fullchain "五段式全链路" 1 "脚本不存在: $FULLCHAIN"
   else
@@ -177,10 +177,10 @@ fi
 if ! should_skip mutate; then
   if [ $FAST -eq 1 ]; then
     echo
-    echo "── [8/20] 变异测试 mutate-chain.py  （--fast 已跳过）────────────"
+    echo "── [8/23] 变异测试 mutate-chain.py  （--fast 已跳过）────────────"
   else
     echo
-    echo "── [9/20] 变异测试 mutate-chain.py  （约 4 分钟）──────────────"
+    echo "── [9/23] 变异测试 mutate-chain.py  （约 4 分钟）──────────────"
     out=$(python3 tests/mutate-chain.py 2>&1)
     rc=$?
     echo "$out" | tail -25
@@ -201,7 +201,7 @@ fi
 #   ⑤ 礼物码单里禁用了「软提示抢字」—— 否则用户打不出数字和加号。
 if ! should_skip giftcombo; then
   echo
-  echo "── [10/20] 礼物组合与按模式隐藏 gift-combo.js ─────────────────"
+  echo "── [10/23] 礼物组合与按模式隐藏 gift-combo.js ─────────────────"
   out=$(node tests/gift-combo.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -216,7 +216,7 @@ fi
 # 这道防线专门盯「包内 index.html 是否引用了包外不存在的资源」。
 if ! should_skip package; then
   echo
-  echo "── [11/20] OTA 包自包含性 check-package-selfcontained.py ──────"
+  echo "── [11/23] OTA 包自包含性 check-package-selfcontained.py ──────"
   # 找当前版本对应的 zip；找不到就跳过（例如只改代码、尚未打包）
   ZIP=""
   for f in "$ROOT"/madan-*.zip; do
@@ -256,7 +256,7 @@ fi
 # 只允许版本号出现在白名单的 2 个位置，并交叉校验 title↔APP_VERSION↔version.json↔zip。
 if ! should_skip version; then
   echo
-  echo "── [12/20] 版本号单一真源 version-single-source.js ────────────"
+  echo "── [12/23] 版本号单一真源 version-single-source.js ────────────"
   # --release-flow：发版脚本刚打完包、尚未 git add 时调用，
   # 此时「zip 未被跟踪」是预期中间态（git add 由人在收到提示后执行），
   # 不该据此判失败 —— 否则发版流程会自锁。
@@ -278,7 +278,7 @@ fi
 # 否则它只会是一堆恒真的假断言。
 if ! should_skip alias; then
   echo
-  echo "── [13/20] 精确项目多别名 price-alias.js ─────────────────────"
+  echo "── [13/23] 精确项目多别名 price-alias.js ─────────────────────"
   out=$(node tests/price-alias.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -312,7 +312,7 @@ fi
 # 否则它只是一堆恒真的假断言（项目历史上踩过这个坑，见 tests/README.md）。
 if ! should_skip historyrefill; then
   echo
-  echo "── [14/20] 历史编辑回填详情同步 history-refill.js ────────────"
+  echo "── [14/23] 历史编辑回填详情同步 history-refill.js ────────────"
   out=$(node tests/history-refill.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -331,7 +331,7 @@ fi
 # 并带反向验证（拆文案 / 删转发 / 误用 this.currentMode 三种改坏方式都必须变红）。
 if ! should_skip hints; then
   echo
-  echo "── [15/20] 辅助提示动态化 hint-dynamic.js ────────────────────"
+  echo "── [15/23] 辅助提示动态化 hint-dynamic.js ────────────────────"
   out=$(node tests/hint-dynamic.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -352,7 +352,7 @@ fi
 # 不再有 display 切换规则，并附 5 种反向改坏方式必须变红。
 if ! should_skip giftqty; then
   echo
-  echo "── [16/20] 礼物单价×个数 gift-quantity.js ────────────────────"
+  echo "── [16/23] 礼物单价×个数 gift-quantity.js ────────────────────"
   out=$(node tests/gift-quantity.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -372,7 +372,7 @@ fi
 # 纯字符串检查抓不住。含反向验证（改回 classname 后真的会丢 class）。
 if ! should_skip hintlayout; then
   echo
-  echo "── [17/22] 提示文案与控件类名 hint-layout.js ─────────────────"
+  echo "── [17/23] 提示文案与控件类名 hint-layout.js ─────────────────"
   out=$(node tests/hint-layout.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -392,7 +392,7 @@ fi
 # 正式发行时对照仓库已发行版顺位，不占正式版本序列。
 if ! should_skip giftfill; then
   echo
-  echo "── [18/22] 逐项补价与纯数字候选 gift-fill.js ─────────────────"
+  echo "── [18/23] 逐项补价与纯数字候选 gift-fill.js ─────────────────"
   out=$(node tests/gift-fill.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -413,7 +413,7 @@ fi
 # 三处修复各配一条反向验证（改回错误写法必须变红），实测分别报红 21/4/13 项。
 if ! should_skip giftfillui; then
   echo
-  echo "── [19/22] 补价那一排的宽度与按钮可见性 gift-fill-ui.js ──────"
+  echo "── [19/23] 补价那一排的宽度与按钮可见性 gift-fill-ui.js ──────"
   out=$(node tests/gift-fill-ui.js 2>&1)
   rc=$?
   echo "$out" | tail -6
@@ -434,7 +434,7 @@ fi
 # 五条反向验证覆盖上面每一条，确保断言不是假绿。
 if ! should_skip multilibrary; then
   echo
-  echo "── [20/22] 同时使用多个价格库 multi-library.js ────────────────"
+  echo "── [20/23] 同时使用多个价格库 multi-library.js ────────────────"
   out=$(node tests/multi-library.js 2>&1)
   rc=$?
   echo "$out" | tail -6
