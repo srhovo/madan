@@ -25,6 +25,12 @@ window.DataPortabilityFeature = class {
  this.MEMEX_REPO = { owner: 'srhovo', repo: 'memex', branch: 'main', rawBase: 'https://madan.pages.dev/memex' };
  }
 
+ /* 【8.3.56】撤销导入的时限。超过即作废。
+ 为什么需要它：快照常驻内存，导入后可能又录了半天单、改了记忆库；
+ 这时误点「撤销本次导入」，会把导入之后的所有操作一起回滚，且没有任何提示。
+ 用 static getter 而不是 static 字段：老 WebView 不支持类字段语法。 */
+ static get UNDO_TTL_MS() { return 30 * 60 * 1000; }
+
  init() {
  this.updateShareButtonState();
  window.appDialogManager.register([
@@ -147,6 +153,7 @@ window.DataPortabilityFeature = class {
  this.renderExportModules();
  this.updateShareButtonState();
  this.resetPreview();
+ this.refreshUndoAvailability();
  if (this.app.el.dpFileInput) this.app.el.dpFileInput.value = '';
  }
 
@@ -906,9 +913,56 @@ window.DataPortabilityFeature = class {
  }
 
  captureUndoSnapshot() {
- this.undoSnapshot = { enhancedNameExtractorData: this.app.enhancedExtractor.snapshotData() };
+ this.undoSnapshot = {
+ enhancedNameExtractorData: this.app.enhancedExtractor.snapshotData(),
+ /* 【8.3.56】快照要能回答三个问题：什么时候拍的、拍的时候有多少条订单/老板记录。
+ 撤销前用它算出「这之后新增了多少」，让用户知道点下去会丢什么。 */
+ createdAt: Date.now(),
+ historyCount: Array.isArray(this.app.history) ? this.app.history.length : 0,
+ bossCount: Array.isArray(this.app.bossMemory) ? this.app.bossMemory.length : 0
+ };
  this.undoStateKeys.forEach(key => { this.undoSnapshot[key] = this.clone(this.app[key]); });
- if (this.app.el.dpUndoImportBtn) this.app.el.dpUndoImportBtn.disabled = false;
+ this.refreshUndoAvailability();
+ }
+
+ /* 【8.3.56】快照年龄 / 是否过期 / 清空 / 刷新按钮状态。
+ 集中在这里，避免「restoreImportSnapshot 里手写一遍禁用按钮」这种分散逻辑。 */
+ undoAgeMs() {
+ return this.undoSnapshot ? Math.max(0, Date.now() - (Number(this.undoSnapshot.createdAt) || 0)) : Infinity;
+ }
+
+ isUndoExpired() {
+ return Boolean(this.undoSnapshot) && this.undoAgeMs() > this.constructor.UNDO_TTL_MS;
+ }
+
+ clearUndoSnapshot() {
+ this.undoSnapshot = null;
+ const btn = this.app.el.dpUndoImportBtn;
+ if (btn) {
+ btn.disabled = true;
+ btn.textContent = '撤销本次导入';
+ btn.removeAttribute('title');
+ }
+ return true;
+ }
+
+ refreshUndoAvailability() {
+ const btn = this.app.el.dpUndoImportBtn;
+ if (!btn) return false;
+ if (!this.undoSnapshot) {
+ btn.disabled = true;
+ btn.textContent = '撤销本次导入';
+ btn.removeAttribute('title');
+ return true;
+ }
+ const expired = this.isUndoExpired();
+ btn.disabled = expired;
+ btn.textContent = expired ? '撤销已过期' : '撤销本次导入';
+ btn.title = expired
+ ? '这次导入已超过 30 分钟，只能通过备份文件恢复'
+ : '恢复到导入前的状态（导入后新增的记录会被一并删除）';
+ if (expired) this.undoSnapshot = null;
+ return true;
  }
 
  restoreImportSnapshot(snapshot, { keepUndo = false } = {}) {
@@ -917,10 +971,7 @@ window.DataPortabilityFeature = class {
  this.app.enhancedExtractor.markLearningCollectionsDirty();
  this.undoStateKeys.forEach(key => { this.app[key] = this.clone(snapshot[key]); });
  const restored = this.refreshAfterImport();
- if (!keepUndo) {
- this.undoSnapshot = null;
- if (this.app.el.dpUndoImportBtn) this.app.el.dpUndoImportBtn.disabled = true;
- }
+ if (!keepUndo) this.clearUndoSnapshot();
  return restored;
  }
 
@@ -1108,10 +1159,29 @@ window.DataPortabilityFeature = class {
  }
  }
 
- undoImport() {
+ async undoImport() {
  if (!this.undoSnapshot) return this.app.showInfo('暂无可撤销的导入操作');
+ if (this.isUndoExpired()) {
+ this.clearUndoSnapshot();
+ return this.app.showInfo('这次导入已超过 30 分钟，撤销已失效；如需恢复请用备份文件');
+ }
  const snapshot = this.undoSnapshot;
+ /* 【8.3.56】点下去之前先说清楚会丢什么。
+ 统计口径是「条数差」，不猜内容 —— 用户要的是「我会少几条单」，不是技术细节。 */
+ const nowHistory = Array.isArray(this.app.history) ? this.app.history.length : 0;
+ const addedHistory = Math.max(0, nowHistory - (Number(snapshot.historyCount) || 0));
+ const nowBoss = Array.isArray(this.app.bossMemory) ? this.app.bossMemory.length : 0;
+ const addedBoss = Math.max(0, nowBoss - (Number(snapshot.bossCount) || 0));
+ const losses = [];
+ if (addedHistory > 0) losses.push(addedHistory + ' 条订单记录');
+ if (addedBoss > 0) losses.push(addedBoss + ' 条老板记忆');
+ const warning = losses.length
+ ? '导入后新增的 ' + losses.join('、') + ' 会被一并删除。'
+ : '导入后没有新增记录，撤销只影响导入进去的数据。';
+ const confirmed = await this.app.showConfirm('撤销本次导入？\n' + warning + '\n恢复后无法重做这次撤销。');
+ if (!confirmed) return false;
  if (this.restoreImportSnapshot(snapshot)) this.app.showSuccess('已撤销本次导入');
  else this.app.showError('撤销导入失败，请使用备份文件恢复');
+ return true;
  }
  }

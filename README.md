@@ -160,7 +160,7 @@ webView.loadUrl("file:///android_asset/index.html")
 │   ├── arch-baseline.json                             # 上述快照的基线，有意改动后须 --update
 │   ├── season-pair-switch.js                          # 赛季配对切换（真实 DOM，守「当前库必须参与查价」）
 │   ├── regression-854.js                              # 8.3.54 回归（单价/记忆/提取/复位，含反向验证）
-│   └── run-all.sh                                     # 统一测试入口（25 套防线一次跑完）
+│   └── run-all.sh                                     # 统一测试入口（27 套防线一次跑完）
 ├── tools/             # 开发工具（非运行时依赖，不参与 index.html）
 │   ├── set-version.js                                 # 版本号落点改写器（发版用）
 │   ├── release.sh                                     # 一键发布（改版本号→打包→写清单→跑防线）
@@ -194,7 +194,7 @@ webView.loadUrl("file:///android_asset/index.html")
 ```bash
 npm ci                             # JS 侧测试需要（锁定 jsdom 版本；不要用 npm install 裸装）
 
-# 推荐：统一入口，一次跑完全部 25 套防线
+# 推荐：统一入口，一次跑完全部 27 套防线
 bash tests/run-all.sh              # 全量（含约 4 分钟变异测试）
 bash tests/run-all.sh --fast       # 日常提交：跳过变异测试
 bash tests/run-all.sh --fast --require-package   # CI / 发版：缺包即判失败
@@ -300,7 +300,7 @@ node tools/css-diff-check.js <改动前.html> <改动后.html>
 
 ## 版本
 
-当前版本：`8.3.54`
+当前版本：`8.3.55`
 
 版本规则：第三位用于内部修订；第二位在整体达到预期、无已知阻断并确认可交付后晋升。
 

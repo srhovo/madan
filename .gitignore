@@ -44,3 +44,8 @@ _verify_pkg/
 # 不该为它付 14MB + 364MB 浏览器的代价），所以这些脚本也无法在 CI 跑。
 # 属于「开发者按需使用的取证工具」，不进仓库。
 .verify/
+
+# 重构等价性差分用的「改造前快照」（8.3.57 起）：只在本地保留，供 verify_equiv.js 复跑
+index.before-*.html
+# project-chain 测试的中转输出（脚本会自己重建）
+project-chain.json

@@ -27,6 +27,7 @@
  * 退出码：0 全部通过 / 1 有断言失败
  */
 const fs = require('fs');
+const { ANCHORS: A } = require('./_anchors.js');
 const path = require('path');
 const vm = require('vm');
 
@@ -421,12 +422,12 @@ console.log('\n⑨ 反向验证：把功能拆掉后，断言必须变红');
     !/updateGiftPriceRow\(isGiftMode\)[\s\S]{0,2200}?el\.hidden = !giftMode/.test(noHidden));
 
   // 反向 3：把补绑调用删掉，补绑断言必须变红
-  const noLateCall = html.replace('this.inputFlowFeature.bindLateInjectedInputs?.();', '');
+  const noLateCall = html.replace(A.bindLateInputsCall.text, '');
   ck('删掉补绑调用后，链路断言确实会失败',
     !(/this\.inputFlowFeature\.bindLateInjectedInputs\?\.\(\)/.test(noLateCall)));
 
   // 反向 4：把输入流的触发条件删掉，链路断言必须变红
-  const noTrigger = html.replace("if (key === 'totalPrice' || key === 'autoUnitPrice' || key === 'giftQuantity') {", 'if (false) {');
+  const noTrigger = html.replace(A.giftTotalKeyGate.text, 'if (false) {');
   ck('删掉输入流触发条件后，链路断言确实会失败',
     !/key === 'totalPrice' \|\| key === 'autoUnitPrice' \|\| key === 'giftQuantity'/.test(noTrigger));
 

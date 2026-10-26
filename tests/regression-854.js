@@ -16,6 +16,7 @@
 const fs = require('fs');
 const path = require('path');
 const { JSDOM, VirtualConsole } = require('jsdom');
+const { ANCHORS: A } = require('./_anchors.js');
 
 const HTML_PATH = process.argv[2] || path.join(__dirname, '..', 'index.html');
 const BASE_HTML = fs.readFileSync(HTML_PATH, 'utf8');
@@ -290,6 +291,64 @@ async function checkLinkedSurfaces(app, w) {
   ck('时长计算器 10:00→11:12 有结果', !!std && std.textContent.trim() !== '', std && std.textContent.slice(0, 30));
 }
 
+
+/* ─────────────── ⑦ 8.3.56：新建价格库 / 撤销导入 ───────────────
+   两处都是「用户点一下就会踩」的坑：
+     · 新建：改名框预填当前库名，直接点新建必报「已存在同名价格库」；
+     · 撤销：快照常驻内存，导入后干半天活再误点，会把之后所有操作一起回滚。
+   这里既验「现在是对的」，也靠反向验证证明「改坏会红」。 */
+async function checkLibraryCreateAndUndo(app, w) {
+  console.log('\n⑦ 8.3.56：新建价格库自动命名 / 撤销导入有时限与确认');
+  const d = w.document;
+
+  d.getElementById('priceMemTabBtn').click();
+  await wait(120);
+  app.priceRuleEditorFeature.updatePriceMemoryUI();
+  const before = app.priceLibraries.libraries.length;
+  const nameBox = d.getElementById('pmLibraryName');
+  const nameBefore = String((nameBox && nameBox.value) || '');
+  d.getElementById('pmLibraryCreateBtn').click();
+  await wait(220);
+  const afterFirst = app.priceLibraries.libraries.length;
+  d.getElementById('pmLibraryCreateBtn').click();
+  await wait(220);
+  const afterSecond = app.priceLibraries.libraries.length;
+  ck('改名框里就是当前库名时，点新建仍能成功', afterFirst === before + 1, { before, afterFirst, nameBefore });
+  ck('连点第二次新建也成功（自动去重命名）', afterSecond === before + 2, { afterSecond });
+  const libNames = app.priceLibraries.libraries.map(item => item.name);
+  ck('新建后库名无重复', new Set(libNames).size === libNames.length, libNames);
+
+  const dp = await app.ensureLazyFeature('dataPortabilityFeature');
+  ck('数据备份模块可加载', !!dp);
+  if (!dp) return;
+
+  app.history = [{ id: 'undo-1' }];
+  app.bossMemory = [];
+  dp.captureUndoSnapshot();
+  const undoBtn = d.getElementById('dpUndoImportBtn');
+  ck('刚导入完，撤销按钮可用', !!undoBtn && undoBtn.disabled === false);
+  app.history.push({ id: 'undo-2' }, { id: 'undo-3' });
+
+  const pending = dp.undoImport();
+  await wait(260);
+  const confirmModal = d.getElementById('confirmModal');
+  const msg = String((d.getElementById('confirmMessage') && d.getElementById('confirmMessage').textContent) || '');
+  ck('点撤销会先弹确认框', !!confirmModal && !confirmModal.hidden);
+  ck('确认框写明会丢 2 条订单记录', /2 条订单记录/.test(msg), msg.slice(0, 90));
+  d.getElementById('confirmNo').click();
+  const cancelled = await pending;
+  ck('点取消 → 一条都不删', cancelled === false && app.history.length === 3, { cancelled, len: app.history.length });
+
+  const ttl = Number(dp.constructor.UNDO_TTL_MS) || 30 * 60 * 1000;
+  dp.captureUndoSnapshot();
+  // 变异后（TTL 被改成极小值）capture 内部就会判定过期并清空快照，这里必须容错
+  if (dp.undoSnapshot) dp.undoSnapshot.createdAt = Date.now() - ttl - 60000;
+  dp.refreshUndoAvailability();
+  ck('超过时限 → 按钮禁用且文案为「撤销已过期」',
+    !!undoBtn && undoBtn.disabled === true && undoBtn.textContent === '撤销已过期',
+    { disabled: undoBtn && undoBtn.disabled, text: undoBtn && undoBtn.textContent });
+}
+
 /* ─────────────── 反向验证 ─────────────── */
 async function expectRed(name, mutate, run) {
   const mutated = mutate(BASE_HTML);
@@ -305,6 +364,11 @@ async function expectRed(name, mutate, run) {
   bucket = [];
   try {
     await run(ctx.app, ctx.w);
+    /* 【8.3.56】给悬挂的异步留一点落定时间。
+       变异后某些路径会「提前 return」（例如撤销因过期直接返回），
+       它后续的 await 链可能在 run 返回之后才继续执行 ck —— 那些断言会跑到 bucket 之外，
+       把「变异导致的红」记成「产品失败」。这里等 250ms 再收集，迟到断言仍算进本次变异。 */
+    await wait(250);
   } finally {
     const results = bucket;
     bucket = null;
@@ -327,6 +391,7 @@ async function expectRed(name, mutate, run) {
   await checkExcludeWords(app);
   await checkShortcutAndClear(app, w);
   await checkLinkedSurfaces(app, w);
+  await checkLibraryCreateAndUndo(app, w);
 
   /* ── 布局守卫（源码级，不是布局验证） ─────────────────────────────
      库名那一行曾经「右侧勾选框跑到白框外」：.pm-library-list 是 grid，
@@ -335,7 +400,7 @@ async function expectRed(name, mutate, run) {
      （scrollWidth == clientWidth、勾选框右沿 ≤ 白框右沿）。
      jsdom 没有布局引擎，这里只能做「关键声明还在不在」的守卫，
      防止以后有人把 minmax 或 min-width 删回去。 */
-  console.log('\n⑦ 布局守卫（源码级，防声明被删）');
+  console.log('\n⑧ 布局守卫（源码级，防声明被删）');
   const ruleBlock = (selector) => {
     const i = BASE_HTML.indexOf(selector + ' {');
     if (i < 0) return '';
@@ -346,32 +411,62 @@ async function expectRed(name, mutate, run) {
   ck('.pm-library-row 允许收缩（min-width:0）', /min-width:\s*0/.test(ruleBlock('.pm-library-row')));
   ck('窄屏库名允许折行（≤430 两行 / ≤340 三行）', /@media \(max-width: 430px\)[\s\S]{0,400}-webkit-line-clamp:\s*2/.test(BASE_HTML) && /@media \(max-width: 340px\)[\s\S]{0,200}-webkit-line-clamp:\s*3/.test(BASE_HTML));
 
-  console.log('\n⑧ 反向验证（防「假的绿」）');
+  /* ── 结构守卫：8.3.57 的转发壳收口不许回潮 ───────────────────────
+     13 个 Feature 曾经各自抄了 112 个「return this.app.X(...args)」单行方法。
+     收进 FeatureBase 之后，如果有人再往某个类里加回这种转发，
+     功能不会坏，但会把类越写越厚、且下次改基类时漏掉它。
+     这里只做源码级守卫；等价性本身已用 old/new 差分（19 步 DOM 快照 + 三张截图逐像素）证明过。 */
+  console.log('\n⑦-b 结构守卫（转发壳不许回潮）');
+  const CUR_HOURS = ['RatioFeature', 'ExtractionFeature', 'BossMemoryFeature', 'HistoryFeature', 'PriceMemoryFeature',
+    'LayoutFeature', 'InputFlowFeature', 'MemoryPanelFeature', 'PriceRuleEditorFeature', 'AutoPriceFeature',
+    'ServiceSuggestionFeature', 'PriceQuickPickFeature', 'EventDelegationFeature'];
+  ck('FeatureBase 存在', /^class FeatureBase \{/m.test(BASE_HTML));
+  const notExtending = CUR_HOURS.filter(name => !new RegExp('^[ \\t]*class ' + name + ' extends FeatureBase \\{', 'm').test(BASE_HTML));
+  ck('13 个 Feature 都继承 FeatureBase', notExtending.length === 0, notExtending);
+  const relapsed = CUR_HOURS.filter(name => {
+    const i = BASE_HTML.search(new RegExp('^[ \\t]*class ' + name + ' extends FeatureBase \\{', 'm'));
+    if (i < 0) return false;
+    const next = BASE_HTML.slice(i + 10).search(/^[ \t]*class \w+/m);
+    const seg = next < 0 ? BASE_HTML.slice(i) : BASE_HTML.slice(i, i + 10 + next);
+    return /\(\\.\\.\\.args\)\s*\{\s*return this\.app\./.test(seg);
+  });
+  ck('这 13 个类里没有回潮的转发壳', relapsed.length === 0, relapsed);
+
+  console.log('\n⑨ 反向验证（防「假的绿」）');
   await expectRed(
     '手输价按项目名校验',
-    html => html.replace('if (registered && current && registered !== current) return null;', 'if (false) return null;'),
+    html => html.replace(A.manualPriceNameGuard.text, 'if (false) return null;'),
     async (a, win) => { await checkManualPrice(a, win); }
   );
   await expectRed(
     '换项目清掉旧项目',
-    html => html.replace('if (nextNames && nextNames !== currentNames) {', 'if (false) {'),
+    html => html.replace(A.clearStaleProjects.text, 'if (false) {'),
     async (a, win) => { await checkNoStaleProjects(a, win); }
   );
   await expectRed(
     '编辑位置随删除校正',
-    html => html.replace('else if (this.editingIndex > index) this.editingIndex -= 1;', 'else if (false) this.editingIndex -= 1;'),
+    html => html.replace(A.editingIndexShift.text, 'else if (false) this.editingIndex -= 1;'),
     async a => { await checkBossMemory(a); }
   );
   await expectRed(
     '剥掉名字末尾的时间',
-    html => html.replace(' stripTrailingTimeToken(value) {\n const text = String(value ?? \'\');', ' stripTrailingTimeToken(value) {\n return value;\n const text = String(value ?? \'\');'),
+    html => html.replace(A.stripTrailingTimeToken.text, ' stripTrailingTimeToken(value) {\n return value;\n const text = String(value ?? \'\');'),
     async a => { await checkExtraction(a); }
   );
   await expectRed(
     '输入框内放行 Ctrl+C',
-    html => html.replace('if ((event.ctrlKey || event.metaKey) && !editableTarget', 'if ((event.ctrlKey || event.metaKey) && true'),
+    html => html.replace(A.ctrlCPassInput.text, 'if ((event.ctrlKey || event.metaKey) && true'),
     async (a, win) => { await checkShortcutAndClear(a, win); }
   );
+  /* 【8.3.56】8.3.56 这两处（新建库自动命名 / 撤销导入时限）没有配「行为级」反向验证，
+     改用锚点体检承担：
+       · 为什么不用：这两处的变异会让页面在**变异页**里走进「没有快照 / 没有弹框」的早退分支，
+         早退分支里残留的异步会在 expectRed 收集完之后才触发断言，把「变异生效」误记成「产品失败」。
+         修这个反而要在测试里加"忽略迟到断言"的开关，那个开关本身就会吞真实失败 —— 不值得。
+       · 为什么可以不用：两条锚点已登记在 tests/_anchors.js（createLibraryAutoName / undoImportTTL），
+         一旦有人把这两行删掉或改名，第 27 套「锚点体检」会直接红，并指名是哪一条。
+       · 正向行为仍有断言：见上面 ⑦ 段（连点两次新建必成功、过期后按钮禁用且文案为「撤销已过期」）。
+     这是有意识的取舍，不是漏写。 */
 
   console.log('\n═════ 判定 ═════');
   if (fail === 0) {

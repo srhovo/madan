@@ -22,6 +22,7 @@
  * 退出码：0 全部通过 / 1 有断言失败
  */
 const fs = require('fs');
+const { ANCHORS: A } = require('./_anchors.js');
 const path = require('path');
 const vm = require('vm');
 
@@ -280,15 +281,12 @@ console.log('\n⑥ 反向验证：把功能拆掉后，断言必须变红');
   ck('拆掉动态文案后，正向断言确实会失败（不是假的绿）', brokenOk === false);
 
   // 反向 2：删掉 app 门面的转发，链路断言必须变红
-  const noBridge = html.replace(
-    'updateGiftDiscountNote(...args) { return this.modeFlowFeature.updateGiftDiscountNote(...args); }',
-    ''
-  );
+  const noBridge = html.replace(A.giftNoteFacade.text, '');
   ck('删掉门面转发后，链路断言确实会失败', !noBridge.includes('updateGiftDiscountNote(...args) { return this.modeFlowFeature'));
 
   // 反向 3：把调用点改成误用 this.currentMode，陷阱断言必须变红
   const wrongGuardSrc = html.replace(
-    'if (key === \'totalPrice\' || key === \'discount\' || key === \'discountOverlay\') {\n this.app.updateGiftDiscountNote?.();',
+    A.discountKeyGate.text,
     'if (Number(this.currentMode) === 2 && (key === \'totalPrice\' || key === \'discount\' || key === \'discountOverlay\')) {\n this.app.updateGiftDiscountNote?.();'
   );
   const trapHit = /handleMainInput[\s\S]{0,900}?Number\(this\.currentMode\) === 2[\s\S]{0,120}?updateGiftDiscountNote/.test(wrongGuardSrc);
@@ -296,17 +294,11 @@ console.log('\n⑥ 反向验证：把功能拆掉后，断言必须变红');
 
   /* 反向 4【8.3.45】：把新增的两个清除路径刷新删掉，对应断言必须变红。
      否则这四条断言只是「源码里碰巧有这几个字」，挡不住以后被删。 */
-  const noClearInput = html.replace(
-    " if (targetId === 'discount' || targetId === 'discountOverlay' || targetId === 'totalPrice') this.app.updateGiftDiscountNote?.();\n",
-    ''
-  );
+  const noClearInput = html.replace(A.clearFieldRefresh.text, '');
   const clearInputGone = /targetId === 'discount'[\s\S]{0,200}?updateGiftDiscountNote/.test(noClearInput);
   ck('删掉单字段清除的刷新后，该断言确实会失败', clearInputGone === false);
 
-  const noClearAll = html.replace(
-    ' this.app.updateGiftDiscountNote?.();\n this.bossMemoryFeature.hideBossSuggestions();',
-    ' this.bossMemoryFeature.hideBossSuggestions();'
-  );
+  const noClearAll = html.replace(A.clearAllRefresh.text, ' this.bossMemoryFeature.hideBossSuggestions();');
   const clearAllGone = /clearAll\(\)\s*\{[\s\S]{0,1200}?updateGiftDiscountNote/.test(noClearAll);
   ck('删掉「全部清除」的刷新后，该断言确实会失败', clearAllGone === false);
 
