@@ -39,14 +39,15 @@ const src = [
   extractClass('PriceRuleEngine'),
   extractClass('ProjectSettlementEngine'),
   extractClass('SurchargeRuleEngine'),
+  extractClass('DurationCalculatorEngine'),
 ].join('\n\n');
 
 // 运行时依赖检查（引擎可能引用的全局）
 const sandbox = { appLogSilent, console };
 const vm = require('vm');
 const ctx = vm.createContext(sandbox);
-vm.runInContext(src + '\n;globalThis.__exports = { PriceRuleEngine, ProjectSettlementEngine, SurchargeRuleEngine };', ctx);
-const { PriceRuleEngine, ProjectSettlementEngine, SurchargeRuleEngine } = sandbox.__exports;
+vm.runInContext(src + '\n;globalThis.__exports = { PriceRuleEngine, ProjectSettlementEngine, SurchargeRuleEngine, DurationCalculatorEngine };', ctx);
+const { PriceRuleEngine, ProjectSettlementEngine, SurchargeRuleEngine, DurationCalculatorEngine } = sandbox.__exports;
 
 let passed = 0, failed = 0;
 function check(name, actual, expected) {
@@ -319,6 +320,25 @@ check('apply(null,null,null,{}) 不抛异常且不触发', nullRes.triggered, fa
 const nullRulesNumeric = SurchargeRuleEngine.apply('', makeProjects(), null, { surchargeText: '15' });
 check('apply(rules=null) 数字加价仍生效', nullRulesNumeric.applications.length, 2);
 check('apply(rules=null) 数字加价总额', nullRulesNumeric.aggregate.totalPrice, 170 + 45 + 30);
+
+// ---------- 时长档位引擎：正常档位 + 防死循环护栏 ----------
+// 【审计补丁·2】getMatchedTiers 的循环曾对超大时长退化为无限循环：
+//   nearestHour ≥ 2^53 时 hour += 1 不再改变数值，`hour <= nearestHour + 1` 恒真。
+//   下面这组断言是它的回归锚点：护栏被删掉时，本文件会卡死而不是报错 ——
+//   卡死同样是红，只是红得难看，故再补一条「正常时长逐档不变」的对照。
+check('档位 51min → 1h', DurationCalculatorEngine.analyze(51, true, 0).st, '1h');
+check('档位 71min → 1h+1局', DurationCalculatorEngine.analyze(71, true, 0).st, '1h+1局');
+check('档位 110min → 1h+2局', DurationCalculatorEngine.analyze(110, true, 0).st, '1h+2局');
+check('档位 147min → 2.5h', DurationCalculatorEngine.analyze(147, true, 0).st, '2.5h');
+check('档位 1439min → 24h', DurationCalculatorEngine.analyze(1439, true, 0).st, '24h');
+check('档位 0min 全胜 → 等待输入', DurationCalculatorEngine.analyze(0, true, 0).st, '--');
+check('超安全整数时长不再死循环（返回空档位）', DurationCalculatorEngine.getMatchedTiers(1e21), []);
+check('超安全整数时长 analyze 不抛异常', DurationCalculatorEngine.analyze(1e21, true, 5).st, '--');
+check('Infinity 时长不抛异常（全胜分支）', DurationCalculatorEngine.analyze(Infinity, true, 5).st, '--');
+check('Infinity 时长非全胜仍可折算', DurationCalculatorEngine.analyze(Infinity, false, 5).st, '1h+2局');
+check('非法文本时长不抛异常', DurationCalculatorEngine.analyze('abc', true, 5).st, '--');
+check('最大局数：50min → 2局', DurationCalculatorEngine.getMaxGames(50), 2);
+check('最大局数：180min → 9局', DurationCalculatorEngine.getMaxGames(180), 9);
 
 // ---------- 目标文件与版本号核对 ----------
 const versionMatch = html.match(/const APP_VERSION = '([^']+)'/);

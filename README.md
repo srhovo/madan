@@ -79,7 +79,7 @@ webView.loadUrl("file:///android_asset/index.html")
 | **Engine 层** | 纯计算 | `OrderEngine`、`PriceRuleEngine`、`SurchargeRuleEngine`、`ProjectSettlementEngine` 等，无 DOM 操作、无副作用，可独立测试 |
 | **Storage 层** | 持久化 | `UltimateStorageManager` 统一封装 localStorage / cookie / memory 三级降级，重要数据写入后回读校验 |
 | **Feature 层** | UI 交互 | 各 Feature 类负责绑定事件、渲染列表、协调 Engine 与 Store |
-| **UI 组件层** | 基础组件 | `UiModal` / `UiToast` / `UiConfirm` / `UiButton` 等可复用组件 |
+| **渲染层** | UI 渲染 | `UiRenderHelper`（统一渲染 / 转义 / 列表更新）、`AppShellRenderer`（首屏骨架）、`DialogManager`（弹窗注册与焦点陷阱） |
 
 ### 存储健壮性
 - 三级降级兜底：localStorage → cookie → 内存，任一可用即不丢数据
@@ -160,7 +160,7 @@ webView.loadUrl("file:///android_asset/index.html")
 │   ├── arch-baseline.json                             # 上述快照的基线，有意改动后须 --update
 │   ├── season-pair-switch.js                          # 赛季配对切换（真实 DOM，守「当前库必须参与查价」）
 │   ├── regression-854.js                              # 8.3.54 回归（单价/记忆/提取/复位，含反向验证）
-│   └── run-all.sh                                     # 统一测试入口（27 套防线一次跑完）
+│   └── run-all.sh                                     # 统一测试入口（28 套防线一次跑完）
 ├── tools/             # 开发工具（非运行时依赖，不参与 index.html）
 │   ├── set-version.js                                 # 版本号落点改写器（发版用）
 │   ├── release.sh                                     # 一键发布（改版本号→打包→写清单→跑防线）
@@ -194,7 +194,7 @@ webView.loadUrl("file:///android_asset/index.html")
 ```bash
 npm ci                             # JS 侧测试需要（锁定 jsdom 版本；不要用 npm install 裸装）
 
-# 推荐：统一入口，一次跑完全部 27 套防线
+# 推荐：统一入口，一次跑完全部 28 套防线
 bash tests/run-all.sh              # 全量（含约 4 分钟变异测试）
 bash tests/run-all.sh --fast       # 日常提交：跳过变异测试
 bash tests/run-all.sh --fast --require-package   # CI / 发版：缺包即判失败
@@ -212,7 +212,7 @@ node tests/project-chain.js index.html ./project-chain.json
 node test-engine.js index.html                # 版本号自动从 APP_VERSION 提取
 python3 tests/mutate-chain.py      # 变异测试：验证断言不是「假的绿」
 
-# 发布专项（run-all.sh 已含前者）
+# 发布专项（run-all.sh 已含前两者）
 python3 tests/check-package-selfcontained.py madan-<版本>.zip   # 包必须自包含
 node tests/ota-loop-guard.js       # 防无限重载闸门（含旧逻辑对照）
 node tests/ota-e2e.js              # 真实包 + 真实 version.json 端到端（版本自适应）

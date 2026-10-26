@@ -32,6 +32,8 @@
  * 5. （8.3.30 新增）同一版本最多尝试一次更新，用 localStorage 的
  *    'pw_ultimate_updateAttemptedVersion' 记录；这是防无限重载的闸门。
  *    除该标记外，本脚本不写入任何其他 localStorage key。
+ *    （审计修正）记账时机是「下载成功之后、切换之前」—— 下载失败不记账，
+ *    否则弱网下一次失败就会让该版本在本机永久失去更新机会。
  */
 (function () {
   'use strict';
@@ -141,6 +143,7 @@
   //   这里用 localStorage 记住「本机已经尝试过的最高版本号」：同一版本
   //   成功切换过一次后就不再重复尝试；即便切换失败（回退发生），也只会
   //   尝试这一次，不会无限重载。存储不可用时静默降级为不记忆。
+  //   ⚠️ 记账时机见 applyUpdate：只在「下载成功之后」写，下载失败必须可重试。
   var ATTEMPT_KEY = 'pw_ultimate_updateAttemptedVersion';
 
   function readAttemptedVersion() {
@@ -163,8 +166,12 @@
       return;
     }
 
-    // 先落记录再下载：确保即便下载/切换过程中断，也不会在下次启动重复尝试。
-    rememberAttemptedVersion(manifest.version);
+    // 闸门记账的位置很关键：必须「下载成功之后、切换之前」。
+    // 原先是下载**之前**就记账，于是弱网下下载失败也会把该版本记成「已尝试」，
+    // 之后每次启动都被上面那道闸门挡回 —— 这一版在本机永远装不上，用户静默停在旧版。
+    // 而无限重载的成因是「切换后被原生层回退」，与下载失败无关：
+    // 下载失败什么都没发生，重试是安全的；一旦下载成功、准备切换，才需要记账防循环。
+    // （本次审计修正，见 update-checker.js 的 CHANGELOG 说明）
 
     // 暂时不传 checksum：插件校验哈希的具体算法/格式没有把握确认，
     // 先排除这个变量，确认下载+切换这条主链路本身没问题。
@@ -173,6 +180,9 @@
 
     Updater.download(downloadOpts)
       .then(function (bundle) {
+        // 下载成功 → 落记录 → 再切换。此时记账才既能挡住「切换后回退」的循环，
+        // 又不会误伤「下载失败」这种可安全重试的情况。
+        rememberAttemptedVersion(manifest.version);
         log('新版本下载完成，正在切换…');
         return Updater.set(bundle);
       })

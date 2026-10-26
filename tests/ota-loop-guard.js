@@ -16,6 +16,7 @@ function makeDevice(initialStore) {
     downloads: 0,
     sets: 0,
     readyCalls: 0,
+    failDownload: false,
   };
 }
 
@@ -52,7 +53,12 @@ function boot(device, cloudVersion) {
         Plugins: {
           CapacitorUpdater: {
             notifyAppReady: () => { device.readyCalls++; return Promise.resolve(); },
-            download: () => { device.downloads++; return Promise.resolve({ id: 'bundle' }); },
+            download: () => {
+              device.downloads++;
+              return device.failDownload
+                ? Promise.reject(new Error('network down'))
+                : Promise.resolve({ id: 'bundle' });
+            },
             set: () => { device.sets++; return Promise.resolve(); },
           },
         },
@@ -108,6 +114,28 @@ async function main() {
   console.log(`    下载 ${dev4.downloads} 次 / notifyAppReady ${dev4.readyCalls} 次`);
   assert('读不到版本号时不下载（旧逻辑会永远判有新版本）', dev4.downloads === 0, `实际 ${dev4.downloads}`);
   assert('读不到版本号时仍调用 notifyAppReady', dev4.readyCalls === 1);
+
+  /* 【审计补丁·3】场景五：下载失败必须可重试。
+     旧逻辑在 download 之前就写「已尝试」，于是弱网失败一次，这一版在本机
+     就永久失去更新机会（之后每次启动都被闸门挡回）。修复后记账点在
+     「下载成功之后、切换之前」：失败不入库，下次启动照常再试。 */
+  console.log('\n【场景五】下载连续失败两次后恢复网络 —— 应能重试并最终装上');
+  const dev5 = makeDevice({});
+  dev5.localAppVersion = '8.3.29';
+  dev5.failDownload = true;
+  await boot(dev5, '8.3.30');
+  await boot(dev5, '8.3.30');
+  const attemptedAfterFail = dev5.store['pw_ultimate_updateAttemptedVersion'] || '';
+  console.log(`    两次失败后：下载 ${dev5.downloads} 次 / 切换 ${dev5.sets} 次 / 记录 "${attemptedAfterFail}"`);
+  assert('下载失败不写「已尝试」记录', attemptedAfterFail === '', `实际 "${attemptedAfterFail}"`);
+  assert('下载失败不切换资源包', dev5.sets === 0, `实际 ${dev5.sets}`);
+  dev5.failDownload = false;
+  await boot(dev5, '8.3.30');
+  console.log(`    恢复网络后：下载 ${dev5.downloads} 次 / 切换 ${dev5.sets} 次`);
+  assert('恢复网络后能重试并成功切换（旧逻辑会永久卡在旧版）', dev5.sets === 1, `实际 ${dev5.sets}`);
+  assert('成功切换后才写「已尝试」记录', dev5.store['pw_ultimate_updateAttemptedVersion'] === '8.3.30');
+  await boot(dev5, '8.3.30');
+  assert('切换成功之后不再重复下载（循环闸门仍然有效）', dev5.downloads === 3, `实际 ${dev5.downloads}`);
 
   console.log('\n' + (fail === 0 ? '=== 全部通过 ===' : `=== 失败 ${fail} 项 ===`));
   process.exit(fail === 0 ? 0 : 1);
