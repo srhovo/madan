@@ -4,7 +4,7 @@
  <!-- 主要结构：顶部说明区 / 输入与提取区 / 订单结果区 / 历史记录区 / 老板与单价记忆库 / 数据备份迁移 -->
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>码单器8.3.53</title>
+ <title>码单器8.3.54</title>
  <style>
  :root {
  /* 颜色变量 */
@@ -773,11 +773,19 @@
 .pm-library-list {
  flex: 1 1 100%;
  display: grid; gap: 4px;
+ /* 【修复·库名出框】grid 的隐式列默认是 auto，会按行的「最小内容宽度」撑开
+    （名字再长也不许小于它），于是行宽超过容器 —— 安卓上右侧「一起用」勾选框
+    直接跑到白框外面，iOS 上则被 .mem-panel 的 overflow:hidden 切掉一半，
+    两个平台都错，只是表现不同。显式写成 minmax(0, 1fr)：轨道永远不超过容器，
+    多出来的宽度交给名字那一格用省略号吸收。 */
+ grid-template-columns: minmax(0, 1fr);
  min-width: 0;
 }
 .pm-library-row {
  display: flex; align-items: center; gap: 8px;
  padding: 7px 10px; min-height: 38px;
+ /* 同为 grid 子项：默认 min-width:auto 会让它拒绝收缩到内容最小宽以下 */
+ min-width: 0;
  border: 1px solid var(--color-border-light); border-radius: var(--border-radius-md);
  background: var(--color-white);
  cursor: pointer; text-align: left; font: inherit;
@@ -899,6 +907,35 @@
     下拉框已换成库清单（.pm-library-list 自带 `flex: 1 1 100%`，
     本来就占满整行），这条规则跟着失效，留着会让人以为还有个 select。 */
  .pm-toolbar .pm-library-name { flex: 1 1 100%; }
+ /* 【修复·库名出框】窄屏把固定占位收紧一点（只动间距，不动字号/控件尺寸），
+    把省下的十几像素还给库名 —— 否则「下次见CLUB · 赛季初」这类名字会被省略号啃掉尾巴。 */
+ .pm-library-row { gap: 6px; padding: 7px 8px; }
+ .pm-library-row .pm-library-merge { gap: 4px; padding: 3px 4px; }
+ /* 更窄的屏（iPhone 390 这类）整行放不下「名字 + 赛季标签 + 项数 + 一起用」，
+    这时让名字最多折两行 —— 库名末尾的「· 赛季初 / · 常驻」正是区分两套价的关键，
+    用省略号把它切掉比多占一行更糟。名字本来就短的话仍是一行，观感不变。 */
+ @media (max-width: 430px) {
+   .pm-library-row .pm-library-row-name {
+     white-space: normal; overflow: hidden; text-overflow: clip;
+     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+     line-height: 1.28;
+   }
+ }
+ /* 极窄屏（≤380，常见于 360px 安卓与 iPhone SE/mini）：把「N项」和「一起用」三个字让出来。
+    取舍理由：这一行真正的主语是库名，而名字末尾的赛季后缀（常驻/赛季初）是选错库就
+    会算错价的判别依据，不能被省略号吃掉。被让出的两项都有替代：
+      · 「N项」—— 下面「当前库」信息卡里仍写着「N 个精确项目」；
+      · 「一起用」三个字 —— 勾选框保留，长按有 title 说明，屏幕宽一点（≥381）就恢复。
+    勾选框本身加大到 31px 见方，避免去掉文字后点不中。 */
+ @media (max-width: 380px) {
+   .pm-library-row .pm-library-row-meta { display: none; }
+   .pm-library-row .pm-library-merge { padding: 8px; }
+   .pm-library-row .pm-library-merge span { display: none; }
+ }
+ /* 320 这类超窄屏再放宽一行：11 个字的名字两行放不下，硬切会把「· 常驻」切掉。 */
+ @media (max-width: 340px) {
+   .pm-library-row .pm-library-row-name { -webkit-line-clamp: 3; }
+ }
  .pm-toolbar .pm-library-count { margin-left: auto; }
  .pm-toolbar-actions { flex: 1 1 100%; justify-content: flex-end; }
  .pm-tabs {
@@ -4403,7 +4440,7 @@ html[data-order-mode="2"] #primaryFieldsContainer .field-type > input {
 
 
  <script>
-const APP_VERSION = '8.3.53';
+const APP_VERSION = '8.3.54';
 // Release note: 8.3.52 修复「导入下次见club后，切到默认价格表等其它库时，下次见价格表整体消失」——赛季配对不再因当前库是第三方而整对隐藏，并按折叠态/展开态各自给出展开与收起入口。
 // Release note: 8.3.51 修复「已在查价范围内的项目被重复保存 / 跨库复制」——现在只保存真正的新项目；顺带修掉 6 处元素路径写错导致「单项目 + 手输单价」保存链路失效的问题。
 //   ①【新增·赛季切换】有些团同一个项目有两套价（赛季初 / 常驻）。做法是**两个各自独立的价格库**，
@@ -4787,7 +4824,7 @@ class InlineChunkLoader {
  static stripExtractPlatformPrefix(value) {
  return NameTextUtils.normalizeExtractText(value)
  .replace(/^[@\s]+/, '')
- .replace(/^(?:See|FL|F\s*L)[\s\-.。．:：]*/i, '')
+ .replace(/^(?:See|FL|F\s*L)(?=[\s\-.。．:：]|$)[\s\-.。．:：]*/, '')
  .replace(/^f\s*派\s*陪?/i, '')
  .trim();
  }
@@ -4834,7 +4871,14 @@ class InlineChunkLoader {
  'see'
  ];
 
- if (excludeWords.some(word => name.toLowerCase().includes(word.toLowerCase()))) return false;
+ /* 【8.3.54 修】排除词改为「整名相等」，不再用 includes 做子串匹配。
+    原先单字/短词排除项（V、应、宝宝、刚刚、技术…）会把包含它们的正常名字整体判死：
+    实测 Vivi / 小V / 应采儿 / 宝宝巴士 / 刚刚好 / 技术流 全部 isValidName=false，
+    后果是这些名字进不了「待确认」弹窗、学习映射里的修正也会被丢掉 ——
+    用户看到的是「这个名字我改过好几次，下次还是错」。
+    真要拦「技术/娱乐」这类身份词，交给 roleBoundaryModelRe 去切，不要在这里按字判定。 */
+ const nameKey = name.toLowerCase();
+ if (excludeWords.some(word => nameKey === String(word).toLowerCase())) return false;
 
  if (/^\d+$/.test(name)) {
  if (allowPureNumbers) {
@@ -5558,6 +5602,17 @@ class InlineChunkLoader {
  }
  }
 
+ /* 【8.3.54】剥掉「名字 + 时间/局数」末尾的那一截。
+    覆盖真实输入里的三种尾巴：20:00 / 20:00-22:00、8点 / 8点30分、1h / 2小时 / 3局。
+    只在末尾匹配，且要求至少剩一个字，避免把「小8」这类名字整体吃掉。 */
+ stripTrailingTimeToken(value) {
+ const text = String(value ?? '');
+ if (!text) return text;
+ const pattern = /\s*(?:\d{1,2}\s*[:：]\s*\d{1,2}(?:\s*[-~—至]\s*\d{1,2}\s*[:：]\s*\d{1,2})?|\d{1,2}\s*[点時时](?:\s*\d{1,2}\s*分)?|\d+(?:\.\d+)?\s*(?:h|小时|局|把|min|分钟))\s*$/iu;
+ const next = text.replace(pattern, '').trim();
+ return next && next !== text.trim() ? next : text;
+ }
+
  stripRoleTailByMemory(value) {
  const source = this.compactExtractName(value);
  const tail = source.replace(/[娱技派歌陪单审]+$/u, '');
@@ -5567,6 +5622,9 @@ class InlineChunkLoader {
  if (name.toLowerCase() === tail.toLowerCase()) return tail;
  }
  }
+ /* 【8.3.54】保持原语义（无残字时返回整串）。「整串带时间」的问题已在
+    decidePlayableName 入口用 stripTrailingTimeToken 解决 —— 被污染的原串
+    根本不会进入候选池，这里再改评分只会误伤「卡密 黄色」这类正常带空格的名字。 */
  return source;
  }
 
@@ -5588,7 +5646,13 @@ class InlineChunkLoader {
  }
 
  const candidates = [];
- const noPrefix = this.stripExtractPlatformPrefix(this.stripExtractQuotes(normalizedRaw));
+ const noPrefixRaw = this.stripExtractPlatformPrefix(this.stripExtractQuotes(normalizedRaw));
+ /* 【8.3.54 修】先把「名字 + 时间/局数」里的尾巴剥掉再进候选池。
+    真实输入里极常见：接龙「1、阿豪 8点」、@「@阿豪 1h」、@「@小雪 20:00-22:00」。
+    原先整串进模型，整串又因为下面那条「身份残字」规则白拿 32 分，
+    于是输出「阿豪8点」「小雪20」——名字错了，人数和到手金额跟着错。
+    剥尾巴只做在「整串末尾」，不动中间，避免误伤「小8点」这类真名字（它没有时间形态）。 */
+ const noPrefix = this.stripTrailingTimeToken(noPrefixRaw);
 
  // 【修复#11-规则1】清洗后全等豁免：主体（去引号/前缀/emoji装饰）与已确认名完全一致时直接高置信命中，
  // 修复"团小雪🌸"这类带装饰的名字被前缀剥离/强分隔符规则切碎的问题
@@ -5614,10 +5678,10 @@ class InlineChunkLoader {
 
  this.addPlayableCandidate(candidates, noPrefix, 18, ['去除平台/来源前缀后的主体']);
 
- const bracket = noPrefix.split(this.roleBoundaryModelRe())[0];
+ const bracket = this.stripTrailingTimeToken(noPrefix.split(this.roleBoundaryModelRe())[0]);
  if (bracket && bracket !== noPrefix) this.addPlayableCandidate(candidates, bracket, 70, ['身份括号/身份词边界']);
 
- const strong = noPrefix.split(/[👑🥔💐🌸🌹✨💫⭐️🎉🎊🎈🎀❤️💕💖💗💙💚💛💜🧡🤍🖤🐾\t&＆|｜\/\\:：]/u)[0];
+ const strong = this.stripTrailingTimeToken(noPrefix.split(/[👑🥔💐🌸🌹✨💫⭐️🎉🎊🎈🎀❤️💕💖💗💙💚💛💜🧡🤍🖤🐾\t&＆|｜\/\\:：]/u)[0]);
  if (strong && strong !== noPrefix) this.addPlayableCandidate(candidates, strong, 34, ['强分隔符 / emoji / tab 边界']);
 
  const hyphen = noPrefix.split(/[-—–_]/u)[0];
@@ -5729,7 +5793,7 @@ class InlineChunkLoader {
  extractPatNamesModel(text) {
  const source = this.normalizeExtractText(text);
  const results = [];
- const pattern = /拍了拍\s*(自己|["']?)([^"'\n]{1,80}|["'][\s\S]{0,160}?["'])/g;
+ const pattern = /拍了拍\s*(自己|["']?)([^"'\n，,；;]{1,80}|["'][\s\S]{0,160}?["'])/g;
  let match;
  while ((match = pattern.exec(source)) !== null) {
  if (/拍了拍\s*自己/u.test(match[0])) continue;
@@ -5740,7 +5804,7 @@ class InlineChunkLoader {
  if (quoted) {
  target = quoted[1];
  } else {
- const plain = after.replace(/^\s*/, '').match(/^([^\s"']{1,40})/u);
+ const plain = after.replace(/^\s*/, '').match(/^([^\s"'，,；;]{1,40})/u);
  target = plain ? plain[1] : '';
  }
  if (!target || /自己/u.test(target) || /^see\s+[^.。．]/i.test(this.normalizeExtractText(target))) continue;
@@ -5761,6 +5825,15 @@ class InlineChunkLoader {
  segment = segment.split(/[，,;；@]/)[0].trim();
  let cut = segment.split(/[👑🥔💐🌸🌹✨💫⭐️🎉🎊🎈🎀❤️💕💖💗💙💚💛💜🧡🤍🖤🐾]/u)[0];
  cut = cut.split(this.roleBoundaryModelRe())[0];
+ /* 【8.3.54】@ 后面最常见的形态是「名字 + 一句正文」：@小应 在吗 / @Flora 来。
+    原先只有当整段超过 30 字才按空格切，于是正文被当成名字的一部分（小应在吗）。
+    这里只处理「空格后面是中文」的情况：拉丁名自带空格的（yu drops）不动，
+    带时间的（@阿豪 1h）也不动 —— 时间尾巴由 decidePlayableName 统一剥。 */
+ const spaceAt = cut.search(/\s/);
+ if (spaceAt > 0) {
+ const tail = cut.slice(spaceAt).trim();
+ if (/^[\u4e00-\u9fa5]/.test(tail)) cut = cut.slice(0, spaceAt).trim();
+ }
  if (!cut || cut.length > 30) cut = segment.split(/\s+/)[0];
  const result = this.decidePlayableName(cut || raw, 'at');
  result.raw = raw;
@@ -16571,6 +16644,13 @@ class PriceMemoryFeature {
  // 用途：服务类型框被清空（用户改时长/重打时常会先删干净）本身不代表要放弃定价，
  // 真正放弃定价的动作是「清空≠重新输入」——见 isExpressionManualPricesCompatible 的判定。
  this._expressionManualPriceSticky = null;
+ // 【8.3.54】粘滞价只能落在「填这个价时表达式里已有的项目」上。
+ // 原先粘滞价只记数值，且会回填给**所有**没定价的项目：
+ // 于是「1h甲+1h乙」定价 50/25 后把表达式改成「2局丙」，丙会凭空得到 25（乙的价）。
+ // 记下「填价那一刻表达式里有哪些项目」（scope）之后：
+ //   · 同一串里一次填价仍然可以覆盖多个未定价项目（保持既有手感）；
+ //   · 换成表达式里从没出现过的项目时，不再回填，回落库价/提示补价。
+ this._expressionManualPriceScope = new Set();
  // 8.3.27：本单是否已经「被服务类型框清空」。
  // 用户明确选择「服务类型框清空立即失效」：清空即本单结束，旧价不得再套到新单上。
  // 但清空同时是「改时长」的必经瞬间（全选重打/退格删空都要先经过空串），
@@ -16599,6 +16679,38 @@ class PriceMemoryFeature {
  return this._expressionManualPriceSticky;
  }
 
+ /* 【8.3.54 修·重要】手输单价的身份是「项目名」，不是「第几项」。
+    原先只按下标存取：把「1h甲+1h乙」定价 50 / 25 之后，把表达式改成「2局乙」，
+    乙会拿到甲留在 0 号位的 50 —— 静默算错钱，而且界面上完全看不出异常
+    （单价框里是个正常数字、总价也是个正常金额）。
+    现在每个价登记时带上「当时那一项的项目名指纹」，读取时对不上就不用，
+    回落到库价；库里也没有就按既有提示让用户补价，绝不再拿别人的价充当。
+    说明：_expressionManualPrices 只存在于内存、刷新即清，改结构没有迁移成本。 */
+ getExpressionItemNameKey(item) {
+ return this.normalizeManualNameKey(item?.serviceRaw ?? '');
+ }
+
+ readExpressionManualPrice(entries, index, item) {
+ try {
+ const entry = entries instanceof Map ? entries.get(index) : null;
+ if (!entry) return null;
+ // 兼容旧形状（直接存数字）：没有名字指纹时按「不校验」处理，行为与改动前一致
+ const price = PriceRuleEngine.normalizePositivePrice(typeof entry === 'number' ? entry : entry.price);
+ if (price === null) return null;
+ const registered = typeof entry === 'number' ? '' : String(entry.name || '');
+ const current = this.getExpressionItemNameKey(item);
+ if (registered && current && registered !== current) return null;
+ return price;
+ } catch (error) {
+ appLogSilent(error);
+ return null;
+ }
+ }
+
+ hasValidExpressionManualPrice(entries, index, item) {
+ return this.readExpressionManualPrice(entries, index, item) !== null;
+ }
+
  // 8.3.27：构造「把粘滞价补回缺失项目」后的手输单价数组，供表达式引擎重试结算。
  // 规则：已登记的逐项单价优先保留；凡是没有价的项（典型就是用户刚改了時长的那一项）
  // 一律用粘滞价兜底。这样「1h技术 → 2h技术」这种改时长场景能立刻按新时长重算。
@@ -16611,9 +16723,17 @@ class PriceMemoryFeature {
  const items = Array.isArray(parsed?.items) ? parsed.items : [];
  if (!items.length) return [];
  const out = [];
+ const scope = this._expressionManualPriceScope instanceof Set ? this._expressionManualPriceScope : new Set();
  for (let index = 0; index < items.length; index += 1) {
- const registered = this._expressionManualPrices instanceof Map ? this._expressionManualPrices.get(index) : null;
- out.push(PriceRuleEngine.normalizePositivePrice(registered) ?? price);
+ const registered = this.readExpressionManualPrice(this._expressionManualPrices, index, items[index]);
+ if (registered !== null) {
+ out.push(registered);
+ continue;
+ }
+ // 【8.3.54】粘滞价只回填给「填价那一刻就在本串里的项目」。
+ // 表达式里后来才出现的新项目不补 —— 否则会把别的项目的价当成它的价（静默算错钱）。
+ const itemName = this.getExpressionItemNameKey(items[index]);
+ out.push(itemName && scope.has(itemName) ? price : null);
  }
  return out;
  } catch (error) {
@@ -16627,10 +16747,12 @@ class PriceMemoryFeature {
  try {
  if (!(this._expressionManualPrices instanceof Map) || this._expressionManualPrices.size === 0) return [];
  const parsed = ProjectExpressionEngine.parse(String(sourceValue ?? ''));
- const count = Array.isArray(parsed?.items) ? parsed.items.length : 0;
- if (!count) return [];
+ const items = Array.isArray(parsed?.items) ? parsed.items : [];
+ if (!items.length) return [];
  const out = [];
- for (let index = 0; index < count; index += 1) out.push(this._expressionManualPrices.get(index) ?? null);
+ for (let index = 0; index < items.length; index += 1) {
+ out.push(this.readExpressionManualPrice(this._expressionManualPrices, index, items[index]));
+ }
  return out;
  } catch (error) {
  appLogSilent(error);
@@ -16640,6 +16762,17 @@ class PriceMemoryFeature {
 
  // 8.3.25：登记一个手输单价。index 缺省时按锚定游标自动归位到「下一个待定价项目」，
  // 实现「静默自动归位」——用户不需要手动指定这个价属于哪个项目。
+ // 【8.3.54】登记时一并记下该项目此刻的项目名指纹，供读取时校验（见 readExpressionManualPrice）。
+ buildManualPriceEntry(index, price) {
+ try {
+ const items = ProjectExpressionEngine.parse(String(this.getElement('type')?.value ?? ''))?.items || [];
+ return { price, name: this.getExpressionItemNameKey(items[index]) };
+ } catch (error) {
+ appLogSilent(error);
+ return { price, name: '' };
+ }
+ }
+
  setExpressionManualPrice(index, price) {
  try {
  if (!(this._expressionManualPrices instanceof Map)) this._expressionManualPrices = new Map();
@@ -16649,8 +16782,14 @@ class PriceMemoryFeature {
  this._expressionManualPrices.delete(key);
  return false;
  }
- this._expressionManualPrices.set(key, normalized);
+ const entry = this.buildManualPriceEntry(key, normalized);
+ this._expressionManualPrices.set(key, entry);
  this._expressionManualPriceSticky = normalized;
+ this._expressionManualPriceScope = new Set(
+ (ProjectExpressionEngine.parse(String(this.getElement('type')?.value ?? ''))?.items || [])
+ .map(item => this.getExpressionItemNameKey(item))
+ .filter(Boolean)
+ );
  // 8.3.27：用户重新填价 = 主动认可本单定价，清空作废标记随之复位。
  this._expressionPriceClearedByEmptyType = false;
  this._expressionPriceClearedTopic = '';
@@ -16709,7 +16848,7 @@ class PriceMemoryFeature {
  const hit = segments.find(segment => caret >= segment.serviceStart && caret <= segment.serviceEnd);
  if (hit && Number.isInteger(hit.index)) return hit.index;
  }
- for (let index = 0; index < count; index += 1) if (!this._expressionManualPrices.has(index)) return index;
+ for (let index = 0; index < count; index += 1) if (!this.hasValidExpressionManualPrice(this._expressionManualPrices, index, parsed.items[index])) return index;
  // 8.3.27：所有项目都已有价时，再填的价视为「改这一项」，归到刚编辑（游标）那一项 —— 没有游标才兜底末项。
  const fallback = Number.isInteger(this._expressionManualCursor) ? this._expressionManualCursor : null;
  return (fallback !== null && fallback >= 0 && fallback < count) ? fallback : count - 1;
@@ -16723,6 +16862,7 @@ class PriceMemoryFeature {
  if (this._expressionManualPrices instanceof Map) this._expressionManualPrices.clear();
  this._expressionManualCursor = 0;
  this._expressionManualPriceSticky = null;
+ if (this._expressionManualPriceScope instanceof Set) this._expressionManualPriceScope.clear();
  this._expressionPriceClearedByEmptyType = false;
  this._expressionPriceClearedTopic = '';
  this._expressionPriceAwaitingResume = false;
@@ -17034,8 +17174,16 @@ class PriceMemoryFeature {
  if (value === null) {
  const sticky = this.getExpressionStickyManualPrice();
  if (sticky !== null && !this._expressionPriceClearedByEmptyType && this.isExpressionServiceInput()) {
- this.setExpressionManualPrice(this.resolveExpressionManualIndex(), sticky);
+ const targetIndex = this.resolveExpressionManualIndex();
+ const items = ProjectExpressionEngine.parse(String(this.getElement('type')?.value ?? ''))?.items || [];
+ const targetName = this.getExpressionItemNameKey(items[targetIndex]);
+ const scope = this._expressionManualPriceScope instanceof Set ? this._expressionManualPriceScope : new Set();
+ /* 【8.3.54】只有「填价时就已在本串里的项目」才把粘滞价放回去。
+    否则把表达式改成另一个项目时，那一项会凭空得到上一个项目的价。 */
+ if (!targetName || scope.has(targetName)) {
+ this.setExpressionManualPrice(targetIndex, sticky);
  this.app.autoPriceFeature?.scheduleCombinedExpressionSync?.();
+ }
  }
  }
  if (value === null && serviceKey) this.scheduleServicePriceMatch();
@@ -17302,7 +17450,14 @@ class PriceMemoryFeature {
  event.preventDefault();
  this.orderFlow.calculate();
  }
- if (event.ctrlKey && event.key === 'c' && this.el.orderOutput.textContent !== '请填写左侧信息并点击生成按钮') {
+ /* 【8.3.54 修】输入框里不劫持 Ctrl/Cmd+C。
+    原先只要生成过一单，在备注/类型框里选中文字按 Ctrl+C 也会被拦下，
+    剪贴板被换成整张码单 —— 用户想复制一小段字，粘出来却是整单。 */
+ const editableTarget = event.target instanceof Element
+ && event.target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])');
+ if ((event.ctrlKey || event.metaKey) && !editableTarget
+ && String(event.key).toLowerCase() === 'c'
+ && this.el.orderOutput.textContent !== '请填写左侧信息并点击生成按钮') {
  event.preventDefault();
  this.orderFlow.copyOrderText();
  }
@@ -17441,6 +17596,8 @@ class PriceMemoryFeature {
  this.resetAutoPriceState();
  this.inputFlowFeature.initClearButtons();
  this.orderFlow.resetResults();
+ // 【8.3.54】全部清除后同样要把按钮状态灯复位（否则按钮一直是「可生成」的呼吸态）
+ this.orderFlow.syncGenerationReadiness?.();
  /* 【8.3.45 修】礼物码单折数提示要在「全部清除」后一并归位。
     上面已经把总价与折数两个框都清了，但折数下方那句
     「本次折数不影响总价，总价仍为 X」是按清除前的值算出来的，
@@ -17876,6 +18033,13 @@ class PriceMemoryFeature {
     折数已空时它会自动回到初始那句话，非礼物模式则直接返回。 */
  if (targetId === 'discount' || targetId === 'discountOverlay' || targetId === 'totalPrice') this.app.updateGiftDiscountNote?.();
  if (targetId === 'note' || targetId === 'surcharge') this.surchargeFeature?.refreshOrderPreview?.();
+ /* 【8.3.54 修】清空一个字段之后，把「生成按钮的状态灯」和「右侧预览」一起刷新。
+    原先这里只 resetResults()：按钮仍带着 generation-ready 的呼吸高亮（点下去却弹校验失败），
+    清掉折数时预览停在「请填写左侧信息」，明明总价还在、本可以算出来。
+    syncGenerationReadiness 自带「ready 才重算」，所以清空全部时不会误算。 */
+ if (['totalPrice', 'discount', 'discountOverlay', 'type'].includes(targetId)) {
+ this.app.orderFlow?.syncGenerationReadiness?.();
+ }
  }
 
  getLockedValue(key) {
@@ -19154,7 +19318,13 @@ class OrderDraftSnapshotCoordinator {
  const currentMode = Number(this.app.currentMode) || 1;
  const expressionSuppressed = feature.isExpressionSuppressed();
  const expressionActive = Boolean(feature._expressionActive && feature.isExpressionOwned());
- const manualDraftMode = currentMode === 1 && !expressionSuppressed && !expressionActive;
+ /* 【8.3.54 修·重要】「服务类型框里写的是整串表达式、但这次没解析成功」时，
+    不能再退化成「手填单项草稿」—— 那会拿「框里的原始文本」当项目名、
+    配上一个属于别的项目的单价，凭空造出一个金额。
+    实测：1h甲（价 50）→ 改成 2局丙（丙没价）时，右侧仍显示「2局丙 ¥150」，
+    用户点生成就按这个金额入账。表达式文本在没解析成功时，宁可不显示金额。 */
+ const typeLooksLikeExpression = ProjectExpressionEngine.looksLikeExpression(String(feature.getElement('type')?.value || ''));
+ const manualDraftMode = currentMode === 1 && !expressionSuppressed && !expressionActive && !typeLooksLikeExpression;
  const input = feature.getDraftInputs();
  let draft = null;
  let baseAggregate = ProjectSettlementEngine.aggregateProjects(feature.projects);
@@ -19306,6 +19476,14 @@ class AutoPriceFeature {
  return Boolean(this.projects.length && this.projects.every(project => project?.entrySource === 'combinedExpression'));
  }
 
+ // 项目名序列指纹：判断「这次改的是同一串表达式（只动了时长/价格），还是换了一串项目」。
+ getExpressionNameSignature(items) {
+ return (Array.isArray(items) ? items : [])
+ .map(item => String(item?.serviceRaw ?? '').trim())
+ .filter(Boolean)
+ .join('|');
+ }
+
  cancelExpressionSync() {
  if (this._expressionTimer !== null) {
  if (this._expressionTimerType === 'frame' && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this._expressionTimer);
@@ -19429,6 +19607,22 @@ class AutoPriceFeature {
  const compatible = this.priceMemoryFeature?.isExpressionManualPricesCompatible?.(raw) ?? false;
  const keepManualPrices = Boolean(raw) ? compatible : true;
  if (!keepManualPrices) this.priceMemoryFeature?.clearExpressionManualPrices?.();
+ /* 【8.3.54 修·重要】表达式换成了另一串项目时，必须把上一串的 projects 一起清掉。
+    原先这里只把「表达式态」和两个展示字段归零，`this.projects` 原样留着：
+    用户把「1h甲+1h乙」改成「2局丙」而丙没有价/库里没有时，解析失败就走不到
+    clearExpressionState（此时 _expressionActive 已是 false），于是**总价里还
+    算着甲和乙**，只是界面上不显示项目小计 —— 用户点生成，金额里带着上一串。
+    只在「新串的项目名序列与现有项目不同」时清：打字中间态（解析不出项目）不清，
+    否则每敲一个字总价都会闪一下空。 */
+ const nextNames = this.getExpressionNameSignature(ProjectExpressionEngine.parse(raw)?.items || []);
+ const currentNames = this.getExpressionNameSignature(this.projects);
+ if (nextNames && nextNames !== currentNames) {
+ this.projects = [];
+ // 草稿也要一起作废：getOrderAggregate 走的是草稿快照，
+ // 只清 projects 的话，右侧仍会按「旧数量 + 旧单价 + 新项目名」算出一个金额。
+ this.currentDraft = null;
+ this.invalidateDraftSnapshot('expression-source-different');
+ }
  this._expressionActive = false;
  this._expressionSource = '';
  this._expressionDurationValue = '';
@@ -20632,6 +20826,9 @@ class BossMemoryFeature {
 
  load() {
  this.bossMemory = this.directory.loadMemory();
+ // 【8.3.54】跨标签同步 / 重新载入会换掉整个列表，旧的编辑下标随即失效；
+ // 不退出编辑态的话，下一次「保存」会写到另一个老板身上。
+ this.resetEditor({ clear: true });
  return this.bossMemory;
  }
 
@@ -20872,6 +21069,15 @@ class BossMemoryFeature {
  const nextMemory = this.directory.removeMemoryAt(this.bossMemory, index);
  if (!nextMemory) return false;
  this.bossMemory = nextMemory;
+ /* 【8.3.54 修·重要】编辑位置必须跟着删除结果一起校正。
+    编辑态用的是「下标」，而删掉一条会让后面所有记录前移：
+    原先删完不校正，保存时仍按下标写回 —— 实测 [A,B,C] 里编辑 B、删掉 A、
+    把 B 改成「B改」，保存后列表变成 [B, B改]，**C 被静默改写成 B改**。
+    用户只会觉得「怎么少了个老板/名字怎么变了」，且没有任何提示。
+      · 删的就是正在编辑的那条 → 退出编辑（继续存下去只会覆盖别人）；
+      · 删的是前面那条 → 下标减一，仍然指向原来那个人。 */
+ if (this.editingIndex === index) this.resetEditor({ clear: true });
+ else if (this.editingIndex > index) this.editingIndex -= 1;
  this.save();
  this.refresh();
  this.hideBossSuggestions();

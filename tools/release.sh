@@ -413,6 +413,12 @@ vj['version'] = ver
 vj['url'] = 'https://madan.pages.dev/madan-%s.zip' % ver
 vj['checksum'] = os.environ['SHA']
 vj['notes'] = os.environ['NOTES']
+# 【8.3.54】releaseNotes 必须与 notes 同步。
+# 本脚本原先只写 notes，releaseNotes 就永远停在上一版 —— 实测 8.3.54 发完时
+# releaseNotes 里还是 8.3.53 的说明。原生壳的更新弹窗读的是 releaseNotes，
+# 用户会看到「这一版改了什么」是上一版的文字，误以为新问题没修。
+# 两个字段都写：谁读哪个都不会读到旧文案。
+vj['releaseNotes'] = os.environ['NOTES']
 with open('version.json', 'w', encoding='utf-8') as f:
     json.dump(vj, f, ensure_ascii=False, indent=2)
     f.write('\n')

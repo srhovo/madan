@@ -403,7 +403,7 @@ function readUnitPrice(doc) {
     /* 反向 2：把候选清单的去重键退回「展示名 + 说明文字」。
        退回后，同一条记录用别名命中时会因为说明不同而没被判重，
        变成两张一模一样的卡片 —— 【2】段那条断言必须失败。 */
-    const dedupAnchor = " const key = `${item.ruleId || this.normalizeServiceSuggestQuery(item.displayName)}|${item.settleType || ''}|${sourceLib}`;";
+    const dedupAnchor = " const key = `${item.ruleId || this.normalizeServiceSuggestQuery(item.displayName)}|${item.settleType || ''}|${item.variantKey || ''}|${sourceLib}`;";
     const noDedup = html.replace(
       dedupAnchor,
       " const key = `${item.displayName}|${item.meta}`;"

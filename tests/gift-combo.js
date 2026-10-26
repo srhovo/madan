@@ -167,7 +167,10 @@ ok('前后空格不影响匹配', r7.ok && r7.totalPrice === 10);
 console.log('\n③ 接管判定');
 
 eq('带加号 → 接管', GiftComboEngine.looksLikeCombo('5满天星+3同心结', memories), true);
-eq('单个已记录的礼物 → 接管', GiftComboEngine.looksLikeCombo('同心结', memories), true);
+/* 【8.3.54 同步】8.3.49 起：单个礼物**不再**被组合引擎接管（它只是普通的单价×个数）。
+   原先这里断言 true，与现行语义相反；现按现行语义改为 false，并保留「带加号才接管」的断言。 */
+eq('单个已记录的礼物 → 不接管（8.3.49 起）', GiftComboEngine.looksLikeCombo('同心结', memories), false);
+eq('单个礼物 + 个数 → 仍按普通礼物结算（由单价×个数负责）', GiftComboEngine.looksLikeCombo('5同心结', memories), true);
 eq('单个带数字的礼物 → 接管', GiftComboEngine.looksLikeCombo('6满天星', memories), true);
 /* 关键：单子码单的服务名不能被礼物逻辑抢走 —— 这是同一个输入框，识别错就全乱 */
 eq('未记录的服务名 → 不接管', GiftComboEngine.looksLikeCombo('星耀包c', memories), false);
@@ -241,7 +244,9 @@ ok('有按模式分流的字号规则', /html\[data-order-mode="2"\] #primaryFie
 console.log('\n⑦ 订单模板的时长取值');
 
 const ctxBlock = HTML.slice(HTML.indexOf('const duration = hasStructuredProjects'), HTML.indexOf('const duration = hasStructuredProjects') + 700);
-ok('礼物码单走单独的取值分支', /Number\(app\.currentMode\) === 2 \? this\.getGiftTotalCount\(\)/.test(ctxBlock), ctxBlock.slice(0, 400));
+/* 【8.3.54 同步】8.3.49 起：礼物码单的「时长：」行**留空**，不再写礼物总个数
+   （用户要求个数只参与计算、不上模板；保留空行是为了不改变下游读取的行结构）。 */
+ok('礼物码单的「时长：」留空（8.3.49 起）', /Number\(app\.currentMode\) === 2 \? '' :/.test(ctxBlock), ctxBlock.slice(0, 400));
 ok('存在 getGiftTotalCount', HTML.includes('getGiftTotalCount()'));
 const cntFn = HTML.slice(HTML.indexOf('getGiftTotalCount() {'), HTML.indexOf('getGiftTotalCount() {') + 700);
 ok('它用组合引擎现算', cntFn.includes('GiftComboEngine.resolve'));

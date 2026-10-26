@@ -162,6 +162,20 @@ if (fs.existsSync(vjPath)) {
     console.log(`  ${ok ? '✓' : '✗'} version.json(${vj.version}) 与 APP_VERSION(${constV}) 一致`);
     if (!ok) fail++;
   }
+  /* releaseNotes 必须与 notes 一致。
+     为什么要有这一条：release.sh 原先只写 notes，8.3.54 发完时 releaseNotes 里
+     还是 8.3.53 的说明 —— 原生壳更新弹窗读的是 releaseNotes，用户会看到上一版的
+     文案，误以为这一版没改东西。属于「用户看不见的错」，只能靠机器钉住。 */
+  if (typeof vj.releaseNotes === 'string' && typeof vj.notes === 'string') {
+    const okN = vj.releaseNotes.trim() === vj.notes.trim();
+    console.log(`  ${okN ? '✓' : '✗'} version.json 的 releaseNotes 与 notes 一致（更新弹窗不会显示上一版说明）`);
+    if (!okN) console.log('      两段说明不一致：releaseNotes 会是用户看到的那段');
+    if (!okN) fail++;
+  } else {
+    console.log('  ✗ version.json 缺少 notes 或 releaseNotes —— 更新弹窗会没有文案');
+    fail++;
+  }
+
   // checksum 与实际 zip 是否一致
   const zip = path.join(ROOT, `madan-${vj.version}.zip`);
   if (fs.existsSync(zip)) {

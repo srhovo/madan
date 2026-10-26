@@ -13,10 +13,13 @@ OTA 包自包含性检查（8.3.30 新增的发布防线）
 用法：python3 tests/check-package-selfcontained.py madan-<版本>.zip
       （包名由 tests/run-all.sh 自动传当前版本；单独运行时可传任意包）
 """
+import hashlib
 import re
 import sys
 import zipfile
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
 
 
 def main() -> int:
@@ -69,6 +72,26 @@ def main() -> int:
 
     ver = re.search(r"const APP_VERSION\s*=\s*'([^']+)'", html)
     print(f'✓ 自包含检查通过（版本 {ver.group(1) if ver else "未知"}）')
+
+    # ── 包内容必须与工作区的 index.html 逐字节一致 ────────────────────
+    # 为什么需要这一条：自包含检查只回答「包里有没有引用包外文件」，
+    # 它不回答「这个包是不是当前这份代码」。实测过的坑：改了 index.html 但忘记重新打包，
+    # 本地跑 --fast 一切正常（按约定允许「改代码未打包」的中间态），CI 只检查包存在、
+    # 照样全绿，于是发出去的 OTA 包还是旧代码，而网页版已经是新代码 —— 两边行为不一致，
+    # 排查时极难想到是包旧了。
+    # 只在传了包的时候检查，不影响日常提交。
+    repo_index = ROOT / 'index.html'
+    if repo_index.exists():
+        packed = zf.read('index.html')
+        working = repo_index.read_bytes()
+        if hashlib.sha256(packed).hexdigest() != hashlib.sha256(working).hexdigest():
+            print('✗ 包内 index.html 与工作区不一致（代码改了但没重新打包）')
+            print(f'   包内: {len(packed)} 字节 / sha256 {hashlib.sha256(packed).hexdigest()[:16]}')
+            print(f'   工作区: {len(working)} 字节 / sha256 {hashlib.sha256(working).hexdigest()[:16]}')
+            print('   修法：用 tools/release.sh 重新发包，或删掉这个旧包再发版。')
+            return 1
+        print('✓ 包内 index.html 与工作区逐字节一致')
+
     return 0
 
 

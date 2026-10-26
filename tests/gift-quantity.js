@@ -179,12 +179,15 @@ console.log('① 正常相乘：单价 × 个数 = 总价');
   ck('整数结果不带小数点尾巴', String(a5.totalEl.value) === '300', `总价="${a5.totalEl.value}"`);
 }
 
-console.log('\n② 任一为空：不写脏数据，且不把用户的钱清掉');
+/* 【8.3.54 同步】8.3.49 起「个数留空 = 1」（框里保持空，只参与算法，界面显示「默认为1」）。
+   本节原按「任一为空就不写总价」断言，与现行语义相反，已按现行语义改写；
+   仍然钉住同一条铁律：**用户手填的总价不能被程序覆盖**。 */
+console.log('\n② 个数留空按 1 计；不写脏数据，且不把用户的钱清掉');
 {
   const a1 = makeGiftApp(sandbox, { unit: '5', qty: '' });
   callSync(a1);
-  ck('只填单价（没填个数）→ 不写总价', String(a1.totalEl.value) === '', `总价="${a1.totalEl.value}"`);
-  ck('  └ 且一次都没写过总价（不是先写后清）', !a1.writes.some(w => w.key === 'totalPrice'));
+  ck('只填单价（个数留空）→ 总价 = 单价 × 1', String(a1.totalEl.value) === '5', `总价="${a1.totalEl.value}"`);
+  ck('  └ 且确实写了一次总价（空个数也参与计算）', a1.writes.filter(w => w.key === 'totalPrice').length === 1, JSON.stringify(a1.writes));
 
   const a2 = makeGiftApp(sandbox, { unit: '', qty: '10' });
   callSync(a2);
@@ -193,16 +196,17 @@ console.log('\n② 任一为空：不写脏数据，且不把用户的钱清掉'
   // ★ 反面：用户手填的总价不能被当礼物结果清掉
   const a3 = makeGiftApp(sandbox, { unit: '5', qty: '', total: '999' });
   a3._lastGiftComputedTotal = null; // 999 不是算式算的
+  a3._giftTotalUserEdited = true;   // 真机上「在总价框敲字」会置这个标记（harness 直接补上）
   callSync(a3);
   ck('用户手填的总价 999 → 必须留着', String(a3.totalEl.value) === '999', `总价="${a3.totalEl.value}"`);
 
-  // 正面：上一步是算式算出来的，这一步清空个数 → 该清
+  // 正面：清空个数 = 回到「按 1 个算」，不是「清空总价」
   const a4 = makeGiftApp(sandbox, { unit: '5', qty: '10' });
   callSync(a4);
   ck('  └ 先算出 50', String(a4.totalEl.value) === '50');
   a4.qtyEl.value = '';
   callSync(a4);
-  ck('清空个数 → 算式算出的 50 被清掉（不留残影）', String(a4.totalEl.value) === '', `总价="${a4.totalEl.value}"`);
+  ck('清空个数 → 按 1 个重算（5），不留上一轮的 50', String(a4.totalEl.value) === '5', `总价="${a4.totalEl.value}"`);
 }
 
 console.log('\n③ 改一个值，总价跟着变（联动方向两个都要通）');
@@ -254,13 +258,15 @@ console.log('\n③.5 用户手填总价 → 算式必须交出控制权');
   callSync(a);
   ck('后续重算（blur 触发）→ 999 仍然在', String(a.totalEl.value) === '999', `总价="${a.totalEl.value}"`);
 
-  // 用户回头动单价 / 个数 → 控制权交还算式
+  /* 【8.3.54 同步】8.3.49 起：手填过总价之后，改单价/个数**不再**自动接管总价
+     （用户填的那个数是他对钱的最终决定；想恢复算式就把总价框清空）。
+     原断言按旧语义要求「动一下就重新接管」，现按现行语义改写。 */
   const b = makeGiftApp(sandbox, { unit: '5', qty: '10' });
   callSync(b);
   b.totalEl.value = '999';
   callSync(b, { source: 'totalPrice' });
   callSync(b, { source: 'autoUnitPrice' });
-  ck('用户重新去动单价 → 算式重新接管', String(b.totalEl.value) === '50', `总价="${b.totalEl.value}"`);
+  ck('手填 999 后改单价 → 总价仍是 999（用户的钱不被覆盖）', String(b.totalEl.value) === '999', `总价="${b.totalEl.value}"`);
 
   const c = makeGiftApp(sandbox, { unit: '5', qty: '10' });
   callSync(c);
@@ -268,7 +274,14 @@ console.log('\n③.5 用户手填总价 → 算式必须交出控制权');
   callSync(c, { source: 'totalPrice' });
   c.qtyEl.value = '4';
   callSync(c, { source: 'giftQuantity' });
-  ck('用户重新去动个数 → 算式重新接管', String(c.totalEl.value) === '20', `总价="${c.totalEl.value}"`);
+  ck('手填 999 后改个数 → 总价仍是 999', String(c.totalEl.value) === '999', `总价="${c.totalEl.value}"`);
+
+  // 反向：把总价清空 → 算式重新接管（这是文档里写明的恢复方式）
+  const d = makeGiftApp(sandbox, { unit: '5', qty: '4' });
+  d._giftTotalUserEdited = true;
+  d.totalEl.value = '';
+  callSync(d, { source: 'giftQuantity' });
+  ck('清空总价后改个数 → 算式重新接管', String(d.totalEl.value) === '20', `总价="${d.totalEl.value}"`);
 }
 
 console.log('\n④ 非礼物模式：一律不参与');{
