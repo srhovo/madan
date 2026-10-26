@@ -310,17 +310,25 @@ const MEASURE = (ids) => ids.map(id => {
       !/String\(key\)\.toLowerCase\(\) === 'classname' \? 'class' : key/.test(noNorm));
 
     // 反向 2：把口子改回 className（模拟本次修掉的原始 bug），
-    // 用真实浏览器确认 class 真的会丢
-    const backToBogus = html.replace(
-      "class: 'ap-input gift-quantity-input', placeholder: '个数'",
-      "className: 'ap-input gift-quantity-input', placeholder: '个数'"
-    ).replace(
-      /const k = String\(key\)\.toLowerCase\(\) === 'classname' \? 'class' : key;/,
-      'const k = key;'
-    );
+    // 用真实浏览器确认 class 真的会丢。
+    //
+    // ⚠ 锚点用正则、只认「class: 'ap-input gift-quantity-input'」这一小段，
+    //   不再整串硬编码。原因是这里烂过一次：8.3.49 把该框的 placeholder
+    //   从「个数」改成「默认为1」，整串字面量就再也匹配不上，注入变成空操作，
+    //   这条反向验证静默退化成「永远不成立」。而它平时不跑（要 playwright），
+    //   于是从 8.3.49 一直烂到 8.3.56 才被真实浏览器回归发现。
+    //   现在额外断言「注入确实发生了」，锚点再腐烂会红在这条上，一眼看到原因。
+    const normalizeRe = /const k = String\(key\)\.toLowerCase\(\) === 'classname' \? 'class' : key;/;
+    const backToBogus = html
+      .replace(/class: 'ap-input gift-quantity-input'/, "className: 'ap-input gift-quantity-input'")
+      .replace(normalizeRe, 'const k = key;');
+    ck('反向验证的注入锚点仍然有效（防锚点腐烂）',
+      /className: 'ap-input gift-quantity-input'/.test(backToBogus) && !normalizeRe.test(backToBogus));
+
     const tmp = path.join(__dirname, '.tmp-bogus.html');
     fs.writeFileSync(tmp, backToBogus);
     let lost = false;
+    let threw = null;
     try {
       const b2 = await launch();
       const page = await b2.newPage({ viewport: { width: 390, height: 900 } });
@@ -333,11 +341,14 @@ const MEASURE = (ids) => ids.map(id => {
       lost = !r || !r.cls;
       await b2.close();
     } catch (e) {
-      lost = true;
+      // 浏览器起不来 ≠ 「class 真的丢了」。两者必须分开报，
+      // 否则环境问题会被当成「反向验证通过」——那又是一种假的绿。
+      threw = e && e.message ? e.message : String(e);
     } finally {
       try { fs.unlinkSync(tmp); } catch (e) { /* 忽略 */ }
     }
-    ck('改回 className 后，class 真的会丢（证明这条断言不是摆设）', lost === true);
+    if (threw) console.log('      （浏览器侧异常：' + threw + '）');
+    ck('改回 className 后，class 真的会丢（证明这条断言不是摆设）', threw === null && lost === true);
 
     // 反向 3：把派单提示删空，消失断言必须变红
     const blank = html.replace("placeholder: '例如：下雪',\n lockId: 'PaiDan'", "placeholder: ' ',\n lockId: 'PaiDan'");

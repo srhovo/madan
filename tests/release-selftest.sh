@@ -215,11 +215,16 @@ else
   ok "本次生成的 zip 已删除"
 fi
 
-# 版本号不应残留新值
-if grep -q "$NEXT" "$D/index.html"; then
+# 版本号不应残留新值。
+# ⚠ 只认「参与代码的两处」（<title> 与 APP_VERSION），不能整文件 grep：
+#   index.html 里有一百多处变更考古注释，历史版本号（如「【8.3.57】xxx」）
+#   会被当成残留误报 —— 本检查曾因此在 8.3.55 上稳定误报，且因为它只在
+#   发版前手动跑，没人察觉。口径与 version-single-source.js 保持一致。
+if grep -qE "<title>[^<]*${NEXT}[^<]*</title>" "$D/index.html" \
+   || grep -qE "const APP_VERSION = '${NEXT}'" "$D/index.html"; then
   bad "index.html 中残留 $NEXT"
 else
-  ok "index.html 无新版本号残留"
+  ok "index.html 无新版本号残留（按 <title>/APP_VERSION 口径）"
 fi
 
 echo
