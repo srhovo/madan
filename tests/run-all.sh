@@ -546,7 +546,7 @@ if ! should_skip amountprop; then
   echo "$out" | tail -8
   line=$(echo "$out" | grep -oE "失败 [0-9]+ 项" | tail -1)
   [ -z "$line" ] && line=$(echo "$out" | grep -oE "全部通过.*" | tail -1)
-  run_suite amountprop "金额属性测试（782 条性质断言）" $rc "${line:-无输出}"
+  run_suite amountprop "金额属性测试（1441 条性质断言）" $rc "${line:-无输出}"
 fi
 
 # ── [27/28] 源码锚点体检（变异测试的定位是否还可靠）──────────────────

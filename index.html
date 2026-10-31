@@ -6190,12 +6190,36 @@ class InlineChunkLoader {
  if (context.peiPeiCount > 1) earnings /= context.peiPeiCount;
 
  // 统一取整，避免浮点精度在计算链路中累积
- return {
+ const result = {
  discountedPrice: ProjectSettlementEngine.roundThree(discountedPrice),
  groupCommission: ProjectSettlementEngine.roundThree(groupCommission),
  platformCommission: ProjectSettlementEngine.roundThree(platformCommission),
  earnings: ProjectSettlementEngine.roundThree(earnings)
  };
+
+ /* 【8.3.57·分位】单人订单的四个数是同一笔钱的完整分割：团抽 + 派抽 + 到手 === 折后价。
+    三项各自四舍五入到「分」时，三个舍/入互不抵消，和与总价会差 1 分：
+    真实价格点 × 常见折法里约 15% 的订单差 +0.01（三方合计比老板付的多 1 分），
+    少量差 −0.01（有 1 分钱凭空消失）。老板照着单子加一遍就对不上，这是要发给客户的文本。
+    改法：一律按分结算 —— 总价与两项抽成各自取到分，余额全部归到手。
+    取整口径必须与显示逐位一致（都走同一个 cents()，即 Math.round(x*100)），
+    否则「按分算」和「按分显示」会再差一次，变成新的错位。
+    只在「费率合计恰好 100%」时启用：费率不是 100% 时余额法会把差额塞给到手，
+    等于篡改了用户的比例（导入的旧数据里存在这种比例）。
+    多人订单不参与：那里的「到手」是人均值，四个数本就不构成分割，
+    强行凑齐会改错人均金额（多人误差 ≤1 分/人，是「一分钱分给三个人」的固有限制）。 */
+ const cents = value => Math.round(ProjectSettlementEngine.roundThree(value) * 100);
+ const rates = context.rates || {};
+ const rateSum = Number(rates.group) + Number(rates.platform) + Number(rates.earning);
+ if (!(context.peiPeiCount > 1) && Number.isFinite(rateSum) && Math.abs(rateSum - 1) < 1e-9) {
+ const totalCents = cents(result.discountedPrice);
+ const groupCents = cents(result.groupCommission);
+ const platformCents = cents(result.platformCommission);
+ result.groupCommission = groupCents / 100;
+ result.platformCommission = platformCents / 100;
+ result.earnings = (totalCents - groupCents - platformCents) / 100;
+ }
+ return result;
  }
 
  static buildOrderText(context, result, finalNote) {

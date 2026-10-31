@@ -60,6 +60,11 @@ const ANCHORS = {
     expect: 1,
     note: '折后总价乘人数（拆掉后人数线性会红）'
   },
+  centResidual: {
+    text: 'result.earnings = (totalCents - groupCents - platformCents) / 100;',
+    expect: 1,
+    note: '单人订单的分位余额法（退回逐项取整后，分位闭合断言必须变红）'
+  },
 
   // ── 8.3.56（新建价格库 / 撤销导入）────────────────────────────────
   createLibraryAutoName: {

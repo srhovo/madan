@@ -203,7 +203,13 @@ async function runAll(w) {
     const n = int(rng, 2, 4);
     const many = OE.computeCalculationResult({ totalPrice: total, appliedDiscount: d, peiPeiCount: n, rates });
     ck(`⑤ 人数线性 #${i}（${n} 人）`, near(many.discountedPrice, round3(one.discountedPrice * n), EPS_Q * 2), { one: one.discountedPrice, many: many.discountedPrice });
-    ck(`⑤ 每人到手不变 #${i}`, near(many.earnings, one.earnings, EPS_Q), { one: one.earnings, many: many.earnings });
+    /* 8.3.57 起单人到手要吸收「分位余额」（见 ⑪），所以它与「费率 × 人均」最多差半分到一分；
+       这条性质的含义随之从「完全相等」放宽为「差不超过 1 分」——多人订单本身不参与余额分摊，
+       人均金额没有被改动，差的只是单人那一侧为对齐总分而让出的零头。 */
+    /* 上限 1.5 分：单人侧为对齐总分要让出零头，最多是「总价半分 + 两项抽成各半分」。
+       仍然能抓住「漏除人数」（那会差一倍），只是不再要求逐位相等。 */
+    ck(`⑤ 每人到手不变 #${i}`, near(many.earnings, one.earnings, 0.0151), { one: one.earnings, many: many.earnings });
+    ck(`⑤ 多人到手＝费率×人均 #${i}`, near(many.earnings, round3(many.discountedPrice * 0.75 / n), 0.0011), { got: many.earnings, expect: round3(many.discountedPrice * 0.75 / n) });
   }
 
   /* ── ⑥ 抽成闭合：各项之和 = 折后总价 ───────────────────────── */
@@ -258,6 +264,52 @@ async function runAll(w) {
   const emptyAgg = PE.aggregateProjects([]);
   ck('⑨ 空项目 → 总价 0（不是 NaN）', emptyAgg.totalPrice === 0 && Number.isFinite(emptyAgg.totalPrice), emptyAgg.totalPrice);
 
+  /* ── ⑪ 分位闭合：单人订单「团抽 + 派抽 + 到手」到分不差 ───────
+     8.3.57 之前，三项各自四舍五入到分，三个舍/入互不抵消，和与总价差 1 分：
+     真实价格点 × 常见折法里约 15% 的订单是「三方合计比老板付的多 1 分」，
+     少量是「有 1 分凭空消失」。老板照着单子加一遍就对不上，而这张单子是要发给客户的。
+     修复方式是按分结算（总价与两项抽成各取到分，余额归到手），所以这里锁的是
+     「到分闭合」这条不变量，而不是某一组具体数字。 */
+  const centsOf = v => Math.round(Number(v) * 100);
+  const rateSets11 = [
+    { group: 0.05, platform: 0.2, earning: 0.75 },
+    { group: 0.1, platform: 0.2, earning: 0.7 },
+    { group: 0.33, platform: 0.17, earning: 0.5 },
+    { group: 0.075, platform: 0.025, earning: 0.9 }
+  ];
+  for (let i = 0; i < 300; i += 1) {
+    const total = money(rng, 0.01, 3000);
+    const d = Math.round(int(rng, 1, 100)) / 100;
+    const rates = pick(rng, rateSets11);
+    const r = OE.computeCalculationResult({ totalPrice: total, appliedDiscount: d, peiPeiCount: 1, rates });
+    const sum = centsOf(r.groupCommission) + centsOf(r.platformCommission) + centsOf(r.earnings);
+    ck(`⑪ 单人分位闭合 #${i}（${total} × ${d}，${Math.round(rates.group * 100)}/${Math.round(rates.platform * 100)}/${Math.round(rates.earning * 100)}）`,
+      sum === centsOf(r.discountedPrice), { sum, discounted: centsOf(r.discountedPrice), r });
+    ck(`⑪ 到手非负 #${i}`, r.earnings >= 0, r.earnings);
+  }
+  /* 定点锚：这几个是修复前必然错位的组合，写死防止有人把余额法退回逐项取整 */
+  const fixed11 = [
+    { total: 1, d: 0.9, want: [0.05, 0.18, 0.67] },
+    { total: 5, d: 0.9, want: [0.23, 0.9, 3.37] },
+    { total: 2, d: 0.75, want: [0.08, 0.3, 1.12] },
+    { total: 8.3, d: 0.95, want: [0.39, 1.58, 5.92] },
+    { total: 0.9, d: 1, want: [0.05, 0.18, 0.67] }
+  ];
+  fixed11.forEach((c, i) => {
+    const r = OE.computeCalculationResult({ totalPrice: c.total, appliedDiscount: c.d, peiPeiCount: 1, rates: { group: 0.05, platform: 0.2, earning: 0.75 } });
+    const got = [r.groupCommission, r.platformCommission, r.earnings].map(v => Math.round(v * 100) / 100);
+    const okAll = got.every((v, k) => Math.abs(v - c.want[k]) < 1e-9)
+      && centsOf(r.groupCommission) + centsOf(r.platformCommission) + centsOf(r.earnings) === centsOf(r.discountedPrice);
+    ck(`⑪ 定点：${c.total} × ${c.d} → ${c.want.join('/')}`, okAll, { got, want: c.want });
+  });
+  /* 多人订单：到手是人均值，四个数不构成分割 —— 这里只锁「改动前后不动」，
+     即余额法绝不能作用到多人订单上（否则会改错人均金额）。 */
+  const multi11 = OE.computeCalculationResult({ totalPrice: 8.3, appliedDiscount: 0.9, peiPeiCount: 2, rates: { group: 0.05, platform: 0.2, earning: 0.75 } });
+  ck('⑪ 多人订单到手仍按费率算（不被余额法改写；余额法会给出 5.60）', Math.abs(multi11.earnings - 5.603) < 1e-6, multi11.earnings);
+  /* 费率合计不是 100% 时不得启用余额法：否则等于把差额塞给到手，篡改用户比例 */
+  const odd11 = OE.computeCalculationResult({ totalPrice: 100, appliedDiscount: 1, peiPeiCount: 1, rates: { group: 0.2, platform: 0.2, earning: 0.55 } });
+  ck('⑪ 费率≠100% 时不启用余额法（到手仍是 55）', Math.abs(odd11.earnings - 55) < 1e-9, odd11.earnings);
+
   /* ── ⑩ 订单文本里的总价与计算结果一致 ──────────────────────── */
   const total = 1000;
   const n = 2;
@@ -270,6 +322,21 @@ async function runAll(w) {
   );
   const shown = (String(text).match(/总价：\s*([\d.]+)/) || [])[1];
   ck('⑩ 订单文本总价 = 计算总价（1600）', shown !== undefined && near(Number(shown), result.discountedPrice, 0.01), { shown, calc: result.discountedPrice });
+
+  /* ⑩-2 文本级分位闭合：老板看到的就是这四行，它们必须能加得上。
+     这里走的是「计算 → buildOrderText → 逐行解析」，比只测纯函数更接近真实使用
+     （能同时抓住格式函数与文本拼装把数字改掉的情况）。 */
+  const textCase = OE.computeCalculationResult({ totalPrice: 5, appliedDiscount: 0.9, peiPeiCount: 1, rates: { group: 0.05, platform: 0.2, earning: 0.75 } });
+  const text2 = OE.buildOrderText(
+    { paiDan: '张三', peiPei: '小王', boss: '阿强', type: '1h甲', duration: '1h', totalPrice: 5, discountInput: 0.9, discountOverlayInput: null, noteRaw: '', noteDisplay: '', surcharge: '', surchargeRaw: '', currentMode: 1, projects: [], totalDurationMinutes: 60 },
+    textCase,
+    ''
+  );
+  const pick2 = key => Number((String(text2).match(new RegExp(key + '：\\s*([\\d.]+)')) || [])[1]);
+  const [t2, g2, p2, e2] = [pick2('总价'), pick2('团抽'), pick2('派抽'), pick2('到手')];
+  ck('⑩-2 订单文本四行能加成总价（4.5 = 0.23 + 0.9 + 3.37）',
+    t2 === 4.5 && g2 === 0.23 && p2 === 0.9 && e2 === 3.37 && Math.round((g2 + p2 + e2) * 100) === Math.round(t2 * 100),
+    { t2, g2, p2, e2 });
 }
 
 /* ─────────────── 反向验证：把实现改坏，断言必须变红 ─────────────── */
@@ -320,10 +387,18 @@ async function expectRed(name, mutate, run) {
     html => html.replace(A.peiPeiMultiply.text, 'if (false) discountedPrice *= context.peiPeiCount;'),
     async w => { await runAll(w); }
   );
+  await expectRed(
+    '分位余额法（退回逐项取整）',
+    html => html.replace(
+      A.centResidual.text,
+      'result.earnings = ProjectSettlementEngine.roundThree(earnings);'
+    ),
+    async w => { await runAll(w); }
+  );
 
   console.log('\n═════ 判定 ═════');
   if (fail === 0) {
-    console.log(`全部通过（${pass} 条性质断言 + 2 组反向验证）`);
+    console.log(`全部通过（${pass} 条性质断言 + 3 组反向验证）`);
     process.exit(0);
   }
   console.log(`失败 ${fail} 项`);
