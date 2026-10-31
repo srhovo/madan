@@ -10131,7 +10131,23 @@ window.chunkLoader = new InlineChunkLoader(window.__INLINE_CHUNKS_RAW__);
  };
  }
 
+ /* 【8.3.57·性能】只读计算期间共用同一份规范化结果。
+    normalizeData 每次都把整套价格库从头规范化一遍（NFKC、去重、排序、重算 id）。
+    候选清单每渲染一次，每条候选要问好几次「它属于哪个库」，每问一次就全量重做一次：
+    在 248 条项目的真实俱乐部库上，打一个字 ≈ 数百次全量规范化，占打字时 CPU 的 65%。
+    用法约束：fn 必须同步，且执行期间不得改动 raw（只读的展示计算）；
+    快照只存在于 fn 执行期间，finally 一定清掉；嵌套调用沿用外层快照；
+    只在「传入的就是同一个对象」时命中，传别的对象照常走完整规范化。 */
+ runWithNormalizedSnapshot(raw, fn) {
+ if (this._normSnapshot) return fn();
+ const value = this.normalizeData(raw);
+ this._normSnapshot = { raw, value };
+ try { return fn(); } finally { this._normSnapshot = null; }
+ }
+
  normalizeData(raw) {
+ const snapshot = this._normSnapshot;
+ if (snapshot && snapshot.raw === raw) return snapshot.value;
  if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !Array.isArray(raw.libraries) || raw.libraries.length === 0) return null;
  const incomingVersion = Number(raw.schemaVersion) || 1;
  if (incomingVersion > this.schemaVersion) return null;
@@ -13460,6 +13476,12 @@ class LayoutFeature extends FeatureBase {
  }
 
  getServiceRuleSuggestions(query, limit = 6) {
+ const store = this.priceLibraryStore;
+ if (typeof store?.runWithNormalizedSnapshot !== 'function') return this.buildServiceRuleSuggestions(query, limit);
+ return store.runWithNormalizedSnapshot(this.app.priceLibraries, () => this.buildServiceRuleSuggestions(query, limit));
+ }
+
+ buildServiceRuleSuggestions(query, limit = 6) {
  const raw = String(query ?? '').trim();
  const normalizedQuery = this.normalizeServiceSuggestQuery(raw);
  const latinOnly = /^[a-z0-9]+$/i.test(normalizedQuery);
@@ -20548,8 +20570,12 @@ prepare: items => items.slice(0, this._historyRenderLimit),
 
  renderListItem(order, index) {
  const modeText = order.mode === 1 ? '单子' : '礼物';
- const ratioText = order.ratio && order.ratio.id !== 'default' ? ` (${order.ratio.group}/${order.ratio.platform}/${order.ratio.earning})` : '';
- const multiText = order.isMultiMode ? ` (${order.peiPeiCount}人)` : '';
+ /* 【8.3.57·安全】比例与人数也要转义。它们正常是数字，但历史记录可由「导入备份」写入，
+    而备份的完整性校验只是 FNV32 校验和（任何人都能重算），不能当作可信来源；
+    不转义时，一份构造过的备份能让这几个位置在渲染历史列表时执行脚本。
+    String() 保留原先 undefined/null 的显示结果，对合法数据的输出逐字不变。 */
+ const ratioText = order.ratio && order.ratio.id !== 'default' ? ` (${this.escapeHtml(String(order.ratio.group))}/${this.escapeHtml(String(order.ratio.platform))}/${this.escapeHtml(String(order.ratio.earning))})` : '';
+ const multiText = order.isMultiMode ? ` (${this.escapeHtml(String(order.peiPeiCount))}人)` : '';
  const projectText = Array.isArray(order.projects) && order.projects.length ? ` · ${order.projects.length}项${order.priceLibrary?.name ? `/${this.escapeHtml(order.priceLibrary.name)}` : ''}` : '';
  const noteText = String(order?.noteDisplayBase ?? '').trim() || OrderEngine.getHistoryRawNote(order);
  const discountTagText = OrderEngine.getOrderDiscountSummary(order);
@@ -21634,7 +21660,9 @@ this.lazyFeatures = {
  renderConfiguredSections() {
  this.appShellRenderer.renderStaticSections();
  this.durationCalculatorFeature?.renderLayout?.();
- this.applyLayoutVisibility?.();
+ /* 【8.3.57】原有一行 this.applyLayoutVisibility?.() 在 8.3.33 把该方法迁到 LayoutFeature 之后就是空调用
+    （OrderCalculator 上已无此方法，?. 把它静默吞掉）。布局可见性实际由 loadAllData 里的
+    this.layoutFeature.applyLayoutVisibility() 应用，同一同步任务内、首次绘制之前，删除不改变任何行为。 */
  }
 
 
