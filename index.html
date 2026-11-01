@@ -578,6 +578,11 @@
  .contact-trigger-btn { position: relative; }
  .contact-trigger-btn::after { content: ''; position: absolute; inset: -9px -6px; border-radius: inherit; }
 
+ /* 陪陪区锁定按钮在流内、且左右紧邻「提取名字」「清除」：
+    - 纵向扩到 44px（32 + 6×2）；
+    - 横向不扩 —— 扩了会和相邻按钮互相盖住，误点比难点更糟。 */
+ .input-group.peipei-group > .lock-btn::after { inset: -6px 0; }
+
  .lock-btn.locked, .success-message.error { background: var(--color-danger-start); }
 
  .order-info {
@@ -1649,7 +1654,13 @@
  }
  /* 🔒 锁定按钮：三按钮行第二位，纵向与其他字段对齐（同右侧列） */
  .input-group.peipei-group > .lock-btn {
- position: static;
+ /* 【8.4.0 修正】原为 static。8.4.0 给 .lock-btn 加了 ::after 来扩 44px 命中区，
+    而 ::after 是 position:absolute，宿主若是 static 就会以最近的定位祖先
+    （.peipei-group 本身就是 relative）为基准，inset:-9px -2px 于是变成一块
+    「撑满整个陪陪区再外扩」的透明层，把上面的输入框整块盖住 —— 陪陪框点不了。
+    改成 relative 后仍在 flex 流内（占位与 static 完全相同，不影响三按钮同行），
+    但建立了自己的定位上下文，伪元素只覆盖按钮本身。 */
+ position: relative;
  order: 4;
  flex: 0 0 32px;
  width: 32px;

@@ -54,6 +54,45 @@ function ruleBody(src, selector) {
   const m = src.match(re);
   return m ? m[1] : null;
 }
+
+/** 去掉 CSS 注释：注释里常写着「原为 static」「改成 relative」这类说明，
+    不剥离会把注释当成真实声明，让断言既可能假红也可能假绿。 */
+function stripCssComments(src) {
+  return String(src).replace(/\/\*[\s\S]*?\*\//g, '');
+}
+
+/**
+ * 找出「有 ::after 且带 inset（命中区扩展）」但被某条规则声明成 position: static 的类。
+ *
+ * 为什么这是一条根因断言
+ * ----------------------
+ * 命中区是用 `::after { position: absolute; inset: -9px -2px }` 扩出来的。
+ * 伪元素的定位基准是**宿主**；宿主一旦是 static，就会退到最近的定位祖先上，
+ * inset 于是变成「撑满祖先再外扩」的一块透明层。
+ *
+ * 8.4.0 就栽在这里：`.peipei-group` 是 relative、它内部的 `.lock-btn` 是 static，
+ * 结果伪元素盖住了整个陪陪区，陪陪输入框点不了 —— 页面不报错、测试也不红。
+ */
+function staticHostsWithInsetAfter(src) {
+  const clean = stripCssComments(src);
+  const tails = new Set();
+  const re = /([^{}]+)::after\s*\{([^}]*)\}/g;
+  let m;
+  while ((m = re.exec(clean))) {
+    if (!/inset\s*:/.test(m[2])) continue;
+    const sel = m[1].trim().split('\n').pop().trim();
+    const parts = sel.split(/[\s>+~]+/).filter(Boolean);
+    const lastSel = parts[parts.length - 1] || '';
+    const cls = (lastSel.match(/\.([\w-]+)/) || [])[1];
+    if (cls) tails.add(cls);
+  }
+  const out = [];
+  for (const cls of tails) {
+    const rr = new RegExp(`[^{}]*\\.${cls}(?![\\w-])[^{}]*\\{[^}]*position:\\s*static`, 'g');
+    if (rr.test(clean)) out.push(cls);
+  }
+  return out;
+}
 /** 取出某个 @media 条件块的内容（支持嵌套一层）。 */
 function mediaBlock(src, condition) {
   // 必须精确到「条件 + 空格 + {」：只找条件前缀会命中
@@ -122,6 +161,29 @@ const RULES = [
     name: '联系方式按钮的 44px 命中区',
     test: (src) => /\.contact-trigger-btn::after\s*\{[^}]*inset:\s*-9px/.test(src),
     break: (src) => src.replace(/\.contact-trigger-btn::after\s*\{[^}]*\}/, '.contact-trigger-btn::after {}')
+  },
+  {
+    // 8.4.0 的真实事故：陪陪输入框点不了。
+    // .peipei-group 是 relative，其内部的 .lock-btn 被覆盖成 static，
+    // 于是 .lock-btn::after 的 inset 以整个陪陪区为基准，盖住了上面的输入框。
+    name: '命中区伪元素的宿主都有定位上下文（没有一个是 static）',
+    test: (src) => staticHostsWithInsetAfter(src).length === 0,
+    break: (src) => src.replace(
+      /(\.input-group\.peipei-group > \.lock-btn \{(?:\s*\/\*[\s\S]*?\*\/)*\s*)position: relative;/,
+      '$1position: static;'
+    )
+  },
+  {
+    name: '陪陪区锁定按钮：自身定位 + 只纵向扩命中区（不压相邻按钮）',
+    test: (src) => {
+      const body = stripCssComments(ruleBody(src, '.input-group.peipei-group > .lock-btn') || '');
+      const after = ruleBody(src, '.input-group.peipei-group > .lock-btn::after') || '';
+      return /position:\s*relative/.test(body) && /inset:\s*-6px\s+0/.test(after);
+    },
+    break: (src) => src.replace(
+      /\.input-group\.peipei-group > \.lock-btn::after \{[^}]*\}/,
+      '.input-group.peipei-group > .lock-btn::after { content: none; }'
+    )
   },
   {
     name: 'DialogManager 有统一的名称补全方法',
@@ -214,7 +276,7 @@ const RULES = [
       brokeCount += 1;
     }
   }
-  if (!brokeCount) check(`14 条规则的反向验证全部变红`, true, '14/14');
+  if (!brokeCount) check(`${RULES.length} 条规则的反向验证全部变红`, true, `${RULES.length}/${RULES.length}`);
 
   // ── ③ 真实浏览器实测（有 playwright-core 时跑，没有则跳过）────────────
   // 注意：这里的「跳过」只在**确实没有浏览器可用**时才允许。
@@ -269,6 +331,34 @@ const RULES = [
         check(`${label} ${w}×${h}：弹窗都有可访问名称`, r.named === r.totalModals, `${r.named}/${r.totalModals}`);
         const wantCols = w < 768 ? 1 : (h > w ? 2 : 1);
         check(`${label} ${w}×${h}：字段列数 ${wantCols}`, r.cols === wantCols, `实际 ${r.cols}`);
+
+        // 真实点击：8.4.0 的陪陪输入框点不了，页面不报错、尺寸也正常，
+        // 只有「点一下看看焦点落在哪」能发现。允许一次重试，避开联想列表的异步抖动。
+        const fieldIds = await page.evaluate(() =>
+          [...document.querySelectorAll('#primaryFieldsContainer input')]
+            .filter(el => el.offsetParent !== null && el.getBoundingClientRect().width > 4)
+            .map(el => el.id).filter(Boolean)
+        );
+        const unclickable = [];
+        for (const fid of fieldIds) {
+          let ok = false;
+          for (let attempt = 0; attempt < 2 && !ok; attempt++) {
+            const pt = await page.evaluate(async (id) => {
+              const el = document.getElementById(id);
+              el.scrollIntoView({ block: 'center' });
+              await new Promise(r => setTimeout(r, 180));
+              const b = el.getBoundingClientRect();
+              return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+            }, fid);
+            await page.evaluate(() => { if (document.activeElement) document.activeElement.blur(); });
+            await page.mouse.click(pt.x, pt.y);
+            const focused = await page.evaluate(() => (document.activeElement || {}).id || '');
+            ok = focused === fid;
+          }
+          if (!ok) unclickable.push(fid);
+        }
+        check(`${label} ${w}×${h}：每个输入框都点得进去`, unclickable.length === 0, unclickable.join(',') || `${fieldIds.length} 个全通`);
+
         check(`${label} ${w}×${h}：无页面错误`, errs.length === 0, errs.join(';') || '0');
         await ctx.close();
       }
