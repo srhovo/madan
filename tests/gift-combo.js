@@ -236,8 +236,15 @@ ok('存在刷新提示文案的方法', HTML.includes('syncModePlaceholders()'))
 ok('它从 appShellRenderer 取配置（不是 uiRender）', /const renderer = this\.app\.appShellRenderer;/.test(HTML));
 ok('布局应用时会刷新提示文案', /applyLayoutVisibility\(\)\s*\{\s*this\.syncModeAttribute\(\);\s*this\.syncModePlaceholders\(\)/.test(HTML));
 
-/* 长文案必须有字号兜底，否则窄屏被截断 */
-ok('服务类型输入框有字号兜底规则', /#primaryFieldsContainer \.field-type > input \{\s*font-size:\s*clamp\(/.test(HTML));
+/* 长文案必须有字号兜底，否则窄屏被截断。
+   【8.4.0】兜底从 input 移到了 ::placeholder：input 固定 16px（避开 iOS 聚焦缩放），
+   placeholder 单独 clamp。两种形态都算「有兜底」，但必须至少有一种，
+   且 input 自身不能小于 16 —— 否则 iOS 又会放大页面。 */
+const typeInputFont = (HTML.match(/#primaryFieldsContainer \.field-type > input \{\s*font-size:\s*([^;]+);/) || [])[1] || '';
+const hasPlaceholderClamp = /#primaryFieldsContainer \.field-type > input::placeholder \{\s*font-size:\s*clamp\(/.test(HTML);
+ok('服务类型输入框有字号兜底规则（input clamp，或 16px + placeholder clamp）',
+  /clamp\(/.test(typeInputFont) || (hasPlaceholderClamp && /16px/.test(typeInputFont)),
+  `input font-size=${typeInputFont.trim()||'未找到'} placeholderClamp=${hasPlaceholderClamp}`);
 ok('有按模式分流的字号规则', /html\[data-order-mode="2"\] #primaryFieldsContainer \.field-type > input/.test(HTML));
 
 /* ============ ⑦ 订单模板「时长：」在礼物码单取礼物总数量 ============ */

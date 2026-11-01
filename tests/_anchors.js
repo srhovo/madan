@@ -108,6 +108,30 @@ const ANCHORS = {
     text: ' this.app.updateGiftDiscountNote?.();\n this.bossMemoryFeature.hideBossSuggestions();',
     expect: 1,
     note: '「全部清除」里的顺序：先刷提示、再收候选'
+  },
+
+  // ── xss-import（8.3.57 历史渲染转义的守卫）────────────────────────
+  // 这 4 条是「导入恶意备份」XSS 修复的落点。锚点一漂移，xss-import 的反向验证
+  // 就会变成空转（拆不坏 → 恒绿），而漏洞本身仍然存在 —— 正是 hint-layout 踩过的坑。
+  xssRatioGroup: {
+    text: 'this.escapeHtml(String(order.ratio.group))',
+    expect: 1,
+    note: '历史行「团抽比例」的转义'
+  },
+  xssRatioPlatform: {
+    text: 'this.escapeHtml(String(order.ratio.platform))',
+    expect: 1,
+    note: '历史行「派抽比例」的转义'
+  },
+  xssRatioEarning: {
+    text: 'this.escapeHtml(String(order.ratio.earning))',
+    expect: 1,
+    note: '历史行「到手比例」的转义'
+  },
+  xssPeiPeiCount: {
+    text: 'this.escapeHtml(String(order.peiPeiCount))',
+    expect: 1,
+    note: '历史行「人数」的转义'
   }
 };
 

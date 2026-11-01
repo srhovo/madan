@@ -81,8 +81,15 @@ const MEASURE = (ids) => ids.map(id => {
   const cs = getComputedStyle(el);
   const r = el.getBoundingClientRect();
   const ph = el.getAttribute('placeholder') || '';
+  /* 【8.4.0】量 placeholder 必须用它自己的字号。
+     8.4.0 把输入框字号固定成 16px（避开 iOS 聚焦缩放），而 placeholder 另有
+     clamp 规则负责「窄屏放得下」——两者从此不是一个字号。
+     继续用 cs.font（input 的 16px）去量，会把「视觉上放得下」误判成截断，
+     这条断言就变成常年红、最后被人关掉。 */
+  const phCs = getComputedStyle(el, '::placeholder');
+  const phFont = `${phCs.fontStyle || 'normal'} ${phCs.fontWeight || '400'} ${phCs.fontSize || cs.fontSize} ${phCs.fontFamily || cs.fontFamily}`;
   const probe = document.createElement('span');
-  probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;font:' + cs.font;
+  probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;font:' + phFont;
   probe.textContent = ph;
   document.body.appendChild(probe);
   const textW = probe.getBoundingClientRect().width;
