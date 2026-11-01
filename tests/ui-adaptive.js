@@ -210,6 +210,18 @@ const RULES = [
     break: (src) => src.replace('if (document.activeElement !== down.active || !isTextField(down.active)) return;', '')
   },
   {
+    // touchend 事件自身没有 clientX（坐标在 changedTouches[0] 里）。
+    // 直接读 event.clientX 会得到 undefined → 减法变 NaN → `NaN > 12` 恒 false，
+    // 「手指滑走就不算点空白」这条判据在老 WebView 上会静默失效。
+    name: '老 WebView 的 touchend 分支能从 changedTouches 取到坐标',
+    // 判据不能只搜「changedTouches 有没有出现」——注释里也写了这个词，
+    // 删掉代码行后照样能搜到，反向验证会假通过。必须盯代码本身。
+    test: (src) => /const pointOf = event =>/.test(src)
+      && /const touch = \(event\.changedTouches/.test(src)
+      && !/Math\.hypot\(event\.clientX - down\.x/.test(src),
+    break: (src) => src.replace(/\s*const touch = \(event\.changedTouches && event\.changedTouches\[0\]\)[\s\S]*?return touch \? \{ x: touch\.clientX, y: touch\.clientY \} : null;/, '\n return null;')
+  },
+  {
     name: 'DialogManager 有统一的名称补全方法',
     test: (src) => /ensureAccessibleName\(modal\)\s*\{/.test(src) && /aria-labelledby/.test(src),
     break: (src) => src.replace(/ensureAccessibleName\(modal\)\s*\{/, 'ensureAccessibleNameBroken(modal) {')

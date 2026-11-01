@@ -17862,15 +17862,27 @@ class PriceMemoryFeature extends FeatureBase {
  ].join(', ');
  const isTextField = el => !!(el && el.closest && el.closest('input, textarea, [contenteditable="true"]'));
  const keepFocus = el => !!(el && el.closest && el.closest(INTERACTIVE));
+ /* 统一取坐标：PointerEvent / MouseEvent 上直接有 clientX，
+ 但 touchend 事件自身**没有** clientX —— 坐标在 changedTouches[0] 里。
+ 直接读 event.clientX 会得到 undefined，减法变 NaN，`NaN > 12` 恒为 false，
+ 于是「手指滑走就不算点空白」这条判据在老 WebView 上静默失效。
+ 这类「取值失败却当成功用」的写法正是本轮反复踩的坑，统一收口。 */
+ const pointOf = event => {
+ if (!event) return null;
+ if (typeof event.clientX === 'number' && typeof event.clientY === 'number') return { x: event.clientX, y: event.clientY };
+ const touch = (event.changedTouches && event.changedTouches[0]) || (event.touches && event.touches[0]);
+ return touch ? { x: touch.clientX, y: touch.clientY } : null;
+ };
  let start = null;
  const clear = () => { start = null; };
  const onDown = event => {
  const active = document.activeElement;
  if (!isTextField(active)) { start = null; return; }
+ const pt = pointOf(event);
  start = {
  target: event.target,
  active,
- x: event.clientX, y: event.clientY,
+ x: pt ? pt.x : null, y: pt ? pt.y : null,
  sx: window.scrollX, sy: window.scrollY
  };
  };
@@ -17887,7 +17899,8 @@ class PriceMemoryFeature extends FeatureBase {
  if (keepFocus(target) || keepFocus(down.target)) return;
  // 判据 3：期间滚动过 / 手指滑走了，说明不是「点一下空白」
  if (Math.abs(window.scrollY - down.sy) > 2 || Math.abs(window.scrollX - down.sx) > 2) return;
- if (Math.hypot(event.clientX - down.x, event.clientY - down.y) > 12) return;
+ const pt = pointOf(event);
+ if (down.x !== null && pt && Math.hypot(pt.x - down.x, pt.y - down.y) > 12) return;
  down.active.blur();
  };
  this._eventScope.on(document, 'pointerdown', onDown, { passive: true });
