@@ -32,7 +32,7 @@ const path = require('path');
 const { JSDOM, VirtualConsole } = require('jsdom');
 
 const ROOT = path.resolve(__dirname, '..');
-const HTML_PATH = process.argv[2] || path.join(ROOT, 'index.html');
+const HTML_PATH = path.resolve(process.argv[2] || path.join(ROOT, 'index.html'));
 const html = fs.readFileSync(HTML_PATH, 'utf8');
 
 let pass = 0;

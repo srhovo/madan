@@ -556,7 +556,7 @@ fi
 if ! should_skip xss; then
   echo
   echo "── [28/30] 导入恶意备份与历史渲染 xss-import.js ───────────────"
-  out=$(node tests/xss-import.js index.html 2>&1)
+  out=$(node tests/xss-import.js "$HTML" 2>&1)
   rc=$?
   echo "$out" | tail -10
   line=$(echo "$out" | grep -oE "通过 [0-9]+ / 失败 [0-9]+" | tail -1)
@@ -570,7 +570,7 @@ fi
 if ! should_skip uiadapt; then
   echo
   echo "── [29/30] 界面可用性与平板自适应 ui-adaptive.js ───────────────"
-  out=$(node tests/ui-adaptive.js index.html 2>&1)
+  out=$(node tests/ui-adaptive.js "$HTML" 2>&1)
   rc=$?
   echo "$out" | tail -10
   line=$(echo "$out" | grep -oE "通过 [0-9]+ / 失败 [0-9]+" | tail -1)

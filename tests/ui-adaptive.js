@@ -29,7 +29,13 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const HTML_PATH = process.argv[2] || path.join(ROOT, 'index.html');
+// 一律转绝对路径：file:// 后面必须是绝对路径，否则浏览器拿到 file://index.html/
+// 会直接失败，静默跳过实测（这是曾经真实发生过的假绿）。
+const HTML_PATH = path.resolve(process.argv[2] || path.join(ROOT, 'index.html'));
+if (!fs.existsSync(HTML_PATH)) {
+  console.error(`  ✗ 找不到要检查的 HTML：${HTML_PATH}`);
+  process.exit(1);
+}
 const html = fs.readFileSync(HTML_PATH, 'utf8');
 
 let pass = 0;
@@ -211,6 +217,10 @@ const RULES = [
   if (!brokeCount) check(`14 条规则的反向验证全部变红`, true, '14/14');
 
   // ── ③ 真实浏览器实测（有 playwright-core 时跑，没有则跳过）────────────
+  // 注意：这里的「跳过」只在**确实没有浏览器可用**时才允许。
+  // 曾经踩过坑：run-all.sh 传的是相对路径 index.html，拼成 file://index.html/
+  // 后 goto 失败，异常被当成「跳过」吞掉，于是平板三视口断言根本没跑、汇总却全绿。
+  // 所以下面把「缺浏览器」与「跑起来但出错」严格分开：后者一律判失败。
   section('③ 真实浏览器实测（可选）');
   let PW = null;
   for (const base of [ROOT, process.cwd()]) {
@@ -263,7 +273,15 @@ const RULES = [
         await ctx.close();
       }
     } catch (e) {
-      console.log('    · 浏览器启动失败，跳过实测：' + e.message);
+      const msg = String((e && e.message) || e);
+      // 只有「本机确实没有浏览器二进制」才允许跳过；其余（URL 无效、页面崩溃、
+      // 断言执行期异常）都必须变红，否则就是假绿。
+      const noBinary = /Executable doesn'?t exist|is not found at|ENOENT.*(chrome|chromium)|Cannot find (chrome|chromium)/i.test(msg);
+      if (noBinary) {
+        console.log('    · 跳过：本机没有可用的 Chromium 可执行文件');
+      } else {
+        check('真实浏览器实测能跑起来（失败不允许静默跳过）', false, msg.split('\n')[0]);
+      }
     } finally {
       if (browser) await browser.close();
     }
