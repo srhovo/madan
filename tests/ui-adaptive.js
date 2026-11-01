@@ -181,14 +181,33 @@ const RULES = [
     name: '点空白结束输入态：处理器已实现并挂上初始化',
     test: (src) => /initTapToDismiss\(\)\s*\{/.test(src)
       && /this\.initTapToDismiss\(\);/.test(src)
-      && /document,\s*'pointerdown'/.test(src),
+      && /document,\s*'pointerup'/.test(src),
     break: (src) => src.replace('this.initTapToDismiss();', '')
   },
   {
-    name: '点空白结束输入态：落在可交互元素上不打断正常的焦点转移',
-    test: (src) => /const INTERACTIVE = \[/.test(src)
-      && /if \(target\.closest\(INTERACTIVE\)\) return;/.test(src),
-    break: (src) => src.replace('if (target.closest(INTERACTIVE)) return;', '')
+    // 8.4.2 的真实事故：点空白用的是 pointerdown，而候选的选中逻辑挂在 mousedown 上，
+    // pointerdown 更早 → 先把输入框 blur 掉 → blur 处理器用 rAF 收起候选面板 →
+    // 真机上 touchstart 与 touchend 之间跨帧，rAF 先跑，touchend 的 mousedown 落空。
+    // 用户看到的就是「点候选没反应，直接跳过」。判定必须晚于 mousedown。
+    name: '点空白的判定晚于候选的 mousedown（不得在 pointerdown 上直接 blur）',
+    test: (src) => /'pointerdown',\s*onDown/.test(src) && /'pointerup',\s*onUp/.test(src),
+    break: (src) => src.replace("'pointerup', onUp", "'pointerdown', onUp")
+  },
+  {
+    name: '点空白结束输入态：可交互白名单覆盖所有候选面（漏一个就点不中）',
+    test: (src) => {
+      const list = (src.match(/const INTERACTIVE = \[([\s\S]*?)\]\.join\(', '\)/) || [])[1] || '';
+      return ['.type-suggest-list', '.boss-suggest-list', '.ap-quick-chip', '.history-item', '.boss-memory-item']
+        .every(cls => list.includes(`'${cls}'`));
+    },
+    break: (src) => src.replace(/'\s*\.type-suggest-list\s*'/, "'__removed_in_probe__'")
+  },
+  {
+    name: '点空白结束输入态：焦点已变 / 起手落点可交互 / 滚动过，都不允许再补一刀',
+    test: (src) => /document\.activeElement !== down\.active/.test(src)
+      && /keepFocus\(target\)/.test(src)
+      && /Math\.abs\(window\.scrollY - down\.sy\)/.test(src),
+    break: (src) => src.replace('if (document.activeElement !== down.active || !isTextField(down.active)) return;', '')
   },
   {
     name: 'DialogManager 有统一的名称补全方法',
@@ -365,7 +384,7 @@ const RULES = [
         check(`${label} ${w}×${h}：每个输入框都点得进去`, unclickable.length === 0, unclickable.join(',') || `${fieldIds.length} 个全通`);
 
         // 点空白结束输入态。桌面浏览器点 body 会「天然失焦」，掩盖这条能力的有无，
-        // 所以这里派发合成 pointerdown —— 合成事件不会触发浏览器原生失焦，
+        // 所以这里派发合成 pointerdown + pointerup —— 合成事件不会触发浏览器原生失焦，
         // 焦点是否离开输入框完全取决于我们的处理逻辑。
         if (w <= 480) {
           const tap = await page.evaluate(async () => {
@@ -375,7 +394,10 @@ const RULES = [
             input.focus();
             await new Promise(r => setTimeout(r, 80));
             if (document.activeElement !== input) return { ok: false, reason: '聚焦失败' };
-            blank.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+            const box = blank.getBoundingClientRect();
+            const at = { bubbles: true, clientX: Math.round(box.x + 8), clientY: Math.round(box.y + 8) };
+            blank.dispatchEvent(new PointerEvent('pointerdown', at));
+            blank.dispatchEvent(new PointerEvent('pointerup', at));
             await new Promise(r => setTimeout(r, 120));
             return { ok: document.activeElement !== input, active: (document.activeElement || {}).id || 'body' };
           });
@@ -387,12 +409,61 @@ const RULES = [
             if (!input || !btn) return { ok: false, reason: '缺少元素' };
             input.focus();
             await new Promise(r => setTimeout(r, 80));
-            btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+            const box = btn.getBoundingClientRect();
+            const at = { bubbles: true, clientX: Math.round(box.x + box.width / 2), clientY: Math.round(box.y + box.height / 2) };
+            btn.dispatchEvent(new PointerEvent('pointerdown', at));
+            btn.dispatchEvent(new PointerEvent('pointerup', at));
             await new Promise(r => setTimeout(r, 120));
             // 点在按钮上不允许被强行 blur —— 否则会打断「点按钮先失焦再触发」的原生顺序
             return { ok: document.activeElement === input };
           });
           check(`${label} ${w}×${h}：点按钮不被误当作空白`, keep.ok, keep.reason || '');
+        }
+
+        // 候选面必须真的点得中。8.4.2 的事故：点空白的 pointerdown 抢在候选的 mousedown
+        // 之前把输入框 blur 掉，blur 处理器用 rAF 收起候选面板；真机上 touchstart 与
+        // touchend 之间必然跨帧，rAF 先跑，等 touchend 的 mousedown 派发时元素已不在。
+        // 连续 tap（中间不插帧）测不出来 —— 这正是当初漏掉它的原因，所以这里必须分两步派发。
+        if (w <= 480) {
+          await page.evaluate(() => {
+            try {
+              const key = 'pw_ultimate_priceLibraries';
+              const raw = localStorage.getItem(key);
+              if (!raw) return;
+              const data = JSON.parse(raw);
+              const lib = (data.libraries || [])[0];
+              if (!lib) return;
+              lib.rules = [{ id: '__uiadapt_probe__', kind: 'exact', serviceName: '防线探针项目', aliases: ['防线探针'], prices: { hour: 30, round: 20 } }];
+              localStorage.setItem(key, JSON.stringify(data));
+            } catch (e) { /* 注入失败就让下面的断言变红，不静默跳过 */ }
+          });
+          await page.reload({ waitUntil: 'load' });
+          await page.waitForTimeout(900);
+          const cdp = await ctx.newCDPSession(page);
+          const cand = await page.evaluate(async () => {
+            const el = document.getElementById('type');
+            if (!el) return { ok: false, reason: '缺少服务类型输入框' };
+            el.scrollIntoView({ block: 'center', behavior: 'instant' });
+            await new Promise(r => setTimeout(r, 150));
+            el.focus();
+            el.value = '防线探针';
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            await new Promise(r => setTimeout(r, 400));
+            const item = document.querySelector('#typeSuggestList .type-suggest-item[data-suggestion-owner="service"]');
+            if (!item) return { ok: false, reason: '候选没有出现（数据或渲染链路有问题）' };
+            const b = item.getBoundingClientRect();
+            return { ok: true, x: Math.round(b.x + b.width / 2), y: Math.round(b.y + b.height / 2), before: el.value };
+          });
+          if (!cand.ok) {
+            check(`${label} ${w}×${h}：点服务类型候选能填入`, false, cand.reason);
+          } else {
+            await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: cand.x, y: cand.y, radiusX: 2, radiusY: 2, force: 1 }] });
+            await page.waitForTimeout(120); // 留一帧：真机 touchend 与 mousedown 之间本就跨帧
+            await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+            await page.waitForTimeout(450);
+            const after = await page.evaluate(() => document.getElementById('type').value);
+            check(`${label} ${w}×${h}：点服务类型候选能填入`, after !== cand.before && after.includes('防线探针'), `"${cand.before}"→"${after}"`);
+          }
         }
 
         check(`${label} ${w}×${h}：无页面错误`, errs.length === 0, errs.join(';') || '0');

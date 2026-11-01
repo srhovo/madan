@@ -17823,32 +17823,83 @@ class PriceMemoryFeature extends FeatureBase {
  焦点仍在 input 里 → 键盘不收、浮动栏不回来 → 看起来就是「状态没结束」。
  桌面浏览器点 body 天然会失焦，所以本地测不出来。
 
- 这里补一层显式处理：点到真正的空白就收键盘；只要落在任何可交互元素上
- 一律放过，避免打断「点建议项填入」「点按钮」「点历史记录」这些正常操作。 */
+ 这里补一层显式处理：点到真正的空白就收键盘。
+
+ 【8.4.3 修】为什么从 pointerdown 改到 pointerup —— 8.4.2 的第一版把
+ 「服务类型」候选点瞎了，用户能感知的现象是「点候选没反应，直接跳过」。
+ 因果链：候选的选中逻辑挂在 **mousedown** 上，靠 preventDefault() 保住输入框焦点；
+ 而 pointerdown 比 mousedown 更早，于是在 pointerdown 里先 blur 了输入框，
+ 输入框的 blur 处理器用 requestAnimationFrame 收起候选面板 ——
+ 真机上 touchstart 与 touchend 之间必然跨帧，rAF 先跑，候选列表被清空，
+ 等 touchEnd 派发 mousedown 时元素已不在，点击直接落空。
+ 桌面 Chromium 的 tap 是连续派发、中间不插帧，所以本地测不出来（假绿）。
+
+ 改到 pointerup 之后，选中逻辑早已执行完、焦点也已交给下一个字段，
+ 不再和 mousedown 抢时序；且「抬手才收键盘」比「按下就收」更符合移动端直觉。
+ 顺带补三道判据，任何一道不成立都不干预：焦点必须还是按下时那个、
+ 目标必须是同一个、期间不能有滚动或滑动。 */
+
+ /* 可交互白名单：落在这里一律不干预。
+ 分组标注来源，避免再漏 —— 8.4.2 只写了 .suggest-list，而服务类型候选用的是
+ .type-suggest-list，一字之差导致整块候选失效。 */
  initTapToDismiss() {
  const INTERACTIVE = [
- 'input', 'textarea', 'select', 'button', 'a', 'label', 'summary',
- '[contenteditable="true"]', '[role="button"]', '[role="menuitem"]',
- '.app-modal', '.suggest-list', '.boss-suggest-list', '.history-item',
- '.mode-btn', '.app-btn', '.custom-ratio-btn', '.auto-price-panel'
+ // ① 原生可交互控件
+ 'input', 'textarea', 'select', 'button', 'a[href]', 'label', 'summary',
+ '[contenteditable=""]', '[contenteditable="true"]',
+ '[role="button"]', '[role="menuitem"]', '[role="option"]', '[role="tab"]',
+ '[role="dialog"]', '[role="listbox"]', '[role="switch"]', '[role="checkbox"]',
+ '[tabindex]:not([tabindex="-1"])',
+ // ② 候选/建议面：全部用 mousedown + preventDefault 保住焦点，blur 会直接废掉它们
+ '.type-suggest-list',   /* 服务类型 / 加价 / 单价速选 共用这一块单例面板 */
+ '.boss-suggest-list',
+ '.suggest-list',
+ // ③ 与输入框同屏共存的可点列表
+ '.ap-quick-chip', '.boss-memory-item', '.history-item',
+ // ④ 浮层与面板
+ '.app-modal', '.auto-price-panel',
+ '.mode-btn', '.app-btn', '.custom-ratio-btn'
  ].join(', ');
  const isTextField = el => !!(el && el.closest && el.closest('input, textarea, [contenteditable="true"]'));
- // 用 pointerdown：它早于焦点转移与 click，能在「点空白」时立刻收键盘；
- // 若等 click 再收，部分 WebView 的键盘会在收起瞬间回弹。
- const dismiss = event => {
+ const keepFocus = el => !!(el && el.closest && el.closest(INTERACTIVE));
+ let start = null;
+ const clear = () => { start = null; };
+ const onDown = event => {
  const active = document.activeElement;
- if (!isTextField(active)) return;
+ if (!isTextField(active)) { start = null; return; }
+ start = {
+ target: event.target,
+ active,
+ x: event.clientX, y: event.clientY,
+ sx: window.scrollX, sy: window.scrollY
+ };
+ };
+ const onUp = event => {
+ const down = start;
+ clear();
+ if (!down) return;
+ // 判据 1：焦点必须还是按下时那个。变了说明这次点击已被某个处理器接管
+ // （比如候选 mousedown 里的 focusNext），不该再补一刀。
+ if (document.activeElement !== down.active || !isTextField(down.active)) return;
  const target = event.target;
  if (!target || !target.closest) return;
- // 点到任何可交互区域都不干预：交给原有逻辑处理焦点
- if (target.closest(INTERACTIVE)) return;
- active.blur();
+ // 判据 2：起手或落点落在可交互区，都不干预
+ if (keepFocus(target) || keepFocus(down.target)) return;
+ // 判据 3：期间滚动过 / 手指滑走了，说明不是「点一下空白」
+ if (Math.abs(window.scrollY - down.sy) > 2 || Math.abs(window.scrollX - down.sx) > 2) return;
+ if (Math.hypot(event.clientX - down.x, event.clientY - down.y) > 12) return;
+ down.active.blur();
  };
- this._eventScope.on(document, 'pointerdown', dismiss, { passive: true });
- // 老 WebView 没有 PointerEvent 时退回 touchstart / mousedown，避免整条能力静默失效
+ this._eventScope.on(document, 'pointerdown', onDown, { passive: true });
+ this._eventScope.on(document, 'pointerup', onUp, { passive: true });
+ this._eventScope.on(document, 'pointercancel', clear, { passive: true });
+ // 老 WebView 没有 PointerEvent 时退回 touchstart / touchend，避免整条能力静默失效
  if (typeof window.PointerEvent === 'undefined') {
- this._eventScope.on(document, 'touchstart', dismiss, { passive: true });
- this._eventScope.on(document, 'mousedown', dismiss, { passive: true });
+ this._eventScope.on(document, 'touchstart', onDown, { passive: true });
+ this._eventScope.on(document, 'touchend', onUp, { passive: true });
+ this._eventScope.on(document, 'touchcancel', clear, { passive: true });
+ this._eventScope.on(document, 'mousedown', onDown, { passive: true });
+ this._eventScope.on(document, 'mouseup', onUp, { passive: true });
  }
  return true;
  }
