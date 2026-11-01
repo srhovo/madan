@@ -569,19 +569,15 @@
  transform: translateY(-50%);
  }
 
-/* 【8.4.0】44px 命中区（WCAG 2.5.5 / 移动端最佳实践）。
-   用伪元素扩，不改 width/height：改尺寸会把输入框右侧的清除+锁定两个按钮
-   整体挪位，手机上所有字段的对齐都要重排；伪元素只扩「可点范围」，
-   视觉与布局零变化。
-   横向只扩 2px —— 左边 4px 就是清除按钮，扩多了两个按钮互相盖住，误点更多。 */
- .lock-btn::after { content: ''; position: absolute; inset: -9px -2px; border-radius: inherit; }
- .contact-trigger-btn { position: relative; }
- .contact-trigger-btn::after { content: ''; position: absolute; inset: -9px -6px; border-radius: inherit; }
-
- /* 陪陪区锁定按钮在流内、且左右紧邻「提取名字」「清除」：
-    - 纵向扩到 44px（32 + 6×2）；
-    - 横向不扩 —— 扩了会和相邻按钮互相盖住，误点比难点更糟。 */
- .input-group.peipei-group > .lock-btn::after { inset: -6px 0; }
+/* 【8.4.2】撤掉 8.4.0 的「44px 命中区伪元素」。
+   原因有两条，都是实测出来的：
+   1）它其实没生效。`.lock-btn` 是 absolute + transform，`content: ''` 的伪元素
+      在这类宿主上没能真正撑开可点区域 —— 在按钮外侧 6px 点击，8.3.57 与 8.4.0
+      一样不会触发，收益为 0。
+   2）它唯一「生效」的一次，是陪陪区宿主为 static 时，inset 以整个 .peipei-group
+      为基准撑满全块，把输入框盖住（8.4.0 陪陪框点不了的根因）。
+   结论：留着只有风险没有收益。按钮维持原有尺寸（26×26，仍满足 WCAG 2.5.8 的
+   24×24 AA 要求），可点性改由「点空白结束输入态」从交互层面解决。 */
 
  .lock-btn.locked, .success-message.error { background: var(--color-danger-start); }
 
@@ -17709,6 +17705,7 @@ class PriceMemoryFeature extends FeatureBase {
  this.orderFlow.syncGenerationReadiness();
 
  this.initFloatingActionBar();
+ this.initTapToDismiss();
  storage.flushPendingStorageWarnings();
  return true;
  } catch (error) {
@@ -17815,6 +17812,44 @@ class PriceMemoryFeature extends FeatureBase {
  ['scroll', 'resize', 'focusin', 'focusout'].forEach(type => this._eventScope.on(window, type, run, { passive: true }));
  this._eventScope.on(window.visualViewport, 'resize', run);
  this._floatingInitTimer = window.setTimeout(() => this.syncFloatingActionBar(), 120);
+ return true;
+ }
+
+ /* 【8.4.2】点空白结束输入态。
+ 用户反馈：点输入框进入待输入状态后，点周围空白处无法「结束状态」。
+ 根因是这一整套「是否还在录单」的判断都挂在 document.activeElement 上
+ （浮动操作栏靠 isTyping 隐藏、键盘靠 blur 收起），而移动端 WebView
+ ——尤其 iOS WKWebView——点非输入区域并不会让输入框失焦：
+ 焦点仍在 input 里 → 键盘不收、浮动栏不回来 → 看起来就是「状态没结束」。
+ 桌面浏览器点 body 天然会失焦，所以本地测不出来。
+
+ 这里补一层显式处理：点到真正的空白就收键盘；只要落在任何可交互元素上
+ 一律放过，避免打断「点建议项填入」「点按钮」「点历史记录」这些正常操作。 */
+ initTapToDismiss() {
+ const INTERACTIVE = [
+ 'input', 'textarea', 'select', 'button', 'a', 'label', 'summary',
+ '[contenteditable="true"]', '[role="button"]', '[role="menuitem"]',
+ '.app-modal', '.suggest-list', '.boss-suggest-list', '.history-item',
+ '.mode-btn', '.app-btn', '.custom-ratio-btn', '.auto-price-panel'
+ ].join(', ');
+ const isTextField = el => !!(el && el.closest && el.closest('input, textarea, [contenteditable="true"]'));
+ // 用 pointerdown：它早于焦点转移与 click，能在「点空白」时立刻收键盘；
+ // 若等 click 再收，部分 WebView 的键盘会在收起瞬间回弹。
+ const dismiss = event => {
+ const active = document.activeElement;
+ if (!isTextField(active)) return;
+ const target = event.target;
+ if (!target || !target.closest) return;
+ // 点到任何可交互区域都不干预：交给原有逻辑处理焦点
+ if (target.closest(INTERACTIVE)) return;
+ active.blur();
+ };
+ this._eventScope.on(document, 'pointerdown', dismiss, { passive: true });
+ // 老 WebView 没有 PointerEvent 时退回 touchstart / mousedown，避免整条能力静默失效
+ if (typeof window.PointerEvent === 'undefined') {
+ this._eventScope.on(document, 'touchstart', dismiss, { passive: true });
+ this._eventScope.on(document, 'mousedown', dismiss, { passive: true });
+ }
  return true;
  }
  }

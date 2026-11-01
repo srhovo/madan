@@ -153,37 +153,42 @@ const RULES = [
     break: (src) => src.replace(/(\.ap-label \{[^}]*?)color:\s*var\(--color-text-hint\)/, '$1color: var(--color-text-light)')
   },
   {
-    name: '锁定按钮的 44px 命中区（伪元素，不改视觉）',
-    test: (src) => /\.lock-btn::after\s*\{[^}]*inset:\s*-9px/.test(src),
-    break: (src) => src.replace(/\.lock-btn::after\s*\{[^}]*\}/, '.lock-btn::after {}')
-  },
-  {
-    name: '联系方式按钮的 44px 命中区',
-    test: (src) => /\.contact-trigger-btn::after\s*\{[^}]*inset:\s*-9px/.test(src),
-    break: (src) => src.replace(/\.contact-trigger-btn::after\s*\{[^}]*\}/, '.contact-trigger-btn::after {}')
-  },
-  {
     // 8.4.0 的真实事故：陪陪输入框点不了。
     // .peipei-group 是 relative，其内部的 .lock-btn 被覆盖成 static，
     // 于是 .lock-btn::after 的 inset 以整个陪陪区为基准，盖住了上面的输入框。
-    name: '命中区伪元素的宿主都有定位上下文（没有一个是 static）',
+    // 8.4.2 已把那套伪元素整体撤掉（实测它对别的字段根本没生效），但这条守卫保留：
+    // 将来谁再加「用伪元素扩可点范围」，宿主一旦是 static 就会立刻红。
+    name: '若有伪元素扩可点范围，其宿主必须有定位上下文（不得 static）',
     test: (src) => staticHostsWithInsetAfter(src).length === 0,
+    // 人为造一个「宿主 static + 伪元素 inset」的组合，断言必须能抓住
+    break: (src) => src.replace(
+      '</style>',
+      '.probe-static::after { content: ""; position: absolute; inset: -9px; }\n .probe-static { position: static; }\n</style>'
+    )
+  },
+  {
+    name: '陪陪区锁定按钮保留自身定位上下文（防止伪元素重现时再盖住输入框）',
+    test: (src) => {
+      const body = stripCssComments(ruleBody(src, '.input-group.peipei-group > .lock-btn') || '');
+      return /position:\s*relative/.test(body);
+    },
     break: (src) => src.replace(
       /(\.input-group\.peipei-group > \.lock-btn \{(?:\s*\/\*[\s\S]*?\*\/)*\s*)position: relative;/,
       '$1position: static;'
     )
   },
   {
-    name: '陪陪区锁定按钮：自身定位 + 只纵向扩命中区（不压相邻按钮）',
-    test: (src) => {
-      const body = stripCssComments(ruleBody(src, '.input-group.peipei-group > .lock-btn') || '');
-      const after = ruleBody(src, '.input-group.peipei-group > .lock-btn::after') || '';
-      return /position:\s*relative/.test(body) && /inset:\s*-6px\s+0/.test(after);
-    },
-    break: (src) => src.replace(
-      /\.input-group\.peipei-group > \.lock-btn::after \{[^}]*\}/,
-      '.input-group.peipei-group > .lock-btn::after { content: none; }'
-    )
+    name: '点空白结束输入态：处理器已实现并挂上初始化',
+    test: (src) => /initTapToDismiss\(\)\s*\{/.test(src)
+      && /this\.initTapToDismiss\(\);/.test(src)
+      && /document,\s*'pointerdown'/.test(src),
+    break: (src) => src.replace('this.initTapToDismiss();', '')
+  },
+  {
+    name: '点空白结束输入态：落在可交互元素上不打断正常的焦点转移',
+    test: (src) => /const INTERACTIVE = \[/.test(src)
+      && /if \(target\.closest\(INTERACTIVE\)\) return;/.test(src),
+    break: (src) => src.replace('if (target.closest(INTERACTIVE)) return;', '')
   },
   {
     name: 'DialogManager 有统一的名称补全方法',
@@ -358,6 +363,37 @@ const RULES = [
           if (!ok) unclickable.push(fid);
         }
         check(`${label} ${w}×${h}：每个输入框都点得进去`, unclickable.length === 0, unclickable.join(',') || `${fieldIds.length} 个全通`);
+
+        // 点空白结束输入态。桌面浏览器点 body 会「天然失焦」，掩盖这条能力的有无，
+        // 所以这里派发合成 pointerdown —— 合成事件不会触发浏览器原生失焦，
+        // 焦点是否离开输入框完全取决于我们的处理逻辑。
+        if (w <= 480) {
+          const tap = await page.evaluate(async () => {
+            const input = document.getElementById('totalPrice');
+            const blank = document.querySelector('.input-section');
+            if (!input || !blank) return { ok: false, reason: '缺少元素' };
+            input.focus();
+            await new Promise(r => setTimeout(r, 80));
+            if (document.activeElement !== input) return { ok: false, reason: '聚焦失败' };
+            blank.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+            await new Promise(r => setTimeout(r, 120));
+            return { ok: document.activeElement !== input, active: (document.activeElement || {}).id || 'body' };
+          });
+          check(`${label} ${w}×${h}：点空白能结束输入态`, tap.ok, tap.reason || `active=${tap.active}`);
+
+          const keep = await page.evaluate(async () => {
+            const input = document.getElementById('totalPrice');
+            const btn = document.getElementById('lockPaiDanBtn');
+            if (!input || !btn) return { ok: false, reason: '缺少元素' };
+            input.focus();
+            await new Promise(r => setTimeout(r, 80));
+            btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+            await new Promise(r => setTimeout(r, 120));
+            // 点在按钮上不允许被强行 blur —— 否则会打断「点按钮先失焦再触发」的原生顺序
+            return { ok: document.activeElement === input };
+          });
+          check(`${label} ${w}×${h}：点按钮不被误当作空白`, keep.ok, keep.reason || '');
+        }
 
         check(`${label} ${w}×${h}：无页面错误`, errs.length === 0, errs.join(';') || '0');
         await ctx.close();
